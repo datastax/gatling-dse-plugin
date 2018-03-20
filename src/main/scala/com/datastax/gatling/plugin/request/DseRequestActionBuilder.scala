@@ -17,8 +17,7 @@ class DseRequestActionBuilder(dseAttributes: DseAttributes) extends ActionBuilde
       ctx.coreComponents.statsEngine,
       dseComponents.dseProtocol,
       dseAttributes,
-      dseComponents.histogramLogger,
-      dseComponents.timeoutExecutor,
+      dseComponents.metricsLogger,
       dseComponents.dseRequestsRouter)
   }
 }

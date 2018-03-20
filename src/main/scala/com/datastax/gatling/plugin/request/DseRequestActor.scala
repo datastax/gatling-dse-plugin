@@ -18,8 +18,7 @@ case class RecordResult[T](t: Try[T], callback: FutureCallback[T])
 class DseRequestActor extends Actor with StrictLogging {
   override def receive: Actor.Receive = {
     case SendQuery(action, session) => action.sendQuery(session)
-    case r: RecordResult[ResultSet] => DseRequestActor.recordResult(r)
-    case r: RecordResult[GraphResultSet] => DseRequestActor.recordResult(r)
+    case r: RecordResult[Any] => DseRequestActor.recordResult(r)
   }
 }
 

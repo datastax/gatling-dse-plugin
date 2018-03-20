@@ -5,7 +5,7 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import com.datastax.driver.core._
 import com.datastax.driver.dse.graph.{GraphProtocol, GraphResultSet, GraphStatement}
-import com.datastax.gatling.plugin.metrics.HistogramLogger
+import com.datastax.gatling.plugin.metrics.{HistogramLogger, MetricsLogger}
 import com.datastax.gatling.plugin.request.DseAttributes
 import com.datastax.gatling.plugin.utils.ResponseTimers
 import com.google.common.util.concurrent.FutureCallback
@@ -23,7 +23,7 @@ import scala.util.Try
 
 abstract class DseResponseHandler(next: Action, session: Session, system: ActorSystem, statsEngine: StatsEngine,
                                   startTimes: (Long, Long), stmt: Any, dseAttributes: DseAttributes,
-                                  histogramLogger: HistogramLogger) extends StrictLogging {
+                                  metricsLogger: MetricsLogger) extends StrictLogging {
 
   private def removeNewLineChars(str: String) = str.replaceAll("""(\r|\n)""", " ")
 
@@ -31,12 +31,12 @@ abstract class DseResponseHandler(next: Action, session: Session, system: ActorS
     statsEngine.logResponse(session, dseAttributes.tag, respTimings, status, None, message, extraInfo)
 
   protected def writeSuccess(respTimers: ResponseTimers): Unit = {
-    histogramLogger.log(session, dseAttributes.tag, respTimers, ok = true)
+    metricsLogger.log(session, dseAttributes.tag, respTimers, ok = true)
     writeGatlingLog(OK, respTimers.responseTimings, None, List(respTimers.diffMicros, "", ""))
   }
 
   protected def writeCheckFailure(respTimers: ResponseTimers, checkRes: ((Session) => Session, Option[Failure]), resultSet: Any): Unit = {
-    histogramLogger.log(session, dseAttributes.tag, respTimers, ok = false)
+    metricsLogger.log(session, dseAttributes.tag, respTimers, ok = false)
 
     val logUuid = UUID.randomUUID.toString
     val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
@@ -61,7 +61,7 @@ abstract class DseResponseHandler(next: Action, session: Session, system: ActorS
 
   protected def writeFailure(respTimers: ResponseTimers, t: Throwable): Unit = {
 
-    histogramLogger.log(session, dseAttributes.tag, respTimers, ok = false)
+    metricsLogger.log(session, dseAttributes.tag, respTimers, ok = false)
 
     val logUuid = UUID.randomUUID.toString
     val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
@@ -114,8 +114,8 @@ abstract class DseResponseHandler(next: Action, session: Session, system: ActorS
 
 class GraphResponseHandler(next: Action, session: Session, system: ActorSystem, statsEngine: StatsEngine,
                            startTimes: (Long, Long), stmt: GraphStatement, dseAttributes: DseAttributes,
-                           histogramLogger: HistogramLogger)
-    extends DseResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, histogramLogger)
+                           metricsLogger: MetricsLogger)
+    extends DseResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, metricsLogger)
         with FutureCallback[GraphResultSet] {
 
   def onSuccess(resultSet: GraphResultSet): Unit = super.success(resultSet)
@@ -126,8 +126,8 @@ class GraphResponseHandler(next: Action, session: Session, system: ActorSystem, 
 
 class CqlResponseHandler(next: Action, session: Session, system: ActorSystem, statsEngine: StatsEngine,
                          startTimes: (Long, Long), stmt: Statement, dseAttributes: DseAttributes,
-                         histogramLogger: HistogramLogger)
-    extends DseResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, histogramLogger)
+                         metricsLogger: MetricsLogger)
+    extends DseResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, metricsLogger)
         with FutureCallback[ResultSet] {
 
   def onSuccess(resultSet: ResultSet): Unit = super.success(resultSet)

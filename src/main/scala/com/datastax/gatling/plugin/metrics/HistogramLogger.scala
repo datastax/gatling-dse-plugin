@@ -1,54 +1,36 @@
 package com.datastax.gatling.plugin.metrics
 
 import java.io.{FileOutputStream, PrintStream}
+import java.nio.file.Paths
+import java.util.Collections
 import java.util.concurrent.{ConcurrentSkipListMap, TimeUnit}
 
-import akka.Done
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.actor.ActorSystem
 import com.datastax.gatling.plugin.utils.ResponseTimers
 import com.fasterxml.jackson.databind.{ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.google.common.util.concurrent.FutureCallback
-import com.typesafe.scalalogging.{LazyLogging, StrictLogging}
+import com.typesafe.scalalogging.LazyLogging
 import io.gatling.core.Predef._
 import io.gatling.core.session.Session
 import org.HdrHistogram._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContextExecutor, ExecutionException}
 import scala.reflect.io.File
-import scala.util.{Failure, Success, Try}
 
-class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends MetricsLogger with LazyLogging {
+class HistogramLogger(startEpoch: Long) extends LazyLogging with MetricsLogger {
+  protected val simName: String = configuration.core.simulationClass.get.split("\\.").last
+  protected val histogramLogConfig: HistogramLogConfig = HistogramLogConfig.fromConfig()
 
-  val resultsRecorder: ActorRef = actorSystem.actorOf(Props[DriverResultRecorder])
-
-  implicit def asFiniteDuration(d: java.time.Duration): FiniteDuration = {
-    scala.concurrent.duration.Duration.fromNanos(d.toNanos)
-  }
-
-  protected final val metricType = "hgrm"
-
-  protected val histogramLogConfig: HistogramLogConfig = HistogramLogConfig(
-    enabled = getMetricConf(metricType).getBoolean("enabled"),
-    directory = getMetricConf(metricType).getString("directory"),
-    logTypes = getMetricConf(metricType).getStringList("logTypes").asScala.toList,
-    logWriterWarmUp = getMetricConf(metricType).getDuration("logWriter.warmUp"),
-    logWriterDelay = getMetricConf(metricType).getDuration("logWriter.delay"),
-    logWriterInterval = getMetricConf(metricType).getDuration("logWriter.interval"),
-    globalHighest = getMetricConf(metricType).getDuration("globalHgrm.highestTrackableValue").toNanos,
-    globalRes = getMetricConf(metricType).getInt("globalHgrm.resolution"),
-    intervalHighest = getMetricConf(metricType).getDuration("intervalHgrm.highestTrackableValue"),
-    intervalRes = getMetricConf(metricType).getInt("intervalHgrm.resolution"),
-    groupLogsEnabled = getMetricConf(metricType).getBoolean("groupLogsEnabled")
-  )
-
-  private final val baseDir = getDirPath(
+  private final val baseDir: String = Paths.get(
     configuration.core.directory.results,
-    sanitizeString(simName).toLowerCase + "-" + startEpoch,
-    histogramLogConfig.directory)
+    MetricsLogger.sanitizeString(simName).toLowerCase + "-" + startEpoch,
+    histogramLogConfig.directory).toString
+
+  private val sanitizedGroups = new ConcurrentSkipListMap[String, String]()
+  private val sanitizedTags = new ConcurrentSkipListMap[String, String]()
+  private val tags = Collections.newSetFromMap(new ConcurrentSkipListMap[String, java.lang.Boolean]())
+  private val groupTags = new ConcurrentSkipListMap[String, ArrayBuffer[String]]()
 
   private val globalHistogram = Map(
     "ok" -> new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes),
@@ -60,57 +42,28 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     "ko" -> new ConcurrentSkipListMap[String, AtomicHistogram]()
   )
 
-  private val perSecondTagHistograms = new ConcurrentSkipListMap[String,
-      ConcurrentSkipListMap[String, ConcurrentSkipListMap[Long, AtomicHistogram]]]()
-
-  private val perSecondTagHistogramWriters = new ConcurrentSkipListMap[String, ConcurrentSkipListMap[String, HistogramLogWriter]]()
-
   private val globalGroupHistograms = Map(
     "ok" -> new ConcurrentSkipListMap[String, AtomicHistogram](),
     "ko" -> new ConcurrentSkipListMap[String, AtomicHistogram]()
   )
 
-  private val perSecondGroupHistograms = new ConcurrentSkipListMap[String,
-      ConcurrentSkipListMap[String, ConcurrentSkipListMap[Long, AtomicHistogram]]]()
+  private val perSecondTagHistograms = new
+      ConcurrentSkipListMap[String, // For each tag name (request)
+        ConcurrentSkipListMap[String, // And for each status (OK/KO)
+          ConcurrentSkipListMap[Long, AtomicHistogram]]]() // And for each second, there is one histogram
 
-  private val perSecondGroupHistogramWriters = new ConcurrentSkipListMap[String, ConcurrentSkipListMap[String, HistogramLogWriter]]()
+  private val perSecondTagHistogramWriters = new
+      ConcurrentSkipListMap[String, // For each tag name (request)
+        ConcurrentSkipListMap[String, HistogramLogWriter]]() // And for each status (OK/KO), there is one file writer
 
-  private val scheduler = actorSystem.scheduler
+  private val perSecondGroupHistograms = new
+      ConcurrentSkipListMap[String, // For each group of requests
+        ConcurrentSkipListMap[String, // And for each status (OK/KO)
+          ConcurrentSkipListMap[Long, AtomicHistogram]]]() // And for each second, there is one histogram
 
-  if (histogramLogConfig.enabled) {
-    logger.info("HdrHistograms enabled, starting log flushing actor...")
-    logger.debug(s"HdrHistograms flush writer " +
-        s"delay: ${histogramLogConfig.logWriterDelay.toSeconds}s, " +
-        s"interval: ${histogramLogConfig.logWriterInterval.toSeconds}s")
-
-    val task = new Runnable {
-      def run() {
-        perSecondTagHistograms.keySet().asScala.foreach { tag =>
-          perSecondTagHistograms.get(tag).keySet().asScala.foreach(logIntervalTagHistogramsToFile(tag, _))
-        }
-
-        perSecondGroupHistograms.keySet().asScala.foreach { tag =>
-          perSecondGroupHistograms.get(tag).keySet().asScala.foreach(logIntervalGroupHistogramsToFile(tag, _))
-        }
-      }
-    }
-
-    implicit val executor: ExecutionContextExecutor = actorSystem.dispatcher
-
-    scheduler.schedule(
-      initialDelay = Duration(histogramLogConfig.logWriterDelay.toSeconds, TimeUnit.SECONDS),
-      interval = Duration(histogramLogConfig.logWriterInterval.toSeconds, TimeUnit.SECONDS),
-      runnable = task)
-
-  } else {
-    logger.debug("HDRHistogram logger is disabled, skipping initialization...")
-  }
-
-  /**
-    * This method eventually logs the response passed as argument by putting it into a dedicated actor mailbox.
-    * This is in order not to block the calling thread.
-    */
-  def logAsync[T](t: Try[T], c: FutureCallback[T]): Unit = resultsRecorder ! DriverResult(t, c)
+  private val perSecondGroupHistogramWriters = new
+      ConcurrentSkipListMap[String, // For each group of requests
+        ConcurrentSkipListMap[String, HistogramLogWriter]]() // And for each status (OK/KO), there is one file writer
 
   /**
     * Log Metrics
@@ -121,10 +74,6 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     * @param ok             OK/KO
     */
   def log(session: Session, tag: String, responseTimers: ResponseTimers, ok: Boolean): Unit = {
-    if (!histogramLogConfig.enabled) {
-      return
-    }
-
     val responseNanos = responseTimers.diffNanos
 
     if (System.currentTimeMillis() < (startEpoch + histogramLogConfig.logWriterWarmUp.toMillis)) {
@@ -176,12 +125,6 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     * Close the File buffers
     */
   def close(): Unit = {
-    actorSystem.stop(resultsRecorder)
-
-    if (!histogramLogConfig.enabled) {
-      return
-    }
-
     val endTime = System.currentTimeMillis
 
     logger.info("Closing down HdrHistogram Metrics...")
@@ -210,6 +153,16 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     writeJsonFile(baseDir, endTime)
   }
 
+  def writeNewData(): Unit = {
+    perSecondTagHistograms.keySet().asScala.foreach { tag =>
+      perSecondTagHistograms.get(tag).keySet().asScala.foreach(logIntervalTagHistogramsToFile(tag, _))
+    }
+
+    perSecondGroupHistograms.keySet().asScala.foreach { tag =>
+      perSecondGroupHistograms.get(tag).keySet().asScala.foreach(logIntervalGroupHistogramsToFile(tag, _))
+    }
+  }
+
   /**
     * write the metrics captured details to a json file for reporting purposes
     *
@@ -217,20 +170,18 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     * @param endTime endtime of the simulation running
     */
   private def writeJsonFile(baseDir: String, endTime: Long): Unit = {
-    val metricsJson = MetricsJson(
+    val metricsJson = new MetricsJson(
       simName = simName,
       groups = groupTags,
       tags = tags,
       startTime = startEpoch,
-      endTime = endTime
-    )
+      endTime = endTime)
 
     val objectMapper = new ObjectMapper()
     objectMapper.registerModule(DefaultScalaModule)
     objectMapper.enable(SerializationFeature.INDENT_OUTPUT)
     objectMapper.writeValue(File(baseDir + File.separator + "metrics.json").outputStream(), metricsJson)
   }
-
 
   private def initGlobalLogWriter(status: String): HistogramLogWriter = {
     val globalHgrm = baseDir + File.separator + "Global_" + status + ".hgrm"
@@ -240,7 +191,6 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     val log: PrintStream = new PrintStream(new FileOutputStream(globalHgrm), false)
     initHistogramLogWriter(log)
   }
-
 
   private def initTagLogWriter(tag: String, status: String, logType: String = "int"): HistogramLogWriter = {
 
@@ -257,7 +207,6 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     initHistogramLogWriter(log)
   }
 
-
   private def initGroupLogWriter(group: String, status: String, logType: String = "int"): HistogramLogWriter = {
 
     logger.trace("Base Dir: " + baseDir)
@@ -273,7 +222,6 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     initHistogramLogWriter(log)
   }
 
-
   private def initHistogramLogWriter(log: PrintStream) = {
     val histogramLogWriter: HistogramLogWriter = new HistogramLogWriter(log)
     histogramLogWriter.outputComment("[Logged with Gatling DSE Plugin v1.1.0]")
@@ -284,13 +232,11 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     histogramLogWriter.get
   }
 
-
   private def logIntervalTagHistogramsToFile(tag: String, status: String) {
     logger.trace(s"Writing $tag:$status histograms older than ${histogramLogConfig.logWriterDelay.toSeconds} seconds ago")
     logTagHistogramsToFileUntil(tag, status,
       TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis) - histogramLogConfig.logWriterDelay.toSeconds)
   }
-
 
   private def logTagHistogramsToFileUntil(tag: String, status: String, maxTimestamp: Long) {
     logger.trace(s"Writing $tag:$status histograms created before $maxTimestamp")
@@ -309,13 +255,11 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     logger.debug(s"Logged $cnt seconds for $tag to histogram file")
   }
 
-
   private def logIntervalGroupHistogramsToFile(group: String, status: String) {
     logger.trace(s"Writing $group histograms older than ${histogramLogConfig.logWriterDelay.toSeconds} seconds ago")
     logGroupHistogramsToFileUntil(group, status,
       TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis) - histogramLogConfig.logWriterDelay.toSeconds)
   }
-
 
   private def logGroupHistogramsToFileUntil(group: String, status: String, maxTimestamp: Long) {
     logger.trace(s"Writing $group histograms created before $maxTimestamp")
@@ -330,41 +274,36 @@ class HistogramLogger(actorSystem: ActorSystem, startEpoch: Long) extends Metric
     }
     logger.trace(s"Logged $cnt seconds for $group to histogram file")
   }
-}
 
-
-case class HistogramLogConfig(enabled: Boolean = false,
-                              directory: String = "hgrms",
-                              logTypes: List[String] = List("hgrm"),
-                              logWriterWarmUp: Duration = 500.milliseconds,
-                              logWriterDelay: Duration = 2.seconds,
-                              logWriterInterval: Duration = 1.seconds,
-                              intervalHighest: Duration = 1.minute,
-                              intervalRes: Int = 2,
-                              globalHighest: Long = 1.minute.toNanos,
-                              globalRes: Int = 2,
-                              groupLogsEnabled: Boolean = false
-                             )
-
-
-case class MetricsJson(simName: String,
-                       groups: java.util.Map[String, ArrayBuffer[String]],
-                       tags: java.util.Set[String],
-                       startTime: Long = 0,
-                       endTime: Long = 0
-                      )
-
-case class DriverResult[T](t: Try[T], callback: FutureCallback[T])
-
-class DriverResultRecorder extends Actor with StrictLogging {
-  override def receive: Receive = {
-    case DriverResult(t, callback) => t match {
-      case Success(resultSet) => callback.onSuccess(resultSet)
-      case Failure(exception: ExecutionException) => callback.onFailure(exception.getCause)
-      case Failure(exception: Exception) => callback.onFailure(exception)
-      case Failure(exception: Throwable) =>
-        logger.error("Caught an unexpected error, please file a ticket", exception)
-        callback.onFailure(exception)
+  private def getGroupId(session: Session): String = {
+    if (session.groupHierarchy.isEmpty) {
+      ""
+    } else {
+      sanitizedGroups.computeIfAbsent(session.groupHierarchy.mkString("_"), MetricsLogger.sanitizeString)
     }
   }
+
+  private def getTagId(groupId: String, tag: String): String = {
+    if (groupId.nonEmpty) {
+      if (!groupTags.containsKey(groupId)) {
+        groupTags.put(groupId, ArrayBuffer(tag))
+      } else {
+        if (!groupTags.get(groupId).contains(tag)) {
+          groupTags.get(groupId).append(tag)
+        }
+      }
+    }
+
+    if (tag.nonEmpty && !tags.contains(tag)) {
+      tags.add(tag)
+    }
+
+    sanitizedTags.computeIfAbsent(tag, MetricsLogger.sanitizeString)
+  }
 }
+
+class MetricsJson(val simName: String,
+                  val groups: java.util.Map[String, ArrayBuffer[String]],
+                  val tags: java.util.Set[String],
+                  val startTime: Long = 0,
+                  val endTime: Long = 0)

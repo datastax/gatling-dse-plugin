@@ -2,12 +2,11 @@ package com.datastax.gatling.plugin.request
 
 import java.lang.System.{currentTimeMillis, nanoTime}
 import java.util.UUID
-import java.util.concurrent.{ScheduledExecutorService, TimeUnit}
 
 import akka.actor.{ActorRef, ActorSystem}
 import com.datastax.driver.core.Statement
 import com.datastax.driver.dse.graph.GraphStatement
-import com.datastax.gatling.plugin.metrics.HistogramLogger
+import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.response.{CqlResponseHandler, GraphResponseHandler}
 import com.datastax.gatling.plugin.utils.ResponseTimers
 import com.datastax.gatling.plugin.{DseCqlStatement, DseGraphStatement, DseProtocol}
@@ -19,25 +18,36 @@ import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
 import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.Try
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
 
+/**
+  *
+  * This class is responsible for executing CQL or Graph queries asynchronously against the cluster.
+  *
+  * It first starts by delegating everything that is driver related to the DSE plugin router.  This is in order to
+  * free the Gatling `injector` actor as fast as possible.
+  *
+  * The plugin router (and its actors) execute the driver code in order to locate the best replica that should receive
+  * each query, through `DseSession.executeAsync()` or `DseSession.executeGraphAsync()`.  A driver I/O thread encodes
+  * the request and sends it over the wire.
+  *
+  * Once the response is received, a driver I/O thread (Netty) decodes the response into a Java Object.  It then
+  * completes the `Future` that was returned by `DseSession.executeAsync()`.
+  *
+  * Completing that future results in immediately delegating the latency recording work to the plugin router.  That
+  * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
+  * other Gatling data writers, like the console reporter.
+  */
 class DseRequestAction(val name: String,
                        val next: Action,
                        val system: ActorSystem,
                        val statsEngine: StatsEngine,
                        val protocol: DseProtocol,
                        val dseAttributes: DseAttributes,
-                       val histogramLogger: HistogramLogger,
-                       val timeoutEnforcer: ScheduledExecutorService,
+                       val metricsLogger: MetricsLogger,
                        val dseRouter: ActorRef)
   extends ExitableAction {
 
-  /**
-    * Execute the CQL or GraphStatement asynchronously against the cluster
-    *
-    * @param session Gatling Session
-    */
   def execute(session: Session): Unit = {
     dseRouter ! SendQuery(this, session)
   }
@@ -85,9 +95,11 @@ class DseRequestAction(val name: String,
             stmt.enableTracing
           }
 
-          wrapWithTimeout(
-            protocol.session.executeAsync(stmt),
-            new CqlResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, histogramLogger))
+          val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, metricsLogger)
+          implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
+          protocol.session
+            .executeAsync(stmt)
+            .onComplete(t => {dseRouter ! RecordResult(t, responseHandler)})
         case gStmt: GraphStatement =>
           // global options
           dseAttributes.cl.map(gStmt.setConsistencyLevel)
@@ -114,41 +126,16 @@ class DseRequestAction(val name: String,
             gStmt.setSystemQuery()
           }
 
-          wrapWithTimeout(
-            protocol.session.executeGraphAsync(gStmt),
-            new GraphResponseHandler(next, session, system, statsEngine, startTimes, gStmt, dseAttributes, histogramLogger))
+          val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, startTimes, gStmt, dseAttributes, metricsLogger)
+          implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
+          protocol.session
+            .executeGraphAsync(gStmt)
+            .onComplete(t => {dseRouter ! RecordResult(t, responseHandler)})
       }
     })
   }
 
-  /*
-  In previous versions of the plugin, logging the results in HDR histograms was made by the driver Netty I/O thread.
-  This was a bad practice as per the java-driver documentation.  Expensive operations should be delegated.
-  Since response timing logging involved lock, the Netty I/O thread was sometimes blocked.  Thus, it could not send new
-  queries or fetch response properly.
-
-  The new workflow is as follows:
-  1. A Gatling `user` actor sends a request to DSE using `.executeAsync()` or `.executeGraphAsync()`.
-  2. The driver's I/O thread (Netty) completes the `ResultSetFuture` that was previously returned.
-     While doing so, it transforms that Guava future into a Scala future, which is a very fast operation
-  3. That future is then handed off to a dedicated Akka actor which records the outcome (success/error) asynchronously
-     It has the effect of immediately freeing the Netty I/O thread, thus allowing it to process other queries/answers.
-
-  This code also includes a fail-safe timeout.  In long running fallout tests, several queries never completed, even
-  with a timeout.  That issue has not been diagnosed yet.  To work around it, now each query is monitored and killed
-  after 1 minute.  That timeout is hard coded for now.
-
-  TODO Make the fail-safe timeout configurable
-  */
-  private def wrapWithTimeout[T](futureResult: ListenableFuture[T], responseHandler: FutureCallback[T]): Unit = {
-    implicit val executionContext: ExecutionContext = DseRequestAction.sameThreadExecutionContext
-    Futures
-      .withTimeout(futureResult, 60, TimeUnit.SECONDS, timeoutEnforcer)
-      .onComplete((t: Try[T]) => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
-//      .onComplete((t: Try[T]) => dseRouter ! RecordResult(t, responseHandler))
-  }
-
-  private implicit def guavaFutureToScalaFuture[T](guavaFuture: ListenableFuture[T]): Future[T] = {
+  private implicit def toScalaFuture[T](guavaFuture: ListenableFuture[T]): Future[T] = {
     val scalaPromise = Promise[T]()
     Futures.addCallback(guavaFuture,
       new FutureCallback[T] {
@@ -158,8 +145,4 @@ class DseRequestAction(val name: String,
       })
     scalaPromise.future
   }
-}
-
-object DseRequestAction {
-  def sameThreadExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
 }
