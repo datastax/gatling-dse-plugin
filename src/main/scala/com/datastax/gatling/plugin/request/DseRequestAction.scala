@@ -4,9 +4,9 @@ import java.lang.System.{currentTimeMillis, nanoTime}
 import java.util.UUID
 import java.util.concurrent.{ScheduledExecutorService, TimeUnit}
 
-import akka.actor.ActorSystem
-import com.datastax.driver.core.{ResultSet, Statement}
-import com.datastax.driver.dse.graph.{GraphResultSet, GraphStatement}
+import akka.actor.{ActorRef, ActorSystem}
+import com.datastax.driver.core.Statement
+import com.datastax.driver.dse.graph.GraphStatement
 import com.datastax.gatling.plugin.metrics.HistogramLogger
 import com.datastax.gatling.plugin.response.{CqlResponseHandler, GraphResponseHandler}
 import com.datastax.gatling.plugin.utils.ResponseTimers
@@ -22,9 +22,16 @@ import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
-class DseRequestAction(val name: String, val next: Action, val system: ActorSystem,
-                       val statsEngine: StatsEngine, protocol: DseProtocol, dseAttributes: DseAttributes,
-                       histogramLogger: HistogramLogger, timeoutEnforcer: ScheduledExecutorService) extends ExitableAction {
+class DseRequestAction(val name: String,
+                       val next: Action,
+                       val system: ActorSystem,
+                       val statsEngine: StatsEngine,
+                       val protocol: DseProtocol,
+                       val dseAttributes: DseAttributes,
+                       val histogramLogger: HistogramLogger,
+                       val timeoutEnforcer: ScheduledExecutorService,
+                       val dseRouter: ActorRef)
+  extends ExitableAction {
 
   /**
     * Execute the CQL or GraphStatement asynchronously against the cluster
@@ -32,7 +39,10 @@ class DseRequestAction(val name: String, val next: Action, val system: ActorSyst
     * @param session Gatling Session
     */
   def execute(session: Session): Unit = {
+    dseRouter ! SendQuery(this, session)
+  }
 
+  def sendQuery(session: Session): Unit = {
     val stmt: Validation[Any] = {
       dseAttributes.statement match {
         case cql: DseCqlStatement => cql(session)
@@ -134,7 +144,8 @@ class DseRequestAction(val name: String, val next: Action, val system: ActorSyst
     implicit val executionContext: ExecutionContext = DseRequestAction.sameThreadExecutionContext
     Futures
       .withTimeout(futureResult, 60, TimeUnit.SECONDS, timeoutEnforcer)
-      .onComplete((t: Try[T]) => histogramLogger.logAsync(t, responseHandler))
+      .onComplete((t: Try[T]) => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
+//      .onComplete((t: Try[T]) => dseRouter ! RecordResult(t, responseHandler))
   }
 
   private implicit def guavaFutureToScalaFuture[T](guavaFuture: ListenableFuture[T]): Future[T] = {

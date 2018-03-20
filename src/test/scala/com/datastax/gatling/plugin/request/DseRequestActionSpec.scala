@@ -2,7 +2,8 @@ package com.datastax.gatling.plugin.request
 
 import java.util.concurrent.Executors
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, Props}
+import akka.testkit.TestKitBase
 import com.datastax.driver.core._
 import com.datastax.driver.core.exceptions.DriverException
 import com.datastax.driver.core.policies.RetryPolicy
@@ -21,8 +22,8 @@ import io.gatling.core.session.Session
 import org.easymock.EasyMock
 import org.easymock.EasyMock._
 
-class DseRequestActionSpec extends BaseSpec {
-
+class DseRequestActionSpec extends BaseSpec with TestKitBase {
+  implicit lazy val system = ActorSystem()
   val gatlingTestConfig = GatlingConfiguration.loadForTest()
   val mockDseSession = mock[DseSession]
   val mockDseCqlStatement = mock[DseCqlStatement]
@@ -44,7 +45,7 @@ class DseRequestActionSpec extends BaseSpec {
 
   def getTarget(dseAttributes: DseAttributes): DseRequestAction = {
     new DseRequestAction("some-name", coreComponents.exit, mockActorSystem, coreComponents.statsEngine,
-      DseProtocol(mockDseSession), dseAttributes, mockHistogramLogger, timeoutEnforcer
+      DseProtocol(mockDseSession), dseAttributes, mockHistogramLogger, timeoutEnforcer, system.actorOf(Props[DseRequestActor])
     )
   }
 
@@ -54,6 +55,7 @@ class DseRequestActionSpec extends BaseSpec {
 
   override protected def afterAll(): Unit = {
     timeoutEnforcer.shutdown()
+    shutdown(system)
   }
 
   describe("CQL") {
@@ -73,7 +75,7 @@ class DseRequestActionSpec extends BaseSpec {
       }
 
       whenExecuting(mockDseCqlStatement, mockDseSession) {
-        getTarget(cqlAttributes).execute(gatlingSession)
+        getTarget(cqlAttributes).sendQuery(gatlingSession)
       }
 
       val capturedStatement = statementCapture.getValue
@@ -117,7 +119,7 @@ class DseRequestActionSpec extends BaseSpec {
       }
 
       whenExecuting(mockDseCqlStatement, mockDseSession) {
-        getTarget(cqlAttributes).execute(gatlingSession)
+        getTarget(cqlAttributes).sendQuery(gatlingSession)
       }
 
       val capturedStatement = statementCapture.getValue
@@ -174,7 +176,7 @@ class DseRequestActionSpec extends BaseSpec {
       }
 
       whenExecuting(mockDseGraphStatement, mockDseSession) {
-        getTarget(graphAttributes).execute(gatlingSession)
+        getTarget(graphAttributes).sendQuery(gatlingSession)
       }
 
       val capturedStatement = statementCapture.getValue
@@ -210,7 +212,7 @@ class DseRequestActionSpec extends BaseSpec {
       }
 
       whenExecuting(mockDseGraphStatement, mockDseSession) {
-        getTarget(graphAttributes).execute(gatlingSession)
+        getTarget(graphAttributes).sendQuery(gatlingSession)
       }
 
       val capturedStatement = statementCapture.getValue
@@ -246,7 +248,6 @@ class CustomRetryPolicy(val readAttempts: Int, val writeAttempts: Int, val unava
   }
 
   override def close() = {
-
   }
 }
 
