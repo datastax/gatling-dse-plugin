@@ -1,5 +1,9 @@
 package com.datastax.gatling.plugin.metrics
 
+import java.util
+import java.util.Collections
+import java.util.concurrent.{ConcurrentMap, ConcurrentSkipListMap}
+
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
 import io.gatling.core.Predef._
@@ -14,18 +18,18 @@ trait MetricsLogger extends LazyLogging {
 
   protected val simName: String = configuration.core.simulationClass.get.split("\\.").last
 
-  private val sanitizedGroups = collection.mutable.Map[String, String]()
+  private val sanitizedGroups: ConcurrentMap[String, String] = new ConcurrentSkipListMap[String, String]()
 
-  private val sanitizedTags = collection.mutable.Map[String, String]()
+  private val sanitizedTags: ConcurrentMap[String, String] = new ConcurrentSkipListMap[String, String]()
 
   protected val config: Config = ConfigFactory.load().withFallback(dsePluginConf)
-      .withFallback(configuration.config)
+    .withFallback(configuration.config)
 
   protected val metricsConfBase: String = "metrics."
 
-  protected var tags: Set[String] = Set[String]()
+  protected val tags: util.Set[String] = Collections.newSetFromMap(new ConcurrentSkipListMap[String, java.lang.Boolean]())
 
-  protected var groupTags: Map[String, ArrayBuffer[String]] = Map[String, ArrayBuffer[String]]()
+  protected val groupTags: ConcurrentMap[String, ArrayBuffer[String]] = new ConcurrentSkipListMap[String, ArrayBuffer[String]]()
 
   protected def getDirPath(dirs: String*): String = {
     dirs.mkString(File.separator)
@@ -42,29 +46,28 @@ trait MetricsLogger extends LazyLogging {
 
   protected def getGroupId(session: Session): String = {
     if (session.groupHierarchy.isEmpty) {
-      return ""
+      ""
+    } else {
+      sanitizedGroups.computeIfAbsent(session.groupHierarchy.mkString("_"), sanitizeString)
     }
-    val groupConcat = session.groupHierarchy.mkString("_")
-    sanitizedGroups.getOrElseUpdate(groupConcat, sanitizeString(groupConcat))
   }
 
   protected def getTagId(groupId: String, tag: String): String = {
     if (groupId.nonEmpty) {
-      if (!groupTags.contains(groupId)) {
-        groupTags += (groupId -> ArrayBuffer(tag))
+      if (!groupTags.containsKey(groupId)) {
+        groupTags.put(groupId, ArrayBuffer(tag))
       } else {
-        if (!groupTags(groupId).get.contains(tag)) {
-          groupTags(groupId).get.append(tag)
+        if (!groupTags.get(groupId).contains(tag)) {
+          groupTags.get(groupId).append(tag)
         }
       }
     }
 
     if (tag.nonEmpty && !tags.contains(tag)) {
-      tags += tag
+      tags.add(tag)
     }
 
-    sanitizedTags.getOrElseUpdate(tag, sanitizeString(tag))
+    sanitizedTags.computeIfAbsent(tag, sanitizeString)
   }
-
 }
 

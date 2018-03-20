@@ -348,8 +348,8 @@ case class HistogramLogConfig(enabled: Boolean = false,
 
 
 case class MetricsJson(simName: String,
-                       groups: Map[String, ArrayBuffer[String]],
-                       tags: Set[String],
+                       groups: java.util.Map[String, ArrayBuffer[String]],
+                       tags: java.util.Set[String],
                        startTime: Long = 0,
                        endTime: Long = 0
                       )
