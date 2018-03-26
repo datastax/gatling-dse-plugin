@@ -1,0 +1,1 @@
+# gatling-dse-plugin
