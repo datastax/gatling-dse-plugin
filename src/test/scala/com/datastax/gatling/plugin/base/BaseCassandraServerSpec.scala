@@ -1,5 +1,7 @@
 package com.datastax.gatling.plugin.base
 
+import java.nio.file.Files
+
 import com.datastax.driver.dse.DseSession
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 
@@ -7,17 +9,7 @@ import org.cassandraunit.utils.EmbeddedCassandraServerHelper
   * Used for Specs that require a running Cassandra instance to run
   */
 class BaseCassandraServerSpec extends BaseSpec {
-
-  private val cassandraBaseDir = "./build/cassandraUnit/"
-
-  // Create Embedded Cassandra Server to run queries against
-  if (EmbeddedCassandraServerHelper.getSession == null) {
-    //    println("Starting embedded Cassandra instance...")
-    EmbeddedCassandraServerHelper.startEmbeddedCassandra("cassandra.yaml", cassandraBaseDir, 30000L)
-  }
-
-  protected val dseSession: DseSession = GatlingDseSession.getSession
-
+  protected val dseSession: DseSession = BaseCassandraServerSpec.dseSession
 
   protected def cleanCassandra(keyspace: String = ""): Unit = {
     if (keyspace.isEmpty) {
@@ -50,6 +42,15 @@ class BaseCassandraServerSpec extends BaseSpec {
         $columns
       );""").wasApplied()
   }
+}
 
+object BaseCassandraServerSpec {
+  if (EmbeddedCassandraServerHelper.getSession == null) {
+    EmbeddedCassandraServerHelper.startEmbeddedCassandra(
+      "cassandra.yaml",
+      Files.createTempDirectory("gatling-dse-plugin.").toString,
+      30000L)
+  }
 
+  private val dseSession: DseSession = GatlingDseSession.getSession
 }
