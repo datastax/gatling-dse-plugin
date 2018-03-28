@@ -1,0 +1,16 @@
+package com.datastax.gatling.plugin.checks
+
+import com.datastax.gatling.plugin.response.DseResponse
+import io.gatling.commons.validation.SuccessWrapper
+import io.gatling.core.check._
+
+object DseCheckBuilders {
+
+  private def responseExtender(): Extender[DseCheck, DseResponse] = {
+    (wrapped: Check[DseResponse]) => DseCheck(wrapped)
+  }
+
+  val ResponseExtender: Extender[DseCheck, DseResponse] = responseExtender()
+
+  val PassThroughResponsePreparer: Preparer[DseResponse, DseResponse] = (r: DseResponse) => r.success
+}
