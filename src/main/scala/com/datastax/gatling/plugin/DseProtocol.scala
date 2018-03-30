@@ -84,9 +84,7 @@ object DseComponents {
         RoundRobinPool(Runtime.getRuntime.availableProcessors())
           .props(Props[DseRequestActor]), "dse-requests-router")
 
-      // The histogram logger need to be explicitly closed for global histograms to be written
-      // Previously, clients had to include an `after { HistogramLogger.close() }` call in every simulation
-      // This takes care of shutting down the logger after Akka has shut down all the other actors
+      // Create a single results recorder per run
       val metricsLogger = MetricsLogger.newMetricsLogger(system, System.currentTimeMillis())
 
       // Create and cache the shared components for this actor system
