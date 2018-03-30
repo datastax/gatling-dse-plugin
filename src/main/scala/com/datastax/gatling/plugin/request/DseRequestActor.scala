@@ -1,0 +1,36 @@
+package com.datastax.gatling.plugin.request
+
+
+import akka.actor.Actor
+import com.datastax.driver.core.ResultSet
+import com.datastax.driver.dse.graph.GraphResultSet
+import com.google.common.util.concurrent.FutureCallback
+import com.typesafe.scalalogging.StrictLogging
+import io.gatling.core.session.Session
+
+import scala.concurrent.ExecutionException
+import scala.util.{Failure, Success, Try}
+
+case class SendQuery(dseRequestAction: DseRequestAction, session: Session)
+
+case class RecordResult[T](t: Try[T], callback: FutureCallback[T])
+
+class DseRequestActor extends Actor with StrictLogging {
+  override def receive: Actor.Receive = {
+    case SendQuery(action, session) => action.sendQuery(session)
+    case r: RecordResult[Any] => DseRequestActor.recordResult(r)
+  }
+}
+
+object DseRequestActor extends StrictLogging {
+  def recordResult[T](result: RecordResult[T]): Unit = result match {
+    case RecordResult(t, callback) => t match {
+      case Success(resultSet) => callback.onSuccess(resultSet)
+      case Failure(exception: ExecutionException) => callback.onFailure(exception.getCause)
+      case Failure(exception: Exception) => callback.onFailure(exception)
+      case Failure(exception: Throwable) =>
+        logger.error("Caught an unexpected error, please file a ticket", exception)
+        callback.onFailure(exception)
+    }
+  }
+}

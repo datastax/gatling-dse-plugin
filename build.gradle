@@ -49,6 +49,8 @@ dependencies {
     testCompile group: 'org.easymock', name: 'easymock', version: '3.5'
     testCompile group: "org.cassandraunit", name: "cassandra-unit", version: "3.3.0.2"
     testCompile group: 'org.pegdown', name: 'pegdown', version: '1.6.0'
+
+    testCompile group: 'com.typesafe.akka', name: "akka-testkit_${scalaVersion}", version: '2.5.11'
 }
 
 task wrapper(type: Wrapper) {

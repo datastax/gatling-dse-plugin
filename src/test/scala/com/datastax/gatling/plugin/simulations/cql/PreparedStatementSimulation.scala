@@ -48,7 +48,7 @@ class PreparedStatementSimulation extends BaseCqlSimulation {
       .withParams(List("id", "str"))
 
 
-  val scnPassed = scenario("PreparedStatement")
+  val scnPassed = scenario("ABCPreparedStatement")
       .feed(feeder)
       .exec(insertCql
           .check(exhausted is true)
