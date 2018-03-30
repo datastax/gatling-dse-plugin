@@ -9,12 +9,18 @@ It allows for benchmarking Datastax Enterprise features, including DSE Graph Flu
 ### Requirements 
 
 - Java 1.8
-- Gradle 4.1+
+- SBT
 - Gatling 2.3.0+
 
 ### Steps
 
-Run `./gradlew build`.  The plugin jar will be in the `build/libs/` directory.
+To build the plugin, run `sbt assembly`.  The plugin jar will be in the `target/scala-2.12/` directory.
+
+During development, start an SBT shell by just running `sbt` and keep it open.
+Then, run `compile` to compile the sources and `test` to execute all unit tests.
+
+Before checking in any new file, make sure the licence headers have been added by running `headerCheck` in the SBT shell.
+To add them automatically in all newly created file, run `headerCreate` in the SBT shell.
 
 ## Installation
 

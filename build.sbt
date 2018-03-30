@@ -43,7 +43,13 @@ headerLicense := Some(HeaderLicense.Custom(
 //
 Test / fork := true
 
-
+//
+// When building an uberjar, discard the dependencies duplicate files that are under META-INF
+//
+assemblyMergeStrategy in assembly := {
+  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  case x => MergeStrategy.first
+}
 
 publishTo := Some(Resolver.file("file", new File("/Users/plaporte/env/tmp/sbt")))
 releaseUseGlobalVersion := false
