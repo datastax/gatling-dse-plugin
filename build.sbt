@@ -1,14 +1,3 @@
-// WIP: get the credentials from other build systems to avoid yet another config file
-//import scala.xml._
-//val mavenSettings:Elem = XML.loadFile(new File(System.getProperty("user.home") + "/.m2/settings.xml"))
-//val artifactoryServer = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "artifactory" }
-//val artifactoryUsername = (artifactoryServer \ "username").text
-//val artifactoryPassword = (artifactoryServer \ "password").text
-
-// WIP: these URL are for DS repo, publishing is not yet added to the build
-//datastaxPublishingRepositoryUrl=http://datastax.artifactoryonline.com/datastax/datastax-releases-local
-//datastaxPublishingSnapshotRepositoryUrl=http://datastax.artifactoryonline.com/datastax/datastax-snapshots-local
-
 scalacOptions += "-target:jvm-1.8"
 
 libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"     % "1.5.1"
@@ -51,22 +40,29 @@ assemblyMergeStrategy in assembly := {
   case x => MergeStrategy.first
 }
 
-publishTo := Some(Resolver.file("file", new File("/Users/plaporte/env/tmp/sbt")))
+//
+// Releases should reuse credentials from other build systems
+//
+// For Jenkins triggered releases, find them in the file denoted by the environment variable MAVEN_USER_SETTINGS_FILE
+// If it is missing, find them in ~/.m2/settings.xml
+//
+val settingsXml = System.getProperty("MAVEN_USER_SETTINGS_FILE", System.getProperty("user.home") + "/.m2/settings.xml")
+val mavenSettings = scala.xml.XML.loadFile(settingsXml)
+val artifactory = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "artifactory" }
+publishTo := {
+  if (isSnapshot.value) {
+    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-snapshots-local;" +
+      "build.timestamp=" + new java.util.Date().getTime)
+  } else {
+    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-releases-local")
+  }
+}
+credentials += Credentials(
+  "Artifactory Realm",
+  "datastax.jfrog.io",
+  (artifactory \ "username").text,
+  (artifactory \ "password").text)
 releaseUseGlobalVersion := false
-import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
-
-releaseProcess := Seq[ReleaseStep](
-  checkSnapshotDependencies,
-  inquireVersions,
-  runClean,
-  runTest,
-  setReleaseVersion,
-  commitReleaseVersion,
-  tagRelease,
-  publishArtifacts,
-  setNextVersion,
-  commitNextVersion,
-)
 
 lazy val root = (project in file(".")).
   settings(
