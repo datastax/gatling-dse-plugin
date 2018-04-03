@@ -6,14 +6,14 @@
 
 package com.datastax.gatling.plugin
 
-import java.util.concurrent.{CompletableFuture, CompletionStage, Executors, ScheduledExecutorService}
+import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.Done
 import akka.actor.{ActorRef, ActorSystem, CoordinatedShutdown, Props}
 import akka.routing.RoundRobinPool
 import com.datastax.driver.dse.DseSession
 import com.datastax.gatling.plugin.metrics.MetricsLogger
-import com.datastax.gatling.plugin.request.DseRequestActor
+import com.datastax.gatling.plugin.request.{DseRequestActionBuilder, DseRequestActor}
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
@@ -25,25 +25,24 @@ import scala.collection.mutable
 /**
   * How things work:
   *
-  * - The user calls [[com.datastax.gatling.plugin.DseProtocolBuilder.session()]] explicitly.
+  * - The user calls [[DseProtocolBuilder.session()]] explicitly.
   * This happens when writing the `setUp(scenarios).protocol(...)` code.
   *
-  * - The case class method [[com.datastax.gatling.plugin.DseProtocolBuilder.build]] is called by Gatling.
-  * This creates an instance of [[com.datastax.gatling.plugin.DseProtocol]].
+  * - The case class method [[DseProtocolBuilder.build]] is called by Gatling.
+  * This creates an instance of [[DseProtocol]].
   *
-  * - The [[com.datastax.gatling.plugin.request.DseRequestActionBuilder]] class calls Gatling in order to get an
-  * instance of [[com.datastax.gatling.plugin.DseComponents]] from the [[com.datastax.gatling.plugin.DseProtocol.DseProtocolKey]].
+  * - The [[DseRequestActionBuilder]] class calls Gatling in order to get an
+  * instance of [[DseComponents]] from the [[DseProtocol.DseProtocolKey]].
   * This happens for *every scenario*.
   *
-  * - The plugin will create one instance of [[com.datastax.gatling.plugin.DseComponents]] per scenario, as requested,
+  * - The plugin will create one instance of [[DseComponents]] per scenario, as requested,
   * but will reuse the same set of shared components within a given [[akka.actor.ActorSystem]].  This ensures that we
   * do not create several routers or HDR Histogram writers, while making it possible to invoke Gatling multiple times
   * in the same JVM in integration tests.
   *
-  * - The [[com.datastax.gatling.plugin.DseComponents]] instance is passed in the plugin code to provide histogram
-  * logging features.
+  * - The [[DseComponents]] instance is passed in the plugin code to provide histogram logging features.
   *
-  * Multiple [[com.datastax.gatling.plugin.DseComponents]] may be instantiated, as there is one per scenario.  This can
+  * Multiple [[DseComponents]] may be instantiated, as there is one per scenario.  This can
   * happen, for instance, when there is a warm-up scenario and a real scenario. This is a consequence of Gatling
   * architecture, where each scenario has its own context, and therefore its own component registry.
   */

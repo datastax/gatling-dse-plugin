@@ -15,7 +15,7 @@ abstract class BaseSimulationSpec extends BaseCassandraServerSpec {
   val projectRootDir = new File(".").toPath
 
   val mavenResourcesDirectory = projectRootDir / "src" / "test" / "resources"
-  val mavenTargetDirectory = projectRootDir / "build"
+  val mavenTargetDirectory = projectRootDir / "target"
 
   val dataDirectory = mavenResourcesDirectory / "data"
   val bodiesDirectory = mavenResourcesDirectory / "bodies"
