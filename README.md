@@ -6,15 +6,7 @@ It allows for benchmarking Datastax Enterprise features, including DSE Graph Flu
 
 ## Building
 
-### Requirements 
-
-- Java 1.8
-- SBT
-- Gatling 2.3.0+
-
-### Steps
-
-To build the plugin, run `sbt assembly`.  The plugin jar will be in the `target/scala-2.12/` directory.
+To build this plugin, you will need Java 8 or later and SBT.
 
 During development, start an SBT shell by just running `sbt` and keep it open.
 Then, run `compile` to compile the sources and `test` to execute all unit tests.
@@ -22,14 +14,22 @@ Then, run `compile` to compile the sources and `test` to execute all unit tests.
 Before checking in any new file, make sure the licence headers have been added by running `headerCheck` in the SBT shell.
 To add them automatically in all newly created file, run `headerCreate` in the SBT shell.
 
+To build the plugin as an uberjar, run `sbt assembly`.
+The plugin jar will be in the `target/scala-2.12/` directory.
+
 ## Installation
 
-Get a release tarball.  Copy the plugin jar into Gatling `lib` folder.
+### With a Gatling bundle
+
+Build the plugin as an uberjar.
+Copy it into Gatling `lib` folder.
+
+### With other build systems
+
+You may also rely on Gatling Maven or Gradle plugins to launch your tests.
+In this case, include the plugin as a dependency in your project.
 
 ## More Information on Usage
-
-See [CHANGELOG.md](CHANGELOG.md) for release notes and updates.
-A stand-alone distribution that wraps the plugin is also available at https://github.com/datastax/gatling-dse-stress.
 
 Gatling documentation is available at the following locations:
 
