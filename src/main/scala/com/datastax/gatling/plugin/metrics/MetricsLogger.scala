@@ -25,7 +25,7 @@ object MetricsLogger extends StrictLogging {
   def newMetricsLogger(actorSystem: ActorSystem, startEpoch: Long): MetricsLogger = {
     val histogramLogConfig = HistogramLogConfig.fromConfig()
     if (histogramLogConfig.enabled) {
-      logger.info("HDRHistogram results recording is enabled")
+      logger.info("HDRHistogram results recording is enabled except for the first {}s of the run", histogramLogConfig.logWriterWarmUp.toSeconds)
       logger.info("Starting flushing actor with delay {}s and interval {}s",
         histogramLogConfig.logWriterDelay.toSeconds,
         histogramLogConfig.logWriterInterval.toSeconds)

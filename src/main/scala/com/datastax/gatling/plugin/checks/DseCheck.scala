@@ -19,9 +19,7 @@ import scala.collection.mutable
   * @param wrapped the underlying check
   */
 case class DseCheck(wrapped: Check[DseResponse]) extends Check[DseResponse] {
-
-  override def check(response: DseResponse, session: Session)(implicit cache: mutable.Map[Any, Any]): Validation[CheckResult] = {
+  override def check(response: DseResponse, session: Session)(
+      implicit cache: mutable.Map[Any, Any]): Validation[CheckResult] =
     wrapped.check(response, session)
-  }
 }
-

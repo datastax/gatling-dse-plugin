@@ -100,7 +100,7 @@ abstract class DseResponseHandler(next: Action, session: Session, system: ActorS
 
   def success(resultSet: Any): Unit = {
     val respTimers = ResponseTimers(startTimes)
-    val checkRes = Check.check(new DseResponse(resultSet, dseAttributes), session, dseAttributes.checks)
+    val checkRes = Check.check(new DseResponse(resultSet), session, dseAttributes.checks)
 
     if (checkRes._2.isEmpty) {
       writeSuccess(respTimers)

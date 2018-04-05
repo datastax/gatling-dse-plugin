@@ -11,361 +11,244 @@ import java.nio.ByteBuffer
 import com.datastax.driver.core._
 import com.datastax.driver.dse.graph._
 import com.datastax.gatling.plugin.checks.DseCheckBuilders._
-import com.datastax.gatling.plugin.request.DseAttributes
 import com.datastax.gatling.plugin.response.DseResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.check.{FindCheckBuilder, ValidatorCheckBuilder}
-import io.gatling.core.session.{Expression, ExpressionSuccessWrapper}
+import io.gatling.core.session.ExpressionSuccessWrapper
 
 import scala.collection.JavaConverters._
 
+object DseChecks {
 
-class DseResponseFindCheckBuilder[X](extractor: Expression[Extractor[DseResponse, X]])
+  //
+  // Metadata related checks
+  //
+  val executionInfo = new DseCheckBuilder[ExecutionInfo](
+    new GenericResultSetExtractor[ExecutionInfo](
+      "executionInfo",
+      r => r.getExecutionInfo,
+      gr => gr.getExecutionInfo))
+
+  val queriedHost = new DseCheckBuilder[Host](
+    new GenericResultSetExtractor[Host](
+      "queriedHost",
+      r => r.getExecutionInfo.getQueriedHost,
+      gr => gr.getExecutionInfo.getQueriedHost))
+
+  val achievedConsistencyLevel = new DseCheckBuilder[ConsistencyLevel](
+    new GenericResultSetExtractor[ConsistencyLevel](
+      "achievedConsistencyLevel",
+      r => r.getExecutionInfo.getAchievedConsistencyLevel,
+      gr => gr.getExecutionInfo.getAchievedConsistencyLevel))
+
+  val speculativeExecutions = new DseCheckBuilder[Int](
+    new GenericResultSetExtractor[Int](
+      "speculativeExecutions",
+      r => r.getExecutionInfo.getSpeculativeExecutions,
+      gr => gr.getExecutionInfo.getSpeculativeExecutions))
+
+  val pagingState = new DseCheckBuilder[PagingState](
+    new GenericResultSetExtractor[PagingState](
+      "pagingState",
+      r => r.getExecutionInfo.getPagingState,
+      gr => gr.getExecutionInfo.getPagingState))
+
+  val statement = new DseCheckBuilder[Statement](
+    new GenericResultSetExtractor[Statement](
+      "statement",
+      r => r.getExecutionInfo.getStatement,
+      gr => gr.getExecutionInfo.getStatement))
+
+  val triedHosts = new DseCheckBuilder[List[Host]](
+    new GenericResultSetExtractor[List[Host]](
+      "triedHosts",
+      r => r.getExecutionInfo.getTriedHosts.asScala.toList,
+      gr => gr.getExecutionInfo.getTriedHosts.asScala.toList))
+
+  val warnings = new DseCheckBuilder[List[String]](
+    new GenericResultSetExtractor[List[String]](
+      "warnings",
+      r => r.getExecutionInfo.getWarnings.asScala.toList,
+      gr => gr.getExecutionInfo.getWarnings.asScala.toList))
+
+  val successfulExecutionIndex = new DseCheckBuilder[Int](
+    new GenericResultSetExtractor[Int](
+      "successfulExecutionIndex",
+      r => r.getExecutionInfo.getSuccessfulExecutionIndex,
+      gr => gr.getExecutionInfo.getSuccessfulExecutionIndex))
+
+  val queryTrace = new DseCheckBuilder[QueryTrace](
+    new GenericResultSetExtractor[QueryTrace](
+      "queryTrace",
+      r => r.getExecutionInfo.getQueryTrace,
+      gr => gr.getExecutionInfo.getQueryTrace))
+
+  val incomingPayload = new DseCheckBuilder[Map[String, ByteBuffer]](
+    new GenericResultSetExtractor[Map[String, ByteBuffer]](
+      "incomingPayload",
+      r => r.getExecutionInfo.getIncomingPayload.asScala.toMap,
+      gr => gr.getExecutionInfo.getIncomingPayload.asScala.toMap))
+
+  val schemaInAgreement = new DseCheckBuilder[Boolean](
+    new GenericResultSetExtractor[Boolean](
+      "schemaInAgreement",
+      r => r.getExecutionInfo.isSchemaInAgreement,
+      gr => gr.getExecutionInfo.isSchemaInAgreement))
+
+  val applied = new DseCheckBuilder[Boolean](
+    new GenericResultSetExtractor[Boolean](
+      "applied",
+      r => r.wasApplied(),
+      gr => false)) // Graph does not support LWT
+
+  val exhausted = new DseCheckBuilder[Boolean](
+    new GenericResultSetExtractor[Boolean](
+      "exhausted",
+      r => r.isExhausted,
+      gr => gr.isExhausted))
+
+  //
+  // CQL/Graph data dependent checks
+  //
+  // Calling all() empties the ResultSet once the data is returned.
+  // A memoised data structure has to be used to allow multiple checks on all(),
+  // count() and one() to be usable
+  //
+  val rowCount = new DseCheckBuilder[Int](
+    new DseResponseExtractor[Int]("rowCount", r => r.getRowCount))
+
+  val allRows = new DseCheckBuilder[Seq[Row]](
+    new DseResponseExtractor[Seq[Row]]("allRows", r => r.getAllRows))
+
+  val oneRow = new DseCheckBuilder[Row](
+    new DseResponseExtractor[Row]("oneRows", r => r.getOneRow))
+
+  val allNodes = new DseCheckBuilder[Seq[GraphNode]](
+    new DseResponseExtractor[Seq[GraphNode]]("allNodes", r => r.getAllNodes))
+
+  val oneNode = new DseCheckBuilder[GraphNode](
+    new DseResponseExtractor[GraphNode]("oneNode", r => r.getOneNode))
+
+  //
+  // CQL/Graph generic checks
+  //
+  val resultSet = new DseCheckBuilder[ResultSet](
+    new CqlResultSetExtractor[ResultSet]("resultSet", r => r))
+
+  val graphResultSet = new DseCheckBuilder[GraphResultSet](
+    new GraphResultSetExtractor[GraphResultSet]("graphResultSet", r => r))
+
+  def edges(name: String): DseCheckBuilder[Seq[Edge]] =
+    new DseCheckBuilder[Seq[Edge]](
+      new GraphResultSetExtractor[Seq[Edge]](
+        "edges",
+        r =>
+          r.all()
+            .asScala
+            .filter(node => node.isEdge)
+            .map(node => node.get(name).asEdge())))
+
+  def vertices(name: String): DseCheckBuilder[Seq[Vertex]] =
+    new DseCheckBuilder[Seq[Vertex]](
+      new GraphResultSetExtractor[Seq[Vertex]](
+        "vertices",
+        r =>
+          r.all()
+            .asScala
+            .filter(node => node.isVertex)
+            .map(node => node.get(name).asVertex())))
+
+  def paths(name: String): DseCheckBuilder[Seq[Path]] =
+    new DseCheckBuilder[Seq[Path]](
+      new GraphResultSetExtractor[Seq[Path]](
+        "paths",
+        r => r.all().asScala.map(node => node.get(name).asPath())))
+
+  def properties(name: String): DseCheckBuilder[Seq[Property]] =
+    new DseCheckBuilder[Seq[Property]](
+      new GraphResultSetExtractor[Seq[Property]](
+        "properties",
+        r => r.all().asScala.map(node => node.get(name).asProperty())))
+
+  def vertexProperties(name: String): DseCheckBuilder[Seq[VertexProperty]] =
+    new DseCheckBuilder[Seq[VertexProperty]](
+      new GraphResultSetExtractor[Seq[VertexProperty]](
+        "vertexProperties",
+        r => r.all().asScala.map(node => node.get(name).asVertexProperty())))
+}
+
+/**
+  * Generic class that can extract data out of DSE result sets.
+  *
+  * The API of [[ResultSet]] and [[GraphResultSet]] is similar, but the classes
+  * do not share any common ancestor.  Therefore, two lambdas must be passed in
+  * order to extract information from one or the other, depending on the type of
+  * query that is issued.  In the vas majority of cases, they will be identical,
+  * except for the type they can be apply to.
+  *
+  * @param name                    the name of the extractor
+  * @param resultSetExtractor      the lambda that should be applied on
+  *                                ResultSets
+  * @param graphResultSetExtractor the lambda that should be applied on
+  *                                GraphResultSets
+  * @tparam X the type of data that is extracted
+  */
+private[checks] class GenericResultSetExtractor[X](
+    val name: String,
+    val resultSetExtractor: ResultSet => X,
+    val graphResultSetExtractor: GraphResultSet => X)
+    extends Extractor[DseResponse, X]
+    with SingleArity {
+  override def apply(response: DseResponse): Validation[Option[X]] =
+    response.resultSet match {
+      case r: ResultSet       => Some(resultSetExtractor.apply(r)).success
+      case gr: GraphResultSet => Some(graphResultSetExtractor.apply(gr)).success
+    }
+}
+
+private[checks] class CqlResultSetExtractor[X](
+    val name: String,
+    val extractor: ResultSet => X)
+    extends Extractor[DseResponse, X]
+    with SingleArity {
+  override def apply(response: DseResponse): Validation[Option[X]] =
+    response.resultSet match {
+      case r: ResultSet => Some(extractor.apply(r)).success
+      case gr: GraphResultSet =>
+        throw new UnsupportedOperationException(
+          s"Operation $name is not supported on Graph result sets")
+    }
+}
+
+private[checks] class GraphResultSetExtractor[X](
+    val name: String,
+    val extractor: GraphResultSet => X)
+    extends Extractor[DseResponse, X]
+    with SingleArity {
+  override def apply(response: DseResponse): Validation[Option[X]] =
+    response.resultSet match {
+      case r: ResultSet =>
+        throw new UnsupportedOperationException(
+          s"Operation $name is not supported on CQL result sets")
+      case gr: GraphResultSet => Some(extractor.apply(gr)).success
+    }
+}
+
+private[checks] class DseResponseExtractor[X](
+    val name: String,
+    val extractor: DseResponse => X)
+    extends Extractor[DseResponse, X]
+    with SingleArity {
+  override def apply(response: DseResponse): Validation[Option[X]] =
+    Some(extractor.apply(response)).success
+}
+
+private[checks] class DseCheckBuilder[X](extractor: Extractor[DseResponse, X])
     extends FindCheckBuilder[DseCheck, DseResponse, DseResponse, X] {
-
-  def find: ValidatorCheckBuilder[DseCheck, DseResponse, DseResponse, X] = {
-    ValidatorCheckBuilder(ResponseExtender, PassThroughResponsePreparer, extractor)
-  }
+  def find: ValidatorCheckBuilder[DseCheck, DseResponse, DseResponse, X] =
+    ValidatorCheckBuilder(
+      ResponseExtender,
+      PassThroughResponsePreparer,
+      extractor.expressionSuccess)
 }
-
-object DseCheckBuilder {
-
-  // Start Global Checks
-
-  protected val ExecutionInfoExtractor = new Extractor[DseResponse, ExecutionInfo] with SingleArity {
-    val name = "executionInfo"
-
-    def apply(response: DseResponse): Validation[Option[ExecutionInfo]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo).success
-      }
-    }
-  }.expressionSuccess
-
-  val ExecutionInfo = new DseResponseFindCheckBuilder[ExecutionInfo](ExecutionInfoExtractor)
-
-
-  protected val QueriedHostExtractor = new Extractor[DseResponse, Host] with SingleArity {
-    val name = "queriedHost"
-
-    def apply(response: DseResponse): Validation[Option[Host]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getQueriedHost).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getQueriedHost).success
-      }
-    }
-  }.expressionSuccess
-
-  val QueriedHost = new DseResponseFindCheckBuilder[Host](QueriedHostExtractor)
-
-
-  protected val AchievedConsistencyLevelExtractor = new Extractor[DseResponse, ConsistencyLevel] with SingleArity {
-    val name = "achievedConsistencyLevel"
-
-    def apply(response: DseResponse): Validation[Option[ConsistencyLevel]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getAchievedConsistencyLevel).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getAchievedConsistencyLevel).success
-      }
-    }
-  }.expressionSuccess
-
-  val AchievedConsistencyLevel = new DseResponseFindCheckBuilder[ConsistencyLevel](AchievedConsistencyLevelExtractor)
-
-
-  protected val SpeculativeExecutionsExtractor = new Extractor[DseResponse, Int] with SingleArity {
-    val name = "speculativeExecutions"
-
-    def apply(response: DseResponse): Validation[Option[Int]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getSpeculativeExecutions).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getSpeculativeExecutions).success
-      }
-    }
-  }.expressionSuccess
-
-  val SpeculativeExecutions = new DseResponseFindCheckBuilder[Int](SpeculativeExecutionsExtractor)
-
-
-  protected val PagingStateExtractor = new Extractor[DseResponse, PagingState] with SingleArity {
-    val name = "pagingState"
-
-    def apply(response: DseResponse): Validation[Option[PagingState]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getPagingState).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getPagingState).success
-      }
-    }
-  }.expressionSuccess
-
-  val PagingState = new DseResponseFindCheckBuilder[PagingState](PagingStateExtractor)
-
-
-  protected val GetStatementExtractor = new Extractor[DseResponse, Statement] with SingleArity {
-    val name = "pagingState"
-
-    def apply(response: DseResponse): Validation[Option[Statement]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getStatement).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getStatement).success
-      }
-    }
-  }.expressionSuccess
-
-  val GetStatement = new DseResponseFindCheckBuilder[Statement](GetStatementExtractor)
-
-
-  protected val TriedHostsExtractor = new Extractor[DseResponse, List[Host]] with SingleArity {
-    val name = "triedHosts"
-
-    def apply(response: DseResponse): Validation[Option[List[Host]]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getTriedHosts.asScala.toList).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getTriedHosts.asScala.toList).success
-      }
-    }
-  }.expressionSuccess
-
-  val TriedHosts = new DseResponseFindCheckBuilder[List[Host]](TriedHostsExtractor)
-
-
-  protected val WarningsExtractor = new Extractor[DseResponse, List[String]] with SingleArity {
-    val name = "warnings"
-
-    def apply(response: DseResponse): Validation[Option[List[String]]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getWarnings.asScala.toList).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getWarnings.asScala.toList).success
-      }
-    }
-  }.expressionSuccess
-
-  val Warnings = new DseResponseFindCheckBuilder[List[String]](WarningsExtractor)
-
-
-  protected val SuccessfulExecutionIndexExtractor = new Extractor[DseResponse, Int] with SingleArity {
-    val name = "successfulExecutionIndex"
-
-    def apply(response: DseResponse): Validation[Option[Int]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getSuccessfulExecutionIndex).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getSuccessfulExecutionIndex).success
-      }
-    }
-  }.expressionSuccess
-
-  val SuccessfulExecutionIndex = new DseResponseFindCheckBuilder[Int](SuccessfulExecutionIndexExtractor)
-
-
-  protected val QueryTraceExtractor = new Extractor[DseResponse, QueryTrace] with SingleArity {
-    val name = "queryTrace"
-
-    def apply(response: DseResponse): Validation[Option[QueryTrace]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getQueryTrace).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getQueryTrace).success
-      }
-    }
-  }.expressionSuccess
-
-  val QueryTrace = new DseResponseFindCheckBuilder[QueryTrace](QueryTraceExtractor)
-
-
-  protected val IncomingPayloadExtractor = new Extractor[DseResponse, Map[String, ByteBuffer]] with SingleArity {
-    val name = "incomingPayload"
-
-    def apply(response: DseResponse): Validation[Option[Map[String, ByteBuffer]]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.getIncomingPayload.asScala.toMap).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.getIncomingPayload.asScala.toMap).success
-      }
-    }
-  }.expressionSuccess
-
-  val IncomingPayload = new DseResponseFindCheckBuilder[Map[String, ByteBuffer]](IncomingPayloadExtractor)
-
-
-  protected val SchemaInAgreementExtractor = new Extractor[DseResponse, Boolean] with SingleArity {
-    val name = "schemaInAgreement"
-
-    def apply(response: DseResponse): Validation[Option[Boolean]] = {
-      response.resultSet match {
-        case rs: ResultSet => Some(rs.getExecutionInfo.isSchemaInAgreement).success
-        case gr: GraphResultSet => Some(gr.getExecutionInfo.isSchemaInAgreement).success
-      }
-    }
-  }.expressionSuccess
-
-  val SchemaInAgreement = new DseResponseFindCheckBuilder[Boolean](SchemaInAgreementExtractor)
-
-
-  protected val RowCountExtractor = new Extractor[DseResponse, Int] with SingleArity {
-    val name = "rowCount"
-
-    def apply(response: DseResponse): Validation[Option[Int]] = {
-      Some(response.getRowCount).success
-    }
-  }.expressionSuccess
-
-  val RowCount = new DseResponseFindCheckBuilder[Int](RowCountExtractor)
-
-
-  protected val AppliedExtractor = new Extractor[DseResponse, Boolean] with SingleArity {
-    val name = "applied"
-
-    def apply(response: DseResponse): Validation[Option[Boolean]] = {
-      Some(response.isApplied).success
-    }
-  }.expressionSuccess
-
-  val Applied = new DseResponseFindCheckBuilder[Boolean](AppliedExtractor)
-
-
-  protected val ExhaustedExtractor = new Extractor[DseResponse, Boolean] with SingleArity {
-    val name = "exhausted"
-
-    def apply(response: DseResponse): Validation[Option[Boolean]] = {
-      Some(response.isExhausted).success
-    }
-  }.expressionSuccess
-
-  val Exhausted = new DseResponseFindCheckBuilder[Boolean](ExhaustedExtractor)
-
-
-  protected val RequestAttributesExtractor = new Extractor[DseResponse, DseAttributes] with SingleArity {
-    val name = "requestAttributes"
-
-    def apply(response: DseResponse): Validation[Option[DseAttributes]] = {
-      Some(response.getDseAttributes).success
-    }
-  }.expressionSuccess
-
-  val RequestAttributes = new DseResponseFindCheckBuilder[DseAttributes](RequestAttributesExtractor)
-
-
-  // Start CQL only Checks
-
-  protected val ResultSetExtractor = new Extractor[DseResponse, ResultSet] with SingleArity {
-    val name = "resultSet"
-
-    def apply(response: DseResponse): Validation[Option[ResultSet]] = {
-      Some(response.getCqlResultSet).success
-    }
-  }.expressionSuccess
-
-  val ResultSet = new DseResponseFindCheckBuilder[ResultSet](ResultSetExtractor)
-
-
-  protected val AllRowsExtractor = new Extractor[DseResponse, Seq[Row]] with SingleArity {
-    val name = "allRows"
-
-    def apply(response: DseResponse): Validation[Option[Seq[Row]]] = {
-      Some(response.getAllRows).success
-    }
-  }.expressionSuccess
-
-  val AllRows = new DseResponseFindCheckBuilder[Seq[Row]](AllRowsExtractor)
-
-
-  protected val OneRowExtractor = new Extractor[DseResponse, Row] with SingleArity {
-    val name = "oneRow"
-
-    def apply(response: DseResponse): Validation[Option[Row]] = {
-      Some(response.getOneRow).success
-    }
-  }.expressionSuccess
-
-  val OneRow = new DseResponseFindCheckBuilder[Row](OneRowExtractor)
-
-  // Start Graph only Checks
-
-  protected val GraphResultSetExtractor = new Extractor[DseResponse, GraphResultSet] with SingleArity {
-    val name = "graphResultSet"
-
-    def apply(response: DseResponse): Validation[Option[GraphResultSet]] = {
-      Some(response.getGraphResultSet).success
-    }
-  }.expressionSuccess
-
-  val GraphResultSet = new DseResponseFindCheckBuilder[GraphResultSet](GraphResultSetExtractor)
-
-
-  protected val AllNodesExtractor = new Extractor[DseResponse, Seq[GraphNode]] with SingleArity {
-    val name = "allRows"
-
-    def apply(response: DseResponse): Validation[Option[Seq[GraphNode]]] = {
-      Some(response.getAllNodes).success
-    }
-  }.expressionSuccess
-
-  val AllNodes = new DseResponseFindCheckBuilder[Seq[GraphNode]](AllNodesExtractor)
-
-
-  protected val OneNodeExtractor = new Extractor[DseResponse, GraphNode] with SingleArity {
-    val name = "oneNode"
-
-    def apply(response: DseResponse): Validation[Option[GraphNode]] = {
-      Some(response.getOneNode).success
-    }
-  }.expressionSuccess
-
-  val OneNode = new DseResponseFindCheckBuilder[GraphNode](OneNodeExtractor)
-
-
-  protected def EdgesExtractor(column: String) = new Extractor[DseResponse, Seq[Edge]] with SingleArity {
-    val name = "edges"
-
-    def apply(response: DseResponse): Validation[Option[Seq[Edge]]] = {
-      Some(response.getEdges(column)).success
-    }
-  }.expressionSuccess
-
-  def Edges(column: String) = new DseResponseFindCheckBuilder[Seq[Edge]](EdgesExtractor(column))
-
-
-  protected def VertexesExtractor(column: String) = new Extractor[DseResponse, Seq[Vertex]] with SingleArity {
-    val name = "vertexes"
-
-    def apply(response: DseResponse): Validation[Option[Seq[Vertex]]] = {
-      Some(response.getVertexes(column)).success
-    }
-  }.expressionSuccess
-
-  def Vertexes(column: String) = new DseResponseFindCheckBuilder[Seq[Vertex]](VertexesExtractor(column))
-
-
-  protected def PathsExtractor(column: String) = new Extractor[DseResponse, Seq[Path]] with SingleArity {
-    val name = "paths"
-
-    def apply(response: DseResponse): Validation[Option[Seq[Path]]] = {
-      Some(response.getPaths(column)).success
-    }
-  }.expressionSuccess
-
-  def Paths(column: String) = new DseResponseFindCheckBuilder[Seq[Path]](PathsExtractor(column))
-
-
-  protected def PropertiesExtractor(column: String) = new Extractor[DseResponse, Seq[Property]] with SingleArity {
-    val name = "properties"
-
-    def apply(response: DseResponse): Validation[Some[Seq[Property]]] = {
-      Some(response.getProperties(column)).success
-    }
-  }.expressionSuccess
-
-  def Properties(column: String) = new DseResponseFindCheckBuilder[Seq[Property]](PropertiesExtractor(column))
-
-
-  protected def VertexPropertiesExtractor(column: String) = new Extractor[DseResponse, Seq[Property]] with SingleArity {
-    val name = "vertexProperties"
-
-    def apply(response: DseResponse): Validation[Some[Seq[Property]]] = {
-      Some(response.getVertexProperties(column)).success
-    }
-  }.expressionSuccess
-
-  def VertexProperties(column: String) = new DseResponseFindCheckBuilder[Seq[Property]](VertexPropertiesExtractor(column))
-}
-
