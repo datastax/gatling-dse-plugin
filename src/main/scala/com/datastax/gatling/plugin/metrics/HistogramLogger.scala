@@ -11,7 +11,6 @@ import java.nio.file.Paths
 import java.util.Collections
 import java.util.concurrent.{ConcurrentSkipListMap, TimeUnit}
 
-import akka.actor.ActorSystem
 import com.datastax.gatling.plugin.utils.ResponseTimers
 import com.fasterxml.jackson.databind.{ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
