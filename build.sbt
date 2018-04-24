@@ -46,7 +46,7 @@ assemblyMergeStrategy in assembly := {
 // For Jenkins triggered releases, find them in the file denoted by the environment variable MAVEN_USER_SETTINGS_FILE
 // If it is missing, find them in ~/.m2/settings.xml
 //
-val settingsXml = System.getProperty("MAVEN_USER_SETTINGS_FILE", System.getProperty("user.home") + "/.m2/settings.xml")
+val settingsXml = sys.env.getOrElse("MAVEN_USER_SETTINGS_FILE", System.getProperty("user.home") + "/.m2/settings.xml")
 val mavenSettings = scala.xml.XML.loadFile(settingsXml)
 val artifactory = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "artifactory" }
 publishTo := {
@@ -69,4 +69,8 @@ lazy val root = (project in file(".")).
     scalaVersion := "2.12.4",
     organization := "com.datastax.gatling.plugin",
     name         := "gatling-dse-plugin"
-  )
+  ).
+  settings(
+    addArtifact(
+      Artifact("gatling-dse-plugin", "assembly"),
+      sbtassembly.AssemblyKeys.assembly))
