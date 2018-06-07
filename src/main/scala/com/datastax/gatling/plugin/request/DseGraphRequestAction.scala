@@ -9,22 +9,22 @@ package com.datastax.gatling.plugin.request
 import java.lang.System.{currentTimeMillis, nanoTime}
 import java.util.UUID
 
+import scala.collection.JavaConverters._
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
+
 import akka.actor.{ActorRef, ActorSystem}
 import com.datastax.driver.core.Statement
 import com.datastax.driver.dse.graph.GraphStatement
+import com.datastax.gatling.plugin.{DseCqlStatement, DseGraphStatement, DseProtocol}
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.response.{CqlResponseHandler, GraphResponseHandler}
 import com.datastax.gatling.plugin.utils.ResponseTimers
-import com.datastax.gatling.plugin.{DseCqlStatement, DseGraphStatement, DseProtocol}
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture, MoreExecutors}
 import io.gatling.commons.stats.KO
 import io.gatling.commons.validation.Validation
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-
-import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
 
 /**
   *
@@ -44,28 +44,26 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Pro
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class DseRequestAction(val name: String,
-                       val next: Action,
-                       val system: ActorSystem,
-                       val statsEngine: StatsEngine,
-                       val protocol: DseProtocol,
-                       val dseAttributes: DseAttributes,
-                       val metricsLogger: MetricsLogger,
-                       val dseRouter: ActorRef)
+class DseGraphRequestAction(val name: String,
+                            val next: Action,
+                            val system: ActorSystem,
+                            val statsEngine: StatsEngine,
+                            val protocol: DseProtocol,
+                            val dseAttributes: DseGraphAttributes,
+                            val metricsLogger: MetricsLogger,
+                            val dseRouter: ActorRef)
   extends ExitableAction {
 
   def execute(session: Session): Unit = {
-    dseRouter ! SendQuery(this, session)
+    dseRouter ! SendGraphQuery(this, session)
   }
 
   def sendQuery(session: Session): Unit = {
-    val stmt: Validation[Any] = {
+    val stmt: Validation[GraphStatement] = {
       dseAttributes.statement match {
-        case cql: DseCqlStatement => cql(session)
-        case graph: DseGraphStatement => graph(session)
+        case graph: DseGraphStatement => graph.buildFromFeeders(session)
       }
     }
-
     stmt.onFailure(err => {
       val respTimings = ResponseTimers((nanoTime, currentTimeMillis))
       val logUuid = UUID.randomUUID.toString
@@ -78,35 +76,8 @@ class DseRequestAction(val name: String,
       next ! session.markAsFailed
     })
 
-    stmt.onSuccess({ stmt =>
+    stmt.onSuccess({ gStmt =>
       val startTimes = (nanoTime, currentTimeMillis)
-
-      stmt match {
-
-        case stmt: Statement =>
-          // global options
-          dseAttributes.cl.map(stmt.setConsistencyLevel)
-          dseAttributes.userOrRole.map(stmt.executingAs)
-          dseAttributes.readTimeout.map(stmt.setReadTimeoutMillis)
-          dseAttributes.idempotent.map(stmt.setIdempotent)
-          dseAttributes.defaultTimestamp.map(stmt.setDefaultTimestamp)
-
-          // CQL Only Options
-          dseAttributes.cqlOutGoingPayload.map(x => stmt.setOutgoingPayload(x.asJava))
-          dseAttributes.cqlSerialCl.map(stmt.setSerialConsistencyLevel)
-          dseAttributes.cqlRetryPolicy.map(stmt.setRetryPolicy)
-          dseAttributes.cqlFetchSize.map(stmt.setFetchSize)
-          dseAttributes.cqlPagingState.map(stmt.setPagingState)
-          if (dseAttributes.cqlEnableTrace.isDefined && dseAttributes.cqlEnableTrace.get) {
-            stmt.enableTracing
-          }
-
-          val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, metricsLogger)
-          implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
-          protocol.session
-            .executeAsync(stmt)
-            .onComplete(t => {dseRouter ! RecordResult(t, responseHandler)})
-        case gStmt: GraphStatement =>
           // global options
           dseAttributes.cl.map(gStmt.setConsistencyLevel)
           dseAttributes.defaultTimestamp.map(gStmt.setDefaultTimestamp)
@@ -115,8 +86,8 @@ class DseRequestAction(val name: String,
           dseAttributes.idempotent.map(gStmt.setIdempotent)
 
           // Graph only Options
-          dseAttributes.graphReadCL.map(gStmt.setGraphReadConsistencyLevel)
-          dseAttributes.graphWriteCL.map(gStmt.setGraphWriteConsistencyLevel)
+          dseAttributes.readCL.map(gStmt.setGraphReadConsistencyLevel)
+          dseAttributes.writeCL.map(gStmt.setGraphWriteConsistencyLevel)
           dseAttributes.graphLanguage.map(gStmt.setGraphLanguage)
           dseAttributes.graphName.map(gStmt.setGraphName)
           dseAttributes.graphSource.map(gStmt.setGraphSource)
@@ -128,7 +99,7 @@ class DseRequestAction(val name: String,
             }
           }
 
-          if (dseAttributes.graphSystemQuery.isDefined && dseAttributes.graphSystemQuery.get) {
+          if (dseAttributes.isSystemQuery.isDefined && dseAttributes.isSystemQuery.get) {
             gStmt.setSystemQuery()
           }
 
@@ -137,7 +108,6 @@ class DseRequestAction(val name: String,
           protocol.session
             .executeGraphAsync(gStmt)
             .onComplete(t => {dseRouter ! RecordResult(t, responseHandler)})
-      }
     })
   }
 

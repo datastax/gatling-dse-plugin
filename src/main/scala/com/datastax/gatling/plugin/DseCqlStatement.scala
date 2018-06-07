@@ -18,43 +18,42 @@ import scala.collection.JavaConverters._
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
 
-trait DseCqlStatement {
-  def apply(gatlingSession: Session): Validation[Statement]
+trait DseCqlStatement extends DseStatement[Statement] {
+  def buildFromFeeders(session: Session): Validation[Statement]
 }
 
 
 /**
-  * Apply Simple CQL Query String
+  * Simple CQL Statement from a String
   *
-  * @param string CQL Query String
+  * @param string the CQL Query to execute
   */
 case class DseCqlStringStatement(string: Expression[String]) extends DseCqlStatement {
-  def apply(gatlingSession: Session): Validation[SimpleStatement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[SimpleStatement] = {
     string(gatlingSession).flatMap(stmt => new SimpleStatement(stmt).success)
   }
 }
 
 /**
-  * Cql Simple Statement
+  * Simple CQL Statement from the java driver
   *
-  * @param statement SimpleStatement
+  * @param statement the statement to execute
   */
 case class DseCqlSimpleStatement(statement: SimpleStatement) extends DseCqlStatement {
-  def apply(gatlingSession: Session): Validation[SimpleStatement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[SimpleStatement] = {
     statement.success
   }
 }
 
-
 /**
-  * Bound CQL Prepared Statement from Named Params
+  * Bound CQL Prepared Statement from named parameters
   *
-  * @param preparedStatement CQL Prepared Statement
+  * @param preparedStatement the prepared statement on which to bind parameters
   */
 case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil, preparedStatement: PreparedStatement)
     extends DseCqlStatement {
 
-  def apply(gatlingSession: Session): Validation[BoundStatement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[BoundStatement] = {
     if (!cqlTypes.checkIsValidPreparedStatement(preparedStatement)) {
       throw new DseCqlStatementException("Prepared Statements must have at least one settable param. " +
           s"Query: ${preparedStatement.getQueryString}")
@@ -92,7 +91,7 @@ case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUt
                                                 preparedStatement: PreparedStatement,
                                                 params: Expression[AnyRef]*) extends DseCqlStatement {
 
-  def apply(gatlingSession: Session): Validation[BoundStatement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[BoundStatement] = {
 
     if (!cqlTypes.checkIsValidPreparedStatement(preparedStatement)) {
       throw new DseCqlStatementException("Prepared Statements must have at least one settable param. " +
@@ -129,7 +128,7 @@ case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
     * @param gatlingSession DseSession
     * @return
     */
-  def apply(gatlingSession: Session): Validation[BoundStatement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[BoundStatement] = {
 
     if (!cqlTypes.checkIsValidPreparedStatement(preparedStatement)) {
       throw new DseCqlStatementException("Prepared Statements must have at least one settable param. " +
@@ -176,7 +175,7 @@ case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
 case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil, statements: Seq[PreparedStatement])
     extends DseCqlStatement {
 
-  def apply(gatlingSession: Session): Validation[BatchStatement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[BatchStatement] = {
 
     val batch = new BatchStatement()
 
@@ -226,7 +225,7 @@ case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil, stateme
   */
 case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: String) extends DseCqlStatement {
 
-  def apply(gatlingSession: Session): Validation[Statement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[Statement] = {
 
     if (!gatlingSession.contains(payloadRef)) {
       throw new DseCqlStatementException(s"Passed sessionKey: {$payloadRef} does not exist in Session.")
@@ -251,11 +250,11 @@ case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: 
   */
 case class DseCqlBoundStatementNamedFromSession(cqlTypes: CqlPreparedStatementUtil, sessionKey: String) extends DseCqlStatement {
 
-  def apply(gatlingSession: Session): Validation[BoundStatement] = {
+  def buildFromFeeders(gatlingSession: Session): Validation[BoundStatement] = {
     if (!gatlingSession.contains(sessionKey)) {
       throw new DseCqlStatementException(s"Passed sessionKey: {$sessionKey} does not exist in Session.")
     }
     val preparedStatement = gatlingSession(sessionKey).as[PreparedStatement]
-    DseCqlBoundStatementNamed(cqlTypes, preparedStatement).apply(gatlingSession)
+    DseCqlBoundStatementNamed(cqlTypes, preparedStatement).buildFromFeeders(gatlingSession)
   }
 }

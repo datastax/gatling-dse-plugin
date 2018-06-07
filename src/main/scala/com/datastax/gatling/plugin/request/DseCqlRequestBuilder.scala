@@ -8,8 +8,10 @@ package com.datastax.gatling.plugin.request
 
 import com.datastax.driver.core.{ConsistencyLevel, PagingState}
 import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.gatling.plugin.checks.DseCheck
+import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
+import com.datastax.gatling.plugin.response.CqlResponse
 import io.gatling.core.action.builder.ActionBuilder
+import io.gatling.core.check.Check
 
 
 /**
@@ -17,33 +19,13 @@ import io.gatling.core.action.builder.ActionBuilder
   *
   * @param attr Addition Attributes
   */
-case class DseCqlRequestAttributes(attr: DseAttributes) {
-
-
-  /**
-    * Add a single Check to run on response
-    *
-    * @param check that will be performed on the response
-    * @return
-    */
-  def withCheck(check: DseCheck) = withChecks(check: DseCheck)
-
-
-  /**
-    * Add multiple checks to run on response
-    *
-    * @param checks checks that will be performed on the response
-    * @return
-    */
-  def withChecks(checks: DseCheck*) = DseCqlRequestAttributes(attr.copy(checks = attr.checks ::: checks.toList))
-
-
+case class DseCqlRequestBuilder(attr: DseCqlAttributes) {
   /**
     * Builds to final action to run
     *
     * @return
     */
-  def build(): ActionBuilder = new DseRequestActionBuilder(attr)
+  def build(): ActionBuilder = new DseCqlRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level
@@ -51,7 +33,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param level ConsistencyLevel
     * @return
     */
-  def withConsistencyLevel(level: ConsistencyLevel) = DseCqlRequestAttributes(attr.copy(cl = Some(level)))
+  def withConsistencyLevel(level: ConsistencyLevel) = DseCqlRequestBuilder(attr.copy(cl = Some(level)))
 
   /**
     * Execute a query as another user or another role, provided the current logged in user has PROXY.EXECUTE permission.
@@ -64,7 +46,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param userOrRole String
     * @return
     */
-  def withUserOrRole(userOrRole: String) = DseCqlRequestAttributes(attr.copy(userOrRole = Some(userOrRole)))
+  def withUserOrRole(userOrRole: String) = DseCqlRequestBuilder(attr.copy(userOrRole = Some(userOrRole)))
 
   /**
     * Override the current system time for write time of query
@@ -72,7 +54,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param epochTsInMs timestamp to use
     * @return
     */
-  def withDefaultTimestamp(epochTsInMs: Long) = DseCqlRequestAttributes(attr.copy(defaultTimestamp = Some(epochTsInMs)))
+  def withDefaultTimestamp(epochTsInMs: Long) = DseCqlRequestBuilder(attr.copy(defaultTimestamp = Some(epochTsInMs)))
 
 
   /**
@@ -80,7 +62,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     *
     * @return
     */
-  def withIdempotency() = DseCqlRequestAttributes(attr.copy(idempotent = Some(true)))
+  def withIdempotency() = DseCqlRequestBuilder(attr.copy(idempotent = Some(true)))
 
 
   /**
@@ -89,7 +71,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param readTimeoutInMs time in milliseconds
     * @return
     */
-  def withReadTimeout(readTimeoutInMs: Int) = DseCqlRequestAttributes(attr.copy(readTimeout = Some(readTimeoutInMs)))
+  def withReadTimeout(readTimeoutInMs: Int) = DseCqlRequestBuilder(attr.copy(readTimeout = Some(readTimeoutInMs)))
 
 
   /**
@@ -98,7 +80,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param level ConsistencyLevel
     * @return
     */
-  def withSerialConsistencyLevel(level: ConsistencyLevel) = DseCqlRequestAttributes(attr.copy(cqlSerialCl = Some(level)))
+  def withSerialConsistencyLevel(level: ConsistencyLevel) = DseCqlRequestBuilder(attr.copy(serialCl = Some(level)))
 
 
   /**
@@ -107,7 +89,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param retryPolicy DataStax drivers retry policy
     * @return
     */
-  def withRetryPolicy(retryPolicy: RetryPolicy) = DseCqlRequestAttributes(attr.copy(cqlRetryPolicy = Some(retryPolicy)))
+  def withRetryPolicy(retryPolicy: RetryPolicy) = DseCqlRequestBuilder(attr.copy(retryPolicy = Some(retryPolicy)))
 
   /**
     * Set fetchSize of query for paging
@@ -115,7 +97,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param rowCnt number of rows to fetch at one time
     * @return
     */
-  def withFetchSize(rowCnt: Int) = DseCqlRequestAttributes(attr.copy(cqlFetchSize = Some(rowCnt)))
+  def withFetchSize(rowCnt: Int) = DseCqlRequestBuilder(attr.copy(fetchSize = Some(rowCnt)))
 
 
   /**
@@ -123,7 +105,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     *
     * @return
     */
-  def withTracingEnabled() = DseCqlRequestAttributes(attr.copy(cqlEnableTrace = Some(true)))
+  def withTracingEnabled() = DseCqlRequestBuilder(attr.copy(enableTrace = Some(true)))
 
 
   /**
@@ -132,7 +114,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * @param pagingState CQL Paging state
     * @return
     */
-  def withPagingState(pagingState: PagingState) = DseCqlRequestAttributes(attr.copy(cqlPagingState = Some(pagingState)))
+  def withPagingState(pagingState: PagingState) = DseCqlRequestBuilder(attr.copy(pagingState = Some(pagingState)))
 
 
   /**
@@ -148,8 +130,7 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * Backwards compatibility to set consistencyLevel
     *
     * @deprecated
-    * @see [[DseCqlRequestAttributes.withConsistencyLevel]]
-    *
+    * @see [[DseCqlRequestBuilder.withConsistencyLevel]]
     * @param level Consistency Level to use
     * @return
     */
@@ -160,20 +141,12 @@ case class DseCqlRequestAttributes(attr: DseAttributes) {
     * For Backwards compatibility
     *
     * @deprecated
-    * @see [[DseCqlRequestAttributes.executeAs]]
-    *
+    * @see [[DseCqlRequestBuilder.executeAs]]
     * @param userOrRole User or role to use
     * @return
     */
   def executeAs(userOrRole: String) = withUserOrRole(userOrRole: String)
 
-  /**
-    *
-    * @deprecated
-    * @see [[DseCqlRequestAttributes.withCheck()]] [[DseCqlRequestAttributes.withChecks()]]
-    *
-    * @param checks checks that will be performed on the response
-    */
-  def check(checks: DseCheck) = withChecks(checks: DseCheck)
-
+  def check(check: DseCqlCheck) = DseCqlRequestBuilder(attr.copy(cqlChecks = check :: attr.cqlChecks))
+  def check(check: GenericCheck) = DseCqlRequestBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }

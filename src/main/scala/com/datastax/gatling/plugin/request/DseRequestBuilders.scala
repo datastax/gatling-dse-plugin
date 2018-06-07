@@ -12,56 +12,35 @@ import com.datastax.gatling.plugin._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
 import io.gatling.core.session.{Expression, Session}
 
-
 /**
-  * CQL Request Builder
+  * This class is used with the `cql(String)` method in [[DsePredefBase]] to
+  * allow the use to type `cql("my-request).executeNamed()` and similar
+  * statements.
   *
-  * @param tag Name of the CQL Execution
+  * It contains methods that results in Gatling sending CQL queries.
+  *
+  * @param tag Name of the CQL query to execute
   */
 case class CqlRequestBuilder(tag: String) {
 
   /**
-    * Execute String Statement
+    * Execute a simple Statement built from a CQL string.
     *
     * @param query Simple string query
     * @return
     */
-  def executeCql(query: Expression[String]) = {
-    DseCqlRequestAttributes(DseAttributes(tag, DseCqlStringStatement(query)))
-  }
+  @deprecated("Replaced by executeStatement(String)")
+  def executeCql(query: String): DseCqlRequestBuilder =
+    executeStatement(query)
 
   /**
-    * Execute Prepared Statement
+    * Execute a simple Statement built from a CQL string.
     *
-    * @param preparedStatement CQL Prepared Statement w/ anon ?'s
+    * @param query Simple string query
     * @return
     */
-  def executePrepared(preparedStatement: PreparedStatement) = CqlPreparedStatementBuilder(tag, preparedStatement)
-
-  /**
-    * Allows the execution of a prepared statement that has named parameter placeholders - 'select * from tablex where key = :key'
-    * Doing this then allows you omit the parameter names and types as they can be inferred from the statement itself
-    *
-    * @param preparedStatement CQL Prepared statement with :name
-    * @return
-    */
-  def executeNamed(preparedStatement: PreparedStatement) = {
-    DseCqlRequestAttributes(DseAttributes(tag, DseCqlBoundStatementNamed(CqlPreparedStatementUtil, preparedStatement),
-      cqlStatements = Seq(preparedStatement.getQueryString))
-    )
-  }
-
-  /**
-    * Execute a batch of prepared statements that will auto-infer the values to set based on like names in the Gatling session
-    *
-    * @param preparedStatements Array of prepared statements
-    * @return
-    */
-  def executePreparedBatch(preparedStatements: Array[PreparedStatement]) = DseCqlRequestAttributes(
-    DseAttributes(tag, DseCqlBoundBatchStatement(CqlPreparedStatementUtil, preparedStatements),
-      cqlStatements = preparedStatements.map(_.getQueryString)
-    )
-  )
+  def executeStatement(query: String): DseCqlRequestBuilder =
+    executeStatement(new SimpleStatement(query))
 
   /**
     * Execute a Simple Statement
@@ -69,11 +48,64 @@ case class CqlRequestBuilder(tag: String) {
     * @param statement SimpleStatement
     * @return
     */
-  def executeStatement(statement: SimpleStatement) = {
-    DseCqlRequestAttributes(DseAttributes(tag, DseCqlSimpleStatement(statement),
-      cqlStatements = Seq(statement.getQueryString))
+  def executeStatement(statement: SimpleStatement): DseCqlRequestBuilder =
+    DseCqlRequestBuilder(
+      DseCqlAttributes(
+        tag,
+        DseCqlSimpleStatement(statement),
+        cqlStatements = Seq(statement.getQueryString))
     )
-  }
+
+  /**
+    * Execute a prepared Statement.
+    *
+    * This method is not enough to create a complete [[DseCqlRequestBuilder]] as
+    * the list of parameters must still be defined by the users.
+    *
+    * @param preparedStatement CQL Prepared Statement w/ anon ?'s
+    * @return
+    */
+  @deprecated("Replaced by executeStatement(PreparedStatement)")
+  def executePrepared(preparedStatement: PreparedStatement): PreparedCqlRequestBuilder =
+    executeStatement(preparedStatement)
+
+  /**
+    * Execute a prepared Statement.
+    *
+    * This method is not enough to create a complete [[DseCqlRequestBuilder]] as
+    * the list of parameters must still be defined by the users, in opposition
+    * to [[executeNamed()]].
+    *
+    * @param preparedStatement CQL Prepared Statement w/ anon ?'s
+    * @return
+    */
+  def executeStatement(preparedStatement: PreparedStatement) =
+    PreparedCqlRequestBuilder(tag, preparedStatement)
+
+  /**
+    * Execute a prepared statement that has named parameter placeholders, for
+    * instance 'select * from tablex where key = :key'.
+    *
+    * Doing this then allows you omit the parameter names and types as they can
+    * be inferred from the statement itself.
+    *
+    * @param preparedStatement CQL Prepared statement with named parameters
+    */
+  def executeNamed(preparedStatement: PreparedStatement): DseCqlRequestBuilder =
+    PreparedCqlRequestBuilder(tag, preparedStatement).withSessionParams()
+
+  /**
+    * Execute a batch of prepared statements that have named parameters.
+    *
+    * @param preparedStatements Array of prepared statements
+    */
+  def executePreparedBatch(preparedStatements: Array[PreparedStatement]) = DseCqlRequestBuilder(
+    DseCqlAttributes(
+      tag,
+      DseCqlBoundBatchStatement(CqlPreparedStatementUtil, preparedStatements),
+      cqlStatements = preparedStatements.map(_.getQueryString)
+    )
+  )
 
   /**
     * Execute a custom Payload
@@ -82,49 +114,54 @@ case class CqlRequestBuilder(tag: String) {
     * @param payloadSessionKey Session key of the payload from session/feed
     * @return
     */
-  def executeCustomPayload(statement: SimpleStatement, payloadSessionKey: String) = {
-    DseCqlRequestAttributes(DseAttributes(tag, DseCqlCustomPayloadStatement(statement, payloadSessionKey)))
-  }
+  def executeCustomPayload(statement: SimpleStatement, payloadSessionKey: String): DseCqlRequestBuilder =
+    DseCqlRequestBuilder(
+      DseCqlAttributes(
+        tag,
+        DseCqlCustomPayloadStatement(statement, payloadSessionKey),
+        cqlStatements = Seq(statement.getQueryString)))
 
-  def executePreparedFromSession(key: String) = {
-    DseCqlRequestAttributes(DseAttributes(tag, DseCqlBoundStatementNamedFromSession(CqlPreparedStatementUtil, key)))
-  }
+  def executePreparedFromSession(key: String): DseCqlRequestBuilder =
+    DseCqlRequestBuilder(
+      DseCqlAttributes(
+        tag,
+        DseCqlBoundStatementNamedFromSession(CqlPreparedStatementUtil, key)))
 }
 
 
 /**
-  * Bind CQL Params to anon query
+  * Builder for CQL prepared statements that do not have bound parameters yet.
   *
   * @param tag      Name of the CQL Execution
   * @param prepared CQL Prepared Statement
   */
-case class CqlPreparedStatementBuilder(tag: String, prepared: PreparedStatement) {
+case class PreparedCqlRequestBuilder(tag: String, prepared: PreparedStatement) {
 
   /**
     * Alias for the behavior of executeNamed function
     *
     * @return
     */
-  def withSessionParams() = {
-    DseCqlRequestAttributes(DseAttributes(tag, DseCqlBoundStatementNamed(CqlPreparedStatementUtil, prepared),
-      cqlStatements = Seq(prepared.getQueryString))
-    )
-  }
+  def withSessionParams(): DseCqlRequestBuilder =
+    DseCqlRequestBuilder(
+      DseCqlAttributes(
+        tag,
+        DseCqlBoundStatementNamed(CqlPreparedStatementUtil, prepared),
+        cqlStatements = Seq(prepared.getQueryString)))
 
   /**
     * Bind Gatling Session Values to CQL Prepared Statement
     *
-    * @deprecated
-    *
     * @param params Gatling Session variables
     * @return
     */
-  def withParams(params: Expression[AnyRef]*) = {
-    DseCqlRequestAttributes(
-      DseAttributes(tag, DseCqlBoundStatementWithPassedParams(CqlPreparedStatementUtil, prepared, params: _*),
+  def withParams(params: Expression[AnyRef]*): DseCqlRequestBuilder =
+    DseCqlRequestBuilder(
+      DseCqlAttributes(
+        tag,
+        DseCqlBoundStatementWithPassedParams(CqlPreparedStatementUtil, prepared, params: _*),
         cqlStatements = Seq(prepared.getQueryString))
     )
-  }
 
   /**
     * Bind Gatling Session Keys to CQL Prepared Statement
@@ -132,14 +169,14 @@ case class CqlPreparedStatementBuilder(tag: String, prepared: PreparedStatement)
     * @param sessionKeys Gatling Session Keys
     * @return
     */
-  def withParams(sessionKeys: List[String]) = {
-    DseCqlRequestAttributes(
-      DseAttributes(tag, DseCqlBoundStatementWithParamList(CqlPreparedStatementUtil, prepared, sessionKeys),
+  def withParams(sessionKeys: List[String]) =
+    DseCqlRequestBuilder(
+      DseCqlAttributes(
+        tag,
+        DseCqlBoundStatementWithParamList(CqlPreparedStatementUtil, prepared, sessionKeys),
         cqlStatements = Seq(prepared.getQueryString))
     )
-  }
 }
-
 
 /**
   * DSE Graph Request Builder
@@ -155,19 +192,29 @@ case class GraphRequestBuilder(tag: String) {
     * @return
     */
   def executeGraph(strStatement: Expression[String]) = {
-    DseGraphRequestAttributes(DseAttributes(tag, GraphStringStatement(strStatement)))
+    DseGraphRequestBuilder(DseGraphAttributes(tag, GraphStringStatement(strStatement)))
   }
 
   /**
     * Execute a Simple Graph Statement, which can include named params
     *
     * @see DseGraphRequestParamsBuilder#withSetParams
-    *
     * @param gStatement Simple Graph Statement
     * @return
     */
-  def executeGraphStatement(gStatement: SimpleGraphStatement) = {
-    DseGraphRequestParamsBuilder(tag, gStatement)
+  @deprecated("Replaced by executeGraph(SimpleGraphStatement)")
+  def executeGraphStatement(gStatement: SimpleGraphStatement) =
+    executeGraph(gStatement)
+
+  /**
+    * Execute a Simple Graph Statement, which can include named params
+    *
+    * @see DseGraphRequestParamsBuilder#withSetParams
+    * @param gStatement Simple Graph Statement
+    * @return
+    */
+  def executeGraph(gStatement: SimpleGraphStatement) = {
+    GraphParametrizedRequestBuilder(tag, gStatement)
   }
 
   /**
@@ -177,7 +224,7 @@ case class GraphRequestBuilder(tag: String) {
     * @return
     */
   def executeGraphFluent(gStatement: GraphStatement) = {
-    DseGraphRequestAttributes(DseAttributes(tag, GraphFluentStatement(gStatement)))
+    DseGraphRequestBuilder(DseGraphAttributes(tag, GraphFluentStatement(gStatement)))
   }
 
   /**
@@ -194,26 +241,28 @@ case class GraphRequestBuilder(tag: String) {
     * @return
     */
   def executeGraphFluent(gLambda: Session => GraphStatement) = {
-    DseGraphRequestAttributes(DseAttributes(tag, GraphFluentStatementFromScalaLambda(gLambda)))
+    DseGraphRequestBuilder(DseGraphAttributes(tag, GraphFluentStatementFromScalaLambda(gLambda)))
   }
 
   /**
     * Execute a traversal previously created by a feeder
+    *
     * @param feederKey name of the traversal in the gatling session
     * @return
     */
-  def executeGraphFeederTraversal(feederKey: String) = {
-    DseGraphRequestAttributes(DseAttributes(tag, GraphFluentSessionKey(feederKey)))
+  @deprecated("Replaced by executeGraphFluent{session => session(feederKey)}")
+  def executeGraphFeederTraversal(feederKey: String): DseGraphRequestBuilder = {
+    DseGraphRequestBuilder(DseGraphAttributes(tag, GraphFluentSessionKey(feederKey)))
   }
 }
 
 /**
-  * Param Builder for Simple Graph Statements
+  * Builder for Graph queries that do not have bound parameters yet.
   *
   * @param tag        Query tag
   * @param gStatement Simple Graph Staetment
   */
-case class DseGraphRequestParamsBuilder(tag: String, gStatement: SimpleGraphStatement) {
+case class GraphParametrizedRequestBuilder(tag: String, gStatement: SimpleGraphStatement) {
 
   /**
     * Included for compatibility
@@ -221,7 +270,8 @@ case class DseGraphRequestParamsBuilder(tag: String, gStatement: SimpleGraphStat
     * @param paramNames Array of Params names
     * @return
     */
-  def withSetParams(paramNames: Array[String]): DseGraphRequestAttributes = withParams(paramNames: _*)
+  @deprecated("Replaced by withParams")
+  def withSetParams(paramNames: Array[String]): DseGraphRequestBuilder = withParams(paramNames.toList)
 
   /**
     * Params to set from strings
@@ -229,10 +279,18 @@ case class DseGraphRequestParamsBuilder(tag: String, gStatement: SimpleGraphStat
     * @param paramNames List of strings to use
     * @return
     */
-  def withParams(paramNames: String*): DseGraphRequestAttributes = DseGraphRequestAttributes(
-    DseAttributes(tag, GraphBoundStatement(gStatement, paramNames.map(key => key -> key).toMap))
-  )
+  def withParams(paramNames: String*): DseGraphRequestBuilder =
+    withParams(paramNames.toList)
 
+  /**
+    * Params to set from strings
+    *
+    * @param paramNames List of strings to use
+    * @return
+    */
+  def withParams(paramNames: List[String]): DseGraphRequestBuilder = DseGraphRequestBuilder(
+    DseGraphAttributes(tag, GraphBoundStatement(gStatement, paramNames.map(key => key -> key).toMap))
+  )
 
   /**
     * For backwards compatibility
@@ -240,7 +298,9 @@ case class DseGraphRequestParamsBuilder(tag: String, gStatement: SimpleGraphStat
     * @param paramNamesAndOverrides a Map of Session parameter names to their GraphStatement parameter names
     * @return
     */
-  def withSetParams(paramNamesAndOverrides: Map[String, String]) = withParamOverrides(paramNamesAndOverrides)
+  @deprecated("Replaced with withParams")
+  def withSetParams(paramNamesAndOverrides: Map[String, String]): DseGraphRequestBuilder =
+    withParams(paramNamesAndOverrides)
 
 
   /**
@@ -250,8 +310,19 @@ case class DseGraphRequestParamsBuilder(tag: String, gStatement: SimpleGraphStat
     * @param paramNamesAndOverrides a Map of Session parameter names to their GraphStatement parameter names
     * @return
     */
-  def withParamOverrides(paramNamesAndOverrides: Map[String, String]) = {
-    DseGraphRequestAttributes(DseAttributes(tag, GraphBoundStatement(gStatement, paramNamesAndOverrides)))
+  @deprecated("Replaced with withParams")
+  def withParamOverrides(paramNamesAndOverrides: Map[String, String]): DseGraphRequestBuilder =
+    withParams(paramNamesAndOverrides)
+
+  /**
+    * Get the parameters mapped to the keys of paramNamesAndOverrides and bind them using the corresponding values of
+    * paramNamesAndOverrides to the GraphStatement
+    *
+    * @param paramNamesAndOverrides a Map of Session parameter names to their GraphStatement parameter names
+    * @return
+    */
+  def withParams(paramNamesAndOverrides: Map[String, String]): DseGraphRequestBuilder = {
+    DseGraphRequestBuilder(DseGraphAttributes(tag, GraphBoundStatement(gStatement, paramNamesAndOverrides)))
   }
 
   /**
@@ -262,7 +333,8 @@ case class DseGraphRequestParamsBuilder(tag: String, gStatement: SimpleGraphStat
     * @param paramNamesAndOverrides a Map of Session parameter names to their GraphStatement parameter names
     * @return
     */
-  def withRepeatedSetParams(batchSize: Int, paramNamesAndOverrides: Map[String, String]) = {
+  @deprecated("Replaced by withRepeatedParams")
+  def withRepeatedSetParams(batchSize: Int, paramNamesAndOverrides: Map[String, String]): DseGraphRequestBuilder = {
     withRepeatedParams(batchSize, paramNamesAndOverrides)
   }
 
@@ -274,24 +346,20 @@ case class DseGraphRequestParamsBuilder(tag: String, gStatement: SimpleGraphStat
     * @param paramNamesAndOverrides a Map of Session parameter names to their GraphStatement parameter names
     * @return
     */
-  def withRepeatedParams(batchSize: Int, paramNamesAndOverrides: Map[String, String]) = {
+  def withRepeatedParams(batchSize: Int, paramNamesAndOverrides: Map[String, String]): DseGraphRequestBuilder = {
     def repeatParameters(params: Map[String, String]): Map[String, String] = batchSize match {
       // Gatling has a weird behavior when feeding multiple values
       // Feeding 1 value gives non-suffixed variables whereas feeding more gives suffixed variables starting by the
       // very first one
       case 1 => params
       case x => (
-          for (i <- 1 to x) yield
-            params.map { case (key, value) => (s"$key$i", s"$value$i") }
-          ).flatten.toMap
+        for (i <- 1 to x) yield
+          params.map { case (key, value) => (s"$key$i", s"$value$i") }
+        ).flatten.toMap
     }
 
-    DseGraphRequestAttributes(
-      DseAttributes(tag, GraphBoundStatement(gStatement, repeatParameters(paramNamesAndOverrides)))
+    DseGraphRequestBuilder(
+      DseGraphAttributes(tag, GraphBoundStatement(gStatement, repeatParameters(paramNamesAndOverrides)))
     )
   }
-
-
-  //  def withOption(key: String, value: String) = DseGraphRequestParamsBuilder(
-  //    tag, gStatement.setGraphInternalOption(key, value).asInstanceOf[SimpleGraphStatement])
 }

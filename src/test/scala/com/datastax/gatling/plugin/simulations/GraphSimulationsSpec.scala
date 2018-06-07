@@ -4,14 +4,15 @@ import com.datastax.gatling.plugin.base.BaseSimulationSpec
 import io.gatling.app.Gatling
 import org.scalatest.Ignore
 
-@Ignore
 class GraphSimulationsSpec extends BaseSimulationSpec {
 
   describe("Graph_SimpleGraphStatement_Simulation") {
 
-    ignore("should succeed with 0 failures") {
+    it("should succeed with 0 failures") {
       val props = getGatlingProps.simulationClass(graphSimulationDir + "GraphStatementSimulation")
-      Gatling.fromMap(props.build) shouldBe 0
+      // embedded cassandra doesn't support graph queries so we expect gatling to fail but it
+      // should complete properly.
+      Gatling.fromMap(props.build) shouldBe 2
     }
   }
 

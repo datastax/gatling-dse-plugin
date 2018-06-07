@@ -15,31 +15,29 @@ import scala.language.implicitConversions
 
 trait DsePredefBase extends DseCheckSupport {
 
-  val dseProtocolBuilder = DseProtocolBuilder
+  val dseProtocolBuilder: DseProtocolBuilder.type = DseProtocolBuilder
 
   /**
     * Present for backwards compatibility
-    *
-    * @deprecated use dseProtocolBuilder instead, will be removed in future versions
     */
-  val graph = dseProtocolBuilder
+  @deprecated("use dseProtocolBuilder instead, will be removed in future versions")
+  val graph: DseProtocolBuilder.type = dseProtocolBuilder
 
   /**
     * Present for backwards compatibility
-    *
-    * @deprecated use dseProtocolBuilder instead, will be removed in future versions
     */
-  val cql = dseProtocolBuilder
+  @deprecated("use dseProtocolBuilder instead, will be removed in future versions")
+  val cql: DseProtocolBuilder.type = dseProtocolBuilder
 
-  def cql(tag: String) = CqlRequestBuilder(tag)
+  def cql(tag: String): CqlRequestBuilder = CqlRequestBuilder(tag)
 
-  def graph(tag: String) = GraphRequestBuilder(tag)
+  def graph(tag: String): GraphRequestBuilder = GraphRequestBuilder(tag)
 
   implicit def protocolBuilder2DseProtocol(builder: DseProtocolBuilder): DseProtocol = builder.build
 
-  implicit def cqlRequestAttributes2ActionBuilder(builder: DseCqlRequestAttributes): ActionBuilder = builder.build()
+  implicit def cqlRequestAttributes2ActionBuilder(builder: DseCqlRequestBuilder): ActionBuilder = builder.build()
 
-  implicit def graphRequestAttributes2ActionBuilder(builder: DseGraphRequestAttributes): ActionBuilder = builder.build()
+  implicit def graphRequestAttributes2ActionBuilder(builder: DseGraphRequestBuilder): ActionBuilder = builder.build()
 }
 
 /**
@@ -49,16 +47,14 @@ object DsePredef extends DsePredefBase {}
 
 /**
   * Present for backwards compatibility
-  *
-  * @deprecated use DsePredef instead, will be removed in future versions
   */
+@deprecated("use DsePredef instead, will be removed in future versions")
 object CqlPredef extends DsePredefBase {}
 
 /**
   * Present for backwards compatibility
-  *
-  * @deprecated use DsePredef instead, will be removed in future versions
   */
+@deprecated("use DsePredef instead, will be removed in future versions")
 object GraphPredef extends DsePredefBase {}
 
 

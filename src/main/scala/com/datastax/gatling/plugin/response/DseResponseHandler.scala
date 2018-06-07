@@ -11,8 +11,8 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import com.datastax.driver.core._
 import com.datastax.driver.dse.graph.{GraphProtocol, GraphResultSet, GraphStatement}
-import com.datastax.gatling.plugin.metrics.{HistogramLogger, MetricsLogger}
-import com.datastax.gatling.plugin.request.DseAttributes
+import com.datastax.gatling.plugin.metrics.MetricsLogger
+import com.datastax.gatling.plugin.request.{DseCqlAttributes, DseGraphAttributes}
 import com.datastax.gatling.plugin.utils.ResponseTimers
 import com.google.common.util.concurrent.FutureCallback
 import com.typesafe.scalalogging.StrictLogging
@@ -26,26 +26,44 @@ import io.gatling.core.stats.message.ResponseTimings
 
 import scala.util.Try
 
+object DseResponseHandler {
+//  private def removeNewLineChars(str: String) = str.replaceAll("""(\r|\n)""", " ")
 
-abstract class DseResponseHandler(next: Action, session: Session, system: ActorSystem, statsEngine: StatsEngine,
-                                  startTimes: (Long, Long), stmt: Any, dseAttributes: DseAttributes,
-                                  metricsLogger: MetricsLogger) extends StrictLogging {
+  def sanitize(s: String): String = s.replaceAll("""(\r|\n)""", " ")
 
-  private def removeNewLineChars(str: String) = str.replaceAll("""(\r|\n)""", " ")
+  def sanitizeAndJoin(statements: Seq[String]): String = statements
+    .map(s => sanitize(s))
+    .mkString(",")
+}
+
+abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLogging with FutureCallback[RS] {
+  protected def system: ActorSystem
+  protected def statsEngine: StatsEngine
+  protected def metricsLogger: MetricsLogger
+  protected def next: Action
+  protected def session: Session
+  protected def startTimes: (Long, Long)
+  protected def stmt: Any
+  protected def tag: String
+  protected def queries: Seq[String]
+  protected def specificChecks: List[Check[Response]]
+  protected def genericChecks: List[Check[DseResponse]]
+  protected def newResponse(rs: RS): Response
+  protected def queriedHost(rs: RS): String
 
   private def writeGatlingLog(status: Status, respTimings: ResponseTimings, message: Option[String], extraInfo: List[Any]): Unit =
-    statsEngine.logResponse(session, dseAttributes.tag, respTimings, status, None, message, extraInfo)
+    statsEngine.logResponse(session, tag, respTimings, status, None, message, extraInfo)
 
   protected def writeSuccess(respTimers: ResponseTimers): Unit = {
-    metricsLogger.log(session, dseAttributes.tag, respTimers, ok = true)
+    metricsLogger.log(session, tag, respTimers, ok = true)
     writeGatlingLog(OK, respTimers.responseTimings, None, List(respTimers.diffMicros, "", ""))
   }
 
-  protected def writeCheckFailure(respTimers: ResponseTimers, checkRes: ((Session) => Session, Option[Failure]), resultSet: Any): Unit = {
-    metricsLogger.log(session, dseAttributes.tag, respTimers, ok = false)
+  protected def writeCheckFailure(respTimers: ResponseTimers, checkRes: ((Session) => Session, Option[Failure]), resultSet: RS): Unit = {
+    metricsLogger.log(session, tag, respTimers, ok = false)
 
     val logUuid = UUID.randomUUID.toString
-    val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
+    val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + tag else tag
 
     writeGatlingLog(
       KO, respTimers.responseTimings,
@@ -53,91 +71,104 @@ abstract class DseResponseHandler(next: Action, session: Session, system: ActorS
       List(respTimers.diffMicros, "CHK", logUuid)
     )
 
-    val executionInfo: ExecutionInfo = {
-      resultSet match {
-        case rs: ResultSet => rs.getExecutionInfo
-        case gr: GraphResultSet => gr.getExecutionInfo
-      }
-    }
-
     logger.warn("[{}] {} - Check: {}, Query: {}, Host: {}",
-      logUuid, tagString, checkRes._2.get.message, getCqlQueriesAsString(dseAttributes), executionInfo.getQueriedHost.toString
+      logUuid, tagString, checkRes._2.get.message, DseResponseHandler.sanitizeAndJoin(queries), queriedHost(resultSet)
     )
   }
 
   protected def writeFailure(respTimers: ResponseTimers, t: Throwable): Unit = {
 
-    metricsLogger.log(session, dseAttributes.tag, respTimers, ok = false)
+    metricsLogger.log(session, tag, respTimers, ok = false)
 
     val logUuid = UUID.randomUUID.toString
-    val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
+    val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + tag else tag
 
     writeGatlingLog(KO, respTimers.responseTimings,
-      Some(s"$tagString - Execute: ${removeNewLineChars(t.getClass.getSimpleName)}"),
+      Some(s"$tagString - Execute: ${t.getClass.getSimpleName}"),
       List(respTimers.diffMicros, "CHK", logUuid)
     )
 
     stmt match {
       case Some(gs: GraphStatement) =>
         val unwrap = Try(
-          removeNewLineChars(gs.unwrap(GraphProtocol.GRAPHSON_2_0).toString)
-        ).getOrElse(removeNewLineChars(gs.unwrap(GraphProtocol.GRAPHSON_1_0).toString))
+          DseResponseHandler.sanitize(gs.unwrap(GraphProtocol.GRAPHSON_2_0).toString)
+        ).getOrElse(DseResponseHandler.sanitize(gs.unwrap(GraphProtocol.GRAPHSON_1_0).toString))
 
         logger.warn("[{}] {} - Execute: {} - Attrs: {}",
           logUuid, tagString, unwrap, session.attributes.mkString(","), t
         )
       case _ =>
         logger.warn("[{}] {} - Execute: {}, Query: {}",
-          logUuid, tagString, removeNewLineChars(t.getMessage), getCqlQueriesAsString(dseAttributes)
+          logUuid, tagString, t.getMessage, DseResponseHandler.sanitizeAndJoin(queries)
         )
     }
 
   }
 
-  protected def getCqlQueriesAsString(dseAttributes: DseAttributes): String = {
-    removeNewLineChars(dseAttributes.cqlStatements.mkString(","))
-  }
-
-  def success(resultSet: Any): Unit = {
-    val respTimers = ResponseTimers(startTimes)
-    val checkRes = Check.check(new DseResponse(resultSet, dseAttributes), session, dseAttributes.checks)
-
-    if (checkRes._2.isEmpty) {
-      writeSuccess(respTimers)
-      next ! checkRes._1(session).markAsSucceeded
-    } else {
-      writeCheckFailure(respTimers, checkRes, resultSet)
-      next ! checkRes._1(session).markAsFailed
-    }
-  }
-
-  def failure(t: Throwable): Unit = {
+  override def onFailure(t: Throwable): Unit = {
     writeFailure(ResponseTimers(startTimes), t)
     next ! session.markAsFailed
   }
+
+  override def onSuccess(result: RS): Unit = {
+    val respTimers = ResponseTimers(startTimes)
+    val response = newResponse(result)
+
+    val genericResult: (Session => Session, Option[Failure]) = Check.check(response, session, genericChecks)
+    val genericChecksPassed = genericResult._2.isEmpty
+    val sessionAfterGenericChecks = genericResult._1(session)
+    if (genericChecksPassed) {
+      val specificResult: (Session => Session, Option[Failure]) = Check.check(response, sessionAfterGenericChecks, specificChecks)
+      val sessionAfterSpecificChecks = genericResult._1(session)
+      val specificChecksPassed = specificResult._2.isEmpty
+      if (specificChecksPassed) {
+        writeSuccess(respTimers)
+        next ! sessionAfterSpecificChecks.markAsSucceeded
+      } else {
+        writeCheckFailure(respTimers, specificResult, result)
+        next ! sessionAfterSpecificChecks.markAsFailed
+      }
+    } else {
+      // Do not run specific checks as the response is already error'ed
+      writeCheckFailure(respTimers, genericResult, result)
+      next ! sessionAfterGenericChecks.markAsFailed
+    }
+  }
 }
 
 
-class GraphResponseHandler(next: Action, session: Session, system: ActorSystem, statsEngine: StatsEngine,
-                           startTimes: (Long, Long), stmt: GraphStatement, dseAttributes: DseAttributes,
-                           metricsLogger: MetricsLogger)
-    extends DseResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, metricsLogger)
-        with FutureCallback[GraphResultSet] {
-
-  def onSuccess(resultSet: GraphResultSet): Unit = super.success(resultSet)
-
-  def onFailure(t: Throwable): Unit = super.failure(t)
-
+class GraphResponseHandler(val next: Action,
+                           val session: Session,
+                           val system: ActorSystem,
+                           val statsEngine: StatsEngine,
+                           val startTimes: (Long, Long),
+                           val stmt: GraphStatement,
+                           val dseAttributes: DseGraphAttributes,
+                           val metricsLogger: MetricsLogger)
+    extends DseResponseHandler[GraphResultSet, GraphResponse] {
+  override protected def tag: String = dseAttributes.tag
+  override protected def queries: Seq[String] = Seq.empty
+  override protected def specificChecks: List[Check[GraphResponse]] = dseAttributes.graphChecks
+  override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
+  override protected def newResponse(rs: GraphResultSet): GraphResponse = new GraphResponse(rs, dseAttributes)
+  override protected def queriedHost(rs: GraphResultSet): String = rs.getExecutionInfo.getQueriedHost.toString
 }
 
-class CqlResponseHandler(next: Action, session: Session, system: ActorSystem, statsEngine: StatsEngine,
-                         startTimes: (Long, Long), stmt: Statement, dseAttributes: DseAttributes,
-                         metricsLogger: MetricsLogger)
-    extends DseResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, metricsLogger)
-        with FutureCallback[ResultSet] {
+class CqlResponseHandler(val next: Action,
+                         val session: Session,
+                         val system: ActorSystem,
+                         val statsEngine: StatsEngine,
+                         val startTimes: (Long, Long),
+                         val stmt: Statement,
+                         val dseAttributes: DseCqlAttributes,
+                         val metricsLogger: MetricsLogger)
+  extends DseResponseHandler[ResultSet, CqlResponse] {
+  override protected def tag: String = dseAttributes.tag
+  override protected def queries: Seq[String] = Seq.empty
+  override protected def specificChecks: List[Check[CqlResponse]] = dseAttributes.cqlChecks
+  override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
+  override protected def newResponse(rs: ResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
+  override protected def queriedHost(rs: ResultSet): String = rs.getExecutionInfo.getQueriedHost.toString
 
-  def onSuccess(resultSet: ResultSet): Unit = super.success(resultSet)
-
-  def onFailure(t: Throwable): Unit = super.failure(t)
 
 }
