@@ -5,13 +5,12 @@ import java.util.concurrent.{Executor, TimeUnit}
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKitBase
 import com.datastax.driver.core._
-import com.datastax.driver.core.policies.FallthroughRetryPolicy
 import com.datastax.driver.dse.DseSession
 import com.datastax.driver.dse.graph.{GraphResultSet, RegularGraphStatement, SimpleGraphStatement}
 import com.datastax.gatling.plugin.base.BaseSpec
-import com.datastax.gatling.plugin.checks.DseGraphCheck
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
-import com.datastax.gatling.plugin.{DseCqlStatement, DseGraphStatement, DseProtocol}
+import com.datastax.gatling.plugin.utils.GatlingTimingSource
+import com.datastax.gatling.plugin.{DseGraphStatement, DseProtocol}
 import com.google.common.util.concurrent.{Futures, ListenableFuture}
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.Exit
@@ -39,7 +38,8 @@ class DseGraphRequestActionSpec extends BaseSpec with TestKitBase {
       DseProtocol(dseSession),
       dseAttributes,
       NoopMetricsLogger(),
-      system.actorOf(Props[DseRequestActor]))
+      system.actorOf(Props[DseRequestActor]),
+      GatlingTimingSource())
   }
 
   private def mockResultSetFuture(): ResultSetFuture = new ResultSetFuture {

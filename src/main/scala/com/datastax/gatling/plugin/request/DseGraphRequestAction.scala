@@ -6,25 +6,21 @@
 
 package com.datastax.gatling.plugin.request
 
-import java.lang.System.{currentTimeMillis, nanoTime}
 import java.util.UUID
-
-import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
+import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
-import com.datastax.driver.core.Statement
-import com.datastax.driver.dse.graph.GraphStatement
-import com.datastax.gatling.plugin.{DseCqlStatement, DseGraphStatement, DseProtocol}
+import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
-import com.datastax.gatling.plugin.response.{CqlResponseHandler, GraphResponseHandler}
-import com.datastax.gatling.plugin.utils.ResponseTimers
+import com.datastax.gatling.plugin.response.GraphResponseHandler
+import com.datastax.gatling.plugin.utils.{GatlingTimingSource, ResponseTime}
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture, MoreExecutors}
 import io.gatling.commons.stats.KO
-import io.gatling.commons.validation.Validation
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
+
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
 
 /**
   *
@@ -51,7 +47,8 @@ class DseGraphRequestAction(val name: String,
                             val protocol: DseProtocol,
                             val dseAttributes: DseGraphAttributes,
                             val metricsLogger: MetricsLogger,
-                            val dseRouter: ActorRef)
+                            val dseRouter: ActorRef,
+                            val gatlingTimingSource: GatlingTimingSource)
   extends ExitableAction {
 
   def execute(session: Session): Unit = {
@@ -59,55 +56,54 @@ class DseGraphRequestAction(val name: String,
   }
 
   def sendQuery(session: Session): Unit = {
-    val stmt: Validation[GraphStatement] = {
-      dseAttributes.statement match {
-        case graph: DseGraphStatement => graph.buildFromFeeders(session)
-      }
-    }
+    val stmt = dseAttributes.statement.buildFromFeeders(session)
+
     stmt.onFailure(err => {
-      val respTimings = ResponseTimers((nanoTime, currentTimeMillis))
+      val responseTime = ResponseTime(session, gatlingTimingSource)
       val logUuid = UUID.randomUUID.toString
       val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
 
-      statsEngine.logResponse(session, name, respTimings.responseTimings, KO, None,
-        Some(s"$tagString - Preparing: ${err.take(50)}"), List(respTimings.diffMicros, "PRE", logUuid))
+      statsEngine.logResponse(session, name, responseTime.toGatlingResponseTimings, KO, None,
+        Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(TimeUnit.MICROSECONDS), "PRE", logUuid))
 
       logger.error("[{}] {} - Preparing: {} - Attrs: {}", logUuid, tagString, err, session.attributes.mkString(","))
       next ! session.markAsFailed
     })
 
     stmt.onSuccess({ gStmt =>
-      val startTimes = (nanoTime, currentTimeMillis)
-          // global options
-          dseAttributes.cl.map(gStmt.setConsistencyLevel)
-          dseAttributes.defaultTimestamp.map(gStmt.setDefaultTimestamp)
-          dseAttributes.userOrRole.map(gStmt.executingAs)
-          dseAttributes.readTimeout.map(gStmt.setReadTimeoutMillis)
-          dseAttributes.idempotent.map(gStmt.setIdempotent)
+      val responseTime = ResponseTime(session, gatlingTimingSource)
+      // global options
+      dseAttributes.cl.map(gStmt.setConsistencyLevel)
+      dseAttributes.defaultTimestamp.map(gStmt.setDefaultTimestamp)
+      dseAttributes.userOrRole.map(gStmt.executingAs)
+      dseAttributes.readTimeout.map(gStmt.setReadTimeoutMillis)
+      dseAttributes.idempotent.map(gStmt.setIdempotent)
 
-          // Graph only Options
-          dseAttributes.readCL.map(gStmt.setGraphReadConsistencyLevel)
-          dseAttributes.writeCL.map(gStmt.setGraphWriteConsistencyLevel)
-          dseAttributes.graphLanguage.map(gStmt.setGraphLanguage)
-          dseAttributes.graphName.map(gStmt.setGraphName)
-          dseAttributes.graphSource.map(gStmt.setGraphSource)
-          dseAttributes.graphTransformResults.map(gStmt.setTransformResultFunction)
+      // Graph only Options
+      dseAttributes.readCL.map(gStmt.setGraphReadConsistencyLevel)
+      dseAttributes.writeCL.map(gStmt.setGraphWriteConsistencyLevel)
+      dseAttributes.graphLanguage.map(gStmt.setGraphLanguage)
+      dseAttributes.graphName.map(gStmt.setGraphName)
+      dseAttributes.graphSource.map(gStmt.setGraphSource)
+      dseAttributes.graphTransformResults.map(gStmt.setTransformResultFunction)
 
-          if (dseAttributes.graphInternalOptions.isDefined) {
-            dseAttributes.graphInternalOptions.get.foreach { t =>
-              gStmt.setGraphInternalOption(t._1, t._2)
-            }
-          }
+      if (dseAttributes.graphInternalOptions.isDefined) {
+        dseAttributes.graphInternalOptions.get.foreach { t =>
+          gStmt.setGraphInternalOption(t._1, t._2)
+        }
+      }
 
-          if (dseAttributes.isSystemQuery.isDefined && dseAttributes.isSystemQuery.get) {
-            gStmt.setSystemQuery()
-          }
+      if (dseAttributes.isSystemQuery.isDefined && dseAttributes.isSystemQuery.get) {
+        gStmt.setSystemQuery()
+      }
 
-          val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, startTimes, gStmt, dseAttributes, metricsLogger)
-          implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
-          protocol.session
-            .executeGraphAsync(gStmt)
-            .onComplete(t => {dseRouter ! RecordResult(t, responseHandler)})
+      val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTime, gStmt, dseAttributes, metricsLogger)
+      implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
+      protocol.session
+        .executeGraphAsync(gStmt)
+        .onComplete(t => {
+          dseRouter ! RecordResult(t, responseHandler)
+        })
     })
   }
 

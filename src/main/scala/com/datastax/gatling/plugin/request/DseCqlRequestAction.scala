@@ -6,24 +6,22 @@
 
 package com.datastax.gatling.plugin.request
 
-import java.lang.System.{currentTimeMillis, nanoTime}
 import java.util.UUID
-
-import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
+import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
-import com.datastax.driver.core.Statement
+import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.response.CqlResponseHandler
-import com.datastax.gatling.plugin.utils.ResponseTimers
-import com.datastax.gatling.plugin.{DseCqlStatement, DseProtocol}
+import com.datastax.gatling.plugin.utils.{GatlingTimingSource, ResponseTime}
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture, MoreExecutors}
 import io.gatling.commons.stats.KO
-import io.gatling.commons.validation.Validation
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
+
+import scala.collection.JavaConverters._
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
 
 /**
   *
@@ -50,7 +48,8 @@ class DseCqlRequestAction(val name: String,
                           val protocol: DseProtocol,
                           val dseAttributes: DseCqlAttributes,
                           val metricsLogger: MetricsLogger,
-                          val dseRouter: ActorRef)
+                          val dseRouter: ActorRef,
+                          val gatlingTimingSource: GatlingTimingSource)
   extends ExitableAction {
 
   def execute(session: Session): Unit = {
@@ -58,26 +57,22 @@ class DseCqlRequestAction(val name: String,
   }
 
   def sendQuery(session: Session): Unit = {
-    val stmt: Validation[Statement] = {
-      dseAttributes.statement match {
-        case cql: DseCqlStatement => cql.buildFromFeeders(session)
-      }
-    }
+    val stmt = dseAttributes.statement.buildFromFeeders(session)
 
     stmt.onFailure(err => {
-      val respTimings = ResponseTimers((nanoTime, currentTimeMillis))
+      val responseTime: ResponseTime = ResponseTime(session, gatlingTimingSource)
       val logUuid = UUID.randomUUID.toString
       val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
 
-      statsEngine.logResponse(session, name, respTimings.responseTimings, KO, None,
-        Some(s"$tagString - Preparing: ${err.take(50)}"), List(respTimings.diffMicros, "PRE", logUuid))
+      statsEngine.logResponse(session, name, responseTime.toGatlingResponseTimings, KO, None,
+        Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(TimeUnit.MICROSECONDS), "PRE", logUuid))
 
       logger.error("[{}] {} - Preparing: {} - Attrs: {}", logUuid, tagString, err, session.attributes.mkString(","))
       next ! session.markAsFailed
     })
 
     stmt.onSuccess({ stmt =>
-      val startTimes = (nanoTime, currentTimeMillis)
+      val responseTime = ResponseTime(session, gatlingTimingSource)
 
       // global options
       dseAttributes.cl.map(stmt.setConsistencyLevel)
@@ -96,7 +91,7 @@ class DseCqlRequestAction(val name: String,
         stmt.enableTracing
       }
 
-      val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, startTimes, stmt, dseAttributes, metricsLogger)
+      val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, responseTime, stmt, dseAttributes, metricsLogger)
       implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
       protocol.session
         .executeAsync(stmt)

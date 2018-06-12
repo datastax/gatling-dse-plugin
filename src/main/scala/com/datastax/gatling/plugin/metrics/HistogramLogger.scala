@@ -11,7 +11,7 @@ import java.nio.file.Paths
 import java.util.Collections
 import java.util.concurrent.{ConcurrentSkipListMap, TimeUnit}
 
-import com.datastax.gatling.plugin.utils.ResponseTimers
+import com.datastax.gatling.plugin.utils.ResponseTime
 import com.fasterxml.jackson.databind.{ObjectMapper, SerializationFeature}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.typesafe.scalalogging.LazyLogging
@@ -75,11 +75,11 @@ class HistogramLogger(startEpoch: Long) extends LazyLogging with MetricsLogger {
     *
     * @param session        Gatling Session
     * @param tag            Event Tag
-    * @param responseTimers Response Timers
+    * @param responseTime   Response Time
     * @param ok             OK/KO
     */
-  def log(session: Session, tag: String, responseTimers: ResponseTimers, ok: Boolean): Unit = {
-    val responseNanos = responseTimers.diffNanos
+  def log(session: Session, tag: String, responseTime: ResponseTime, ok: Boolean): Unit = {
+    val responseNanos = responseTime.latencyIn(TimeUnit.NANOSECONDS)
 
     if (System.currentTimeMillis() < (startEpoch + histogramLogConfig.logWriterWarmUp.toMillis)) {
       logger.trace(s"Current time is less than the warm up time ${histogramLogConfig.logWriterWarmUp}, " +
@@ -105,7 +105,7 @@ class HistogramLogger(startEpoch: Long) extends LazyLogging with MetricsLogger {
     perSecondTagHistograms
         .computeIfAbsent(tagId, _ => new ConcurrentSkipListMap())
         .computeIfAbsent(status, _ => new ConcurrentSkipListMap())
-        .computeIfAbsent(responseTimers.getStartTimeInSeconds, _ =>
+        .computeIfAbsent(responseTime.startTimeInSeconds, _ =>
           new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes)
         ).recordValue(responseNanos)
 
@@ -119,7 +119,7 @@ class HistogramLogger(startEpoch: Long) extends LazyLogging with MetricsLogger {
       perSecondGroupHistograms
           .computeIfAbsent(groupId, _ => new ConcurrentSkipListMap())
           .computeIfAbsent(status, _ => new ConcurrentSkipListMap())
-          .computeIfAbsent(responseTimers.getStartTimeInSeconds, _ =>
+          .computeIfAbsent(responseTime.startTimeInSeconds, _ =>
             new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes)
           ).recordValue(responseNanos)
     }

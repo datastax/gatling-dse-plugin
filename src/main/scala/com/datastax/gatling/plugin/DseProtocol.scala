@@ -14,6 +14,7 @@ import akka.routing.RoundRobinPool
 import com.datastax.driver.dse.DseSession
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.request.{DseCqlRequestActionBuilder, DseGraphRequestActionBuilder, DseRequestActor}
+import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
@@ -71,7 +72,7 @@ object DseComponents {
     if (componentsCache.contains(system)) {
       // Reuse shared components to avoid creating multiple loggers and routers in the same simulation
       val shared: DseComponents = componentsCache(system)
-      DseComponents(dseProtocol, shared.metricsLogger, shared.dseRequestsRouter)
+      DseComponents(dseProtocol, shared.metricsLogger, shared.dseRequestsRouter, GatlingTimingSource())
     } else {
       // In integration tests, multiple simulations may be submitted to different Gatling instances of the same JVM
       // Make sure that each actor system gets it own set of shared components
@@ -88,7 +89,7 @@ object DseComponents {
 
       // Create and cache the shared components for this actor system
       // Register the cleanup task just before the actor system terminates
-      val dseComponents = DseComponents(dseProtocol, metricsLogger, router)
+      val dseComponents = DseComponents(dseProtocol, metricsLogger, router, GatlingTimingSource())
       componentsCache.put(system, dseComponents)
       CoordinatedShutdown(system).addTask(
         CoordinatedShutdown.PhaseBeforeActorSystemTerminate,
@@ -102,7 +103,8 @@ object DseComponents {
 
 case class DseComponents(dseProtocol: DseProtocol,
                          metricsLogger: MetricsLogger,
-                         dseRequestsRouter: ActorRef) extends ProtocolComponents with StrictLogging {
+                         dseRequestsRouter: ActorRef,
+                         gatlingTimingSource: GatlingTimingSource) extends ProtocolComponents with StrictLogging {
   def onStart: Option[Session => Session] = None
 
   def onExit: Option[Session => Unit] = None

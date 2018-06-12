@@ -25,7 +25,8 @@ class DseCqlRequestActionBuilder(dseAttributes: DseCqlAttributes) extends Action
       dseComponents.dseProtocol,
       dseAttributes,
       dseComponents.metricsLogger,
-      dseComponents.dseRequestsRouter)
+      dseComponents.dseRequestsRouter,
+      dseComponents.gatlingTimingSource)
   }
 }
 class DseGraphRequestActionBuilder(dseAttributes: DseGraphAttributes) extends ActionBuilder with
@@ -41,6 +42,7 @@ class DseGraphRequestActionBuilder(dseAttributes: DseGraphAttributes) extends Ac
       dseComponents.dseProtocol,
       dseAttributes,
       dseComponents.metricsLogger,
-      dseComponents.dseRequestsRouter)
+      dseComponents.dseRequestsRouter,
+      dseComponents.gatlingTimingSource)
   }
 }

@@ -10,7 +10,7 @@ import java.io.Closeable
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import com.datastax.gatling.plugin.utils.ResponseTimers
+import com.datastax.gatling.plugin.utils.ResponseTime
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.session.Session
 
@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration.Duration
 
 trait MetricsLogger extends Closeable {
-  def log(session: Session, tag: String, responseTimers: ResponseTimers, ok: Boolean): Unit
+  def log(session: Session, tag: String, responseTime: ResponseTime, ok: Boolean): Unit
 }
 
 object MetricsLogger extends StrictLogging {

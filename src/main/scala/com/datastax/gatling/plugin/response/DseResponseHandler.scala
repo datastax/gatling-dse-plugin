@@ -7,13 +7,15 @@
 package com.datastax.gatling.plugin.response
 
 import java.util.UUID
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
 import com.datastax.driver.core._
 import com.datastax.driver.dse.graph.{GraphProtocol, GraphResultSet, GraphStatement}
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.request.{DseCqlAttributes, DseGraphAttributes}
-import com.datastax.gatling.plugin.utils.ResponseTimers
+import com.datastax.gatling.plugin.utils.ResponseTime
 import com.google.common.util.concurrent.FutureCallback
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.stats._
@@ -37,12 +39,12 @@ object DseResponseHandler {
 }
 
 abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLogging with FutureCallback[RS] {
+  protected def responseTime: ResponseTime
   protected def system: ActorSystem
   protected def statsEngine: StatsEngine
   protected def metricsLogger: MetricsLogger
   protected def next: Action
   protected def session: Session
-  protected def startTimes: (Long, Long)
   protected def stmt: Any
   protected def tag: String
   protected def queries: Seq[String]
@@ -54,21 +56,21 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
   private def writeGatlingLog(status: Status, respTimings: ResponseTimings, message: Option[String], extraInfo: List[Any]): Unit =
     statsEngine.logResponse(session, tag, respTimings, status, None, message, extraInfo)
 
-  protected def writeSuccess(respTimers: ResponseTimers): Unit = {
-    metricsLogger.log(session, tag, respTimers, ok = true)
-    writeGatlingLog(OK, respTimers.responseTimings, None, List(respTimers.diffMicros, "", ""))
+  protected def writeSuccess(): Unit = {
+    metricsLogger.log(session, tag, responseTime, ok = true)
+    writeGatlingLog(OK, responseTime.toGatlingResponseTimings, None, List(responseTime.latencyIn(MICROSECONDS), "", ""))
   }
 
-  protected def writeCheckFailure(respTimers: ResponseTimers, checkRes: ((Session) => Session, Option[Failure]), resultSet: RS): Unit = {
-    metricsLogger.log(session, tag, respTimers, ok = false)
+  protected def writeCheckFailure(checkRes: ((Session) => Session, Option[Failure]), resultSet: RS): Unit = {
+    metricsLogger.log(session, tag, responseTime, ok = false)
 
     val logUuid = UUID.randomUUID.toString
     val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + tag else tag
 
     writeGatlingLog(
-      KO, respTimers.responseTimings,
+      KO, responseTime.toGatlingResponseTimings,
       Some(s"$tagString - Check: ${checkRes._2.get.message.take(50)}"),
-      List(respTimers.diffMicros, "CHK", logUuid)
+      List(responseTime.latencyIn(MICROSECONDS), "CHK", logUuid)
     )
 
     logger.warn("[{}] {} - Check: {}, Query: {}, Host: {}",
@@ -76,16 +78,16 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
     )
   }
 
-  protected def writeFailure(respTimers: ResponseTimers, t: Throwable): Unit = {
+  protected def writeFailure(t: Throwable): Unit = {
 
-    metricsLogger.log(session, tag, respTimers, ok = false)
+    metricsLogger.log(session, tag, responseTime, ok = false)
 
     val logUuid = UUID.randomUUID.toString
     val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + tag else tag
 
-    writeGatlingLog(KO, respTimers.responseTimings,
+    writeGatlingLog(KO, responseTime.toGatlingResponseTimings,
       Some(s"$tagString - Execute: ${t.getClass.getSimpleName}"),
-      List(respTimers.diffMicros, "CHK", logUuid)
+      List(responseTime.latencyIn(MICROSECONDS), "CHK", logUuid)
     )
 
     stmt match {
@@ -106,12 +108,11 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
   }
 
   override def onFailure(t: Throwable): Unit = {
-    writeFailure(ResponseTimers(startTimes), t)
+    writeFailure(t)
     next ! session.markAsFailed
   }
 
   override def onSuccess(result: RS): Unit = {
-    val respTimers = ResponseTimers(startTimes)
     val response = newResponse(result)
 
     val genericResult: (Session => Session, Option[Failure]) = Check.check(response, session, genericChecks)
@@ -122,26 +123,25 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
       val sessionAfterSpecificChecks = genericResult._1(session)
       val specificChecksPassed = specificResult._2.isEmpty
       if (specificChecksPassed) {
-        writeSuccess(respTimers)
+        writeSuccess()
         next ! sessionAfterSpecificChecks.markAsSucceeded
       } else {
-        writeCheckFailure(respTimers, specificResult, result)
+        writeCheckFailure(specificResult, result)
         next ! sessionAfterSpecificChecks.markAsFailed
       }
     } else {
       // Do not run specific checks as the response is already error'ed
-      writeCheckFailure(respTimers, genericResult, result)
+      writeCheckFailure(genericResult, result)
       next ! sessionAfterGenericChecks.markAsFailed
     }
   }
 }
 
-
 class GraphResponseHandler(val next: Action,
                            val session: Session,
                            val system: ActorSystem,
                            val statsEngine: StatsEngine,
-                           val startTimes: (Long, Long),
+                           val responseTime: ResponseTime,
                            val stmt: GraphStatement,
                            val dseAttributes: DseGraphAttributes,
                            val metricsLogger: MetricsLogger)
@@ -158,7 +158,7 @@ class CqlResponseHandler(val next: Action,
                          val session: Session,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
-                         val startTimes: (Long, Long),
+                         val responseTime: ResponseTime,
                          val stmt: Statement,
                          val dseAttributes: DseCqlAttributes,
                          val metricsLogger: MetricsLogger)
@@ -169,6 +169,4 @@ class CqlResponseHandler(val next: Action,
   override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
   override protected def newResponse(rs: ResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
   override protected def queriedHost(rs: ResultSet): String = rs.getExecutionInfo.getQueriedHost.toString
-
-
 }
