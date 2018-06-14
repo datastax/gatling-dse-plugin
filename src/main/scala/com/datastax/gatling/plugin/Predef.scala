@@ -7,6 +7,7 @@
 package com.datastax.gatling.plugin
 
 import com.datastax.gatling.plugin.checks.DseCheckSupport
+import com.datastax.gatling.plugin.model.{DseCqlAttributesBuilder, DseCqlStatementBuilder, DseGraphStatementBuilder, DseGraphAttributesBuilder}
 import com.datastax.gatling.plugin.request._
 import io.gatling.core.action.builder.ActionBuilder
 
@@ -29,15 +30,15 @@ trait DsePredefBase extends DseCheckSupport {
   @deprecated("use dseProtocolBuilder instead, will be removed in future versions")
   val cql: DseProtocolBuilder.type = dseProtocolBuilder
 
-  def cql(tag: String): CqlRequestBuilder = CqlRequestBuilder(tag)
+  def cql(tag: String): DseCqlStatementBuilder = DseCqlStatementBuilder(tag)
 
-  def graph(tag: String): GraphRequestBuilder = GraphRequestBuilder(tag)
+  def graph(tag: String): DseGraphStatementBuilder = DseGraphStatementBuilder(tag)
 
   implicit def protocolBuilder2DseProtocol(builder: DseProtocolBuilder): DseProtocol = builder.build
 
-  implicit def cqlRequestAttributes2ActionBuilder(builder: DseCqlRequestBuilder): ActionBuilder = builder.build()
+  implicit def cqlRequestAttributes2ActionBuilder(builder: DseCqlAttributesBuilder): ActionBuilder = builder.build()
 
-  implicit def graphRequestAttributes2ActionBuilder(builder: DseGraphRequestBuilder): ActionBuilder = builder.build()
+  implicit def graphRequestAttributes2ActionBuilder(builder: DseGraphAttributesBuilder): ActionBuilder = builder.build()
 }
 
 /**

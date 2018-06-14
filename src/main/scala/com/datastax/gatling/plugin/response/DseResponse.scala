@@ -8,10 +8,10 @@ package com.datastax.gatling.plugin.response
 
 import com.datastax.driver.core._
 import com.datastax.driver.dse.graph._
-import com.datastax.gatling.plugin.request.{DseCqlAttributes, DseGraphAttributes}
+import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.typesafe.scalalogging.LazyLogging
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scala.util.Try
 
 abstract class DseResponse {

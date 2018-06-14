@@ -4,11 +4,12 @@
  * This software can be used solely with DataStax products. Please consult the file LICENSE.md.
  */
 
-package com.datastax.gatling.plugin.request
+package com.datastax.gatling.plugin.model
 
 import com.datastax.driver.core.{ConsistencyLevel, Row}
 import com.datastax.driver.dse.graph.GraphNode
-import com.datastax.gatling.plugin.checks.{DseCqlCheck, DseGraphCheck, GenericCheck}
+import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
+import com.datastax.gatling.plugin.request.GraphRequestActionBuilder
 import io.gatling.core.action.builder.ActionBuilder
 
 
@@ -17,13 +18,13 @@ import io.gatling.core.action.builder.ActionBuilder
   *
   * @param attr Addition Attributes
   */
-case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
+case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
   /**
     * Builds to final action to run
     *
     * @return
     */
-  def build(): ActionBuilder = new DseGraphRequestActionBuilder(attr)
+  def build(): ActionBuilder = new GraphRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level
@@ -31,7 +32,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param level ConsistencyLevel
     * @return
     */
-  def withConsistencyLevel(level: ConsistencyLevel) = DseGraphRequestBuilder(attr.copy(cl = Some(level)))
+  def withConsistencyLevel(level: ConsistencyLevel) = DseGraphAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
     * Execute a query as another user or another role, provided the current logged in user has PROXY.EXECUTE permission.
@@ -44,7 +45,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param userOrRole String
     * @return
     */
-  def withUserOrRole(userOrRole: String) = DseGraphRequestBuilder(attr.copy(userOrRole = Some(userOrRole)))
+  def withUserOrRole(userOrRole: String) = DseGraphAttributesBuilder(attr.copy(userOrRole = Some(userOrRole)))
 
   /**
     * Override the current system time for write time of query
@@ -52,7 +53,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param epochTsInMs timestamp to use
     * @return
     */
-  def withDefaultTimestamp(epochTsInMs: Long) = DseGraphRequestBuilder(attr.copy(defaultTimestamp = Some(epochTsInMs)))
+  def withDefaultTimestamp(epochTsInMs: Long) = DseGraphAttributesBuilder(attr.copy(defaultTimestamp = Some(epochTsInMs)))
 
 
   /**
@@ -60,7 +61,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     *
     * @return
     */
-  def withIdempotency() = DseGraphRequestBuilder(attr.copy(idempotent = Some(true)))
+  def withIdempotency() = DseGraphAttributesBuilder(attr.copy(idempotent = Some(true)))
 
 
   /**
@@ -69,7 +70,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param readTimeoutInMs time in milliseconds
     * @return
     */
-  def withReadTimeout(readTimeoutInMs: Int) = DseGraphRequestBuilder(attr.copy(readTimeout = Some(readTimeoutInMs)))
+  def withReadTimeout(readTimeoutInMs: Int) = DseGraphAttributesBuilder(attr.copy(readTimeout = Some(readTimeoutInMs)))
 
 
   /**
@@ -78,7 +79,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param language graph language to use
     * @return
     */
-  def withLanguage(language: String) = DseGraphRequestBuilder(attr.copy(graphLanguage = Some(language)))
+  def withLanguage(language: String) = DseGraphAttributesBuilder(attr.copy(graphLanguage = Some(language)))
 
   /**
     * Sets the graph name to use
@@ -86,7 +87,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param name Graph name
     * @return
     */
-  def withName(name: String) = DseGraphRequestBuilder(attr.copy(graphName = Some(name)))
+  def withName(name: String) = DseGraphAttributesBuilder(attr.copy(graphName = Some(name)))
 
 
   /**
@@ -95,14 +96,14 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param source graph source
     * @return
     */
-  def withSource(source: String) = DseGraphRequestBuilder(attr.copy(graphSource = Some(source)))
+  def withSource(source: String) = DseGraphAttributesBuilder(attr.copy(graphSource = Some(source)))
 
   /**
     * Set the query to be system level
     *
     * @return
     */
-  def withSystemQuery() = DseGraphRequestBuilder(attr.copy(isSystemQuery = Some(true)))
+  def withSystemQuery() = DseGraphAttributesBuilder(attr.copy(isSystemQuery = Some(true)))
 
   /**
     * Set Options on graph
@@ -110,7 +111,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param options options in key/value par to set against the query
     * @return
     */
-  def withOptions(options: (String, String)*) = DseGraphRequestBuilder(attr.copy(graphInternalOptions = Some(options)))
+  def withOptions(options: (String, String)*) = DseGraphAttributesBuilder(attr.copy(graphInternalOptions = Some(options)))
 
 
   /**
@@ -129,7 +130,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @return
     */
   def withTransformResults(transform: com.google.common.base.Function[Row, GraphNode]) = {
-    DseGraphRequestBuilder(attr.copy(graphTransformResults = Some(transform)))
+    DseGraphAttributesBuilder(attr.copy(graphTransformResults = Some(transform)))
   }
 
   /**
@@ -138,7 +139,7 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param readCL Consistency Level to use
     * @return
     */
-  def withReadConsistency(readCL: ConsistencyLevel) = DseGraphRequestBuilder(attr.copy(readCL = Some(readCL)))
+  def withReadConsistency(readCL: ConsistencyLevel) = DseGraphAttributesBuilder(attr.copy(readCL = Some(readCL)))
 
   /**
     * Define [[ConsistencyLevel]] to be used for write queries
@@ -146,14 +147,14 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * @param writeCL Consistency Level to use
     * @return
     */
-  def withWriteConsistency(writeCL: ConsistencyLevel) = DseGraphRequestBuilder(attr.copy(writeCL = Some(writeCL)))
+  def withWriteConsistency(writeCL: ConsistencyLevel) = DseGraphAttributesBuilder(attr.copy(writeCL = Some(writeCL)))
 
 
   /**
     * Backwards compatibility to set consistencyLevel
     *
     * @deprecated
-    * @see [[DseGraphRequestBuilder.withConsistencyLevel]]
+    * @see [[DseGraphAttributesBuilder.withConsistencyLevel]]
     * @param level Consistency Level to use
     * @return
     */
@@ -164,12 +165,12 @@ case class DseGraphRequestBuilder(attr: DseGraphAttributes) {
     * For Backwards compatibility
     *
     * @deprecated
-    * @see [[DseGraphRequestBuilder.executeAs]]
+    * @see [[DseGraphAttributesBuilder.executeAs]]
     * @param userOrRole User or role to use
     * @return
     */
   def executeAs(userOrRole: String) = withUserOrRole(userOrRole: String)
 
-  def check(check: DseGraphCheck) = DseGraphRequestBuilder(attr.copy(graphChecks = check :: attr.graphChecks))
-  def check(check: GenericCheck) = DseGraphRequestBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
+  def check(check: DseGraphCheck) = DseGraphAttributesBuilder(attr.copy(graphChecks = check :: attr.graphChecks))
+  def check(check: GenericCheck) = DseGraphAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }

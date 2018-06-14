@@ -1,4 +1,4 @@
-package com.datastax.gatling.plugin
+package com.datastax.gatling.plugin.model
 
 import io.gatling.commons.validation.Validation
 import io.gatling.core.session.Session

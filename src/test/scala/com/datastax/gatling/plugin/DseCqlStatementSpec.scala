@@ -6,6 +6,7 @@ import com.datastax.driver.core.ColumnDefinitions.Definition
 import com.datastax.driver.core._
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.exceptions.DseCqlStatementException
+import com.datastax.gatling.plugin.model._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
 import io.gatling.commons.validation._
 import io.gatling.core.session.Session
@@ -38,26 +39,6 @@ class DseCqlStatementSpec extends BaseSpec {
 
   before {
     reset(prepared, mockBoundStatement, mockCqlTypes)
-  }
-
-
-  describe("DseCqlStringStatement") {
-
-    val el = ElCompiler.compile[String](s"select * from keyspace.table " +
-        "where foo = ${foo}")
-    val target = DseCqlStringStatement(el)
-
-    it("should correctly return SimpleStatement for a valid expression", CqlTest) {
-      val result = target.buildFromFeeders(validGatlingSession)
-      result shouldBe a[Success[_]]
-      result.get.toString shouldBe s"select * from keyspace.table where foo = " + fooValue
-    }
-
-    it("should fail if the expression is wrong", CqlTest) {
-      val session = new Session("name", 1, Map("test2" -> "5"))
-      target.buildFromFeeders(session) shouldBe "No attribute named 'foo' is defined".failure
-    }
-
   }
 
 

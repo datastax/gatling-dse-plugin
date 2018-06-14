@@ -10,7 +10,8 @@ import com.datastax.driver.dse.DseSession
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
-import com.datastax.gatling.plugin.{DseCqlStatement, DseProtocol}
+import com.datastax.gatling.plugin.DseProtocol
+import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseCqlStatement}
 import com.google.common.util.concurrent.{Futures, ListenableFuture}
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.Exit
@@ -20,7 +21,7 @@ import io.gatling.core.stats.StatsEngine
 import org.easymock.EasyMock
 import org.easymock.EasyMock._
 
-class DseCqlRequestActionSpec extends BaseSpec with TestKitBase {
+class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system = ActorSystem()
   val gatlingTestConfig = GatlingConfiguration.loadForTest()
   val dseSession = mock[DseSession]
@@ -29,8 +30,8 @@ class DseCqlRequestActionSpec extends BaseSpec with TestKitBase {
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseCqlAttributes): DseCqlRequestAction = {
-    new DseCqlRequestAction(
+  def getTarget(dseAttributes: DseCqlAttributes): CqlRequestAction = {
+    new CqlRequestAction(
       "sample-dse-request",
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),
       system,

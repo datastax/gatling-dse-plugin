@@ -4,7 +4,7 @@
  * This software can be used solely with DataStax products. Please consult the file LICENSE.md.
  */
 
-package com.datastax.gatling.plugin
+package com.datastax.gatling.plugin.model
 
 import com.datastax.driver.dse.graph.{GraphStatement, SimpleGraphStatement}
 import com.datastax.dse.graph.api.DseGraph

@@ -4,6 +4,7 @@ import com.datastax.driver.dse.DseSession
 import com.datastax.driver.dse.graph.SimpleGraphStatement
 import com.datastax.dse.graph.api.DseGraph
 import com.datastax.gatling.plugin.base.BaseSpec
+import com.datastax.gatling.plugin.model.{GraphBoundStatement, GraphFluentStatement, GraphStringStatement}
 import io.gatling.commons.validation.{Failure, Success}
 import io.gatling.core.session.Session
 import io.gatling.core.session.el.ElCompiler

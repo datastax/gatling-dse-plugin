@@ -13,7 +13,7 @@ import akka.actor.{ActorRef, ActorSystem, CoordinatedShutdown, Props}
 import akka.routing.RoundRobinPool
 import com.datastax.driver.dse.DseSession
 import com.datastax.gatling.plugin.metrics.MetricsLogger
-import com.datastax.gatling.plugin.request.{DseCqlRequestActionBuilder, DseGraphRequestActionBuilder, DseRequestActor}
+import com.datastax.gatling.plugin.request.{CqlRequestActionBuilder, GraphRequestActionBuilder, DseRequestActor}
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.CoreComponents
@@ -32,7 +32,7 @@ import scala.collection.mutable
   * - The case class method [[DseProtocolBuilder.build]] is called by Gatling.
   * This creates an instance of [[DseProtocol]].
   *
-  * - The [[DseCqlRequestActionBuilder]] or [[DseGraphRequestActionBuilder]] classes calls Gatling
+  * - The [[CqlRequestActionBuilder]] or [[GraphRequestActionBuilder]] classes calls Gatling
   * in order to get an instance of [[DseComponents]] from the [[DseProtocol.DseProtocolKey]].
   * This happens for *every scenario*.
   *

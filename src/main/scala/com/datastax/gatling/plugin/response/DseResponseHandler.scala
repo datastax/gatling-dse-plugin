@@ -7,14 +7,13 @@
 package com.datastax.gatling.plugin.response
 
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
 import com.datastax.driver.core._
 import com.datastax.driver.dse.graph.{GraphProtocol, GraphResultSet, GraphStatement}
 import com.datastax.gatling.plugin.metrics.MetricsLogger
-import com.datastax.gatling.plugin.request.{DseCqlAttributes, DseGraphAttributes}
+import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.datastax.gatling.plugin.utils.ResponseTime
 import com.google.common.util.concurrent.FutureCallback
 import com.typesafe.scalalogging.StrictLogging

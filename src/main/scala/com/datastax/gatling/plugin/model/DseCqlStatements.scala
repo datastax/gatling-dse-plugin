@@ -4,7 +4,7 @@
  * This software can be used solely with DataStax products. Please consult the file LICENSE.md.
  */
 
-package com.datastax.gatling.plugin
+package com.datastax.gatling.plugin.model
 
 import java.nio.ByteBuffer
 
@@ -20,18 +20,6 @@ import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
 trait DseCqlStatement extends DseStatement[Statement] {
   def buildFromFeeders(session: Session): Validation[Statement]
-}
-
-
-/**
-  * Simple CQL Statement from a String
-  *
-  * @param string the CQL Query to execute
-  */
-case class DseCqlStringStatement(string: Expression[String]) extends DseCqlStatement {
-  def buildFromFeeders(gatlingSession: Session): Validation[SimpleStatement] = {
-    string(gatlingSession).flatMap(stmt => new SimpleStatement(stmt).success)
-  }
 }
 
 /**

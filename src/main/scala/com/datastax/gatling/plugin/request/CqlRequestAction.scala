@@ -12,19 +12,21 @@ import java.util.concurrent.TimeUnit
 import akka.actor.{ActorRef, ActorSystem}
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
-import com.datastax.gatling.plugin.response.GraphResponseHandler
-import com.datastax.gatling.plugin.utils.{GatlingTimingSource, ResponseTime}
+import com.datastax.gatling.plugin.model.DseCqlAttributes
+import com.datastax.gatling.plugin.response.CqlResponseHandler
+import com.datastax.gatling.plugin.utils.{FutureUtils, GatlingTimingSource, ResponseTime}
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture, MoreExecutors}
 import io.gatling.commons.stats.KO
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
+import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
 
 /**
   *
-  * This class is responsible for executing CQL or Graph queries asynchronously against the cluster.
+  * This class is responsible for executing CQL queries asynchronously against the cluster.
   *
   * It first starts by delegating everything that is driver related to the DSE plugin router.  This is in order to
   * free the Gatling `injector` actor as fast as possible.
@@ -40,26 +42,26 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Pro
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class DseGraphRequestAction(val name: String,
-                            val next: Action,
-                            val system: ActorSystem,
-                            val statsEngine: StatsEngine,
-                            val protocol: DseProtocol,
-                            val dseAttributes: DseGraphAttributes,
-                            val metricsLogger: MetricsLogger,
-                            val dseRouter: ActorRef,
-                            val gatlingTimingSource: GatlingTimingSource)
+class CqlRequestAction(val name: String,
+                       val next: Action,
+                       val system: ActorSystem,
+                       val statsEngine: StatsEngine,
+                       val protocol: DseProtocol,
+                       val dseAttributes: DseCqlAttributes,
+                       val metricsLogger: MetricsLogger,
+                       val dseRouter: ActorRef,
+                       val gatlingTimingSource: GatlingTimingSource)
   extends ExitableAction {
 
   def execute(session: Session): Unit = {
-    dseRouter ! SendGraphQuery(this, session)
+    dseRouter ! SendCqlQuery(this, session)
   }
 
   def sendQuery(session: Session): Unit = {
     val stmt = dseAttributes.statement.buildFromFeeders(session)
 
     stmt.onFailure(err => {
-      val responseTime = ResponseTime(session, gatlingTimingSource)
+      val responseTime: ResponseTime = ResponseTime(session, gatlingTimingSource)
       val logUuid = UUID.randomUUID.toString
       val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
 
@@ -70,51 +72,33 @@ class DseGraphRequestAction(val name: String,
       next ! session.markAsFailed
     })
 
-    stmt.onSuccess({ gStmt =>
+    stmt.onSuccess({ stmt =>
       val responseTime = ResponseTime(session, gatlingTimingSource)
+
       // global options
-      dseAttributes.cl.map(gStmt.setConsistencyLevel)
-      dseAttributes.defaultTimestamp.map(gStmt.setDefaultTimestamp)
-      dseAttributes.userOrRole.map(gStmt.executingAs)
-      dseAttributes.readTimeout.map(gStmt.setReadTimeoutMillis)
-      dseAttributes.idempotent.map(gStmt.setIdempotent)
+      dseAttributes.cl.map(stmt.setConsistencyLevel)
+      dseAttributes.userOrRole.map(stmt.executingAs)
+      dseAttributes.readTimeout.map(stmt.setReadTimeoutMillis)
+      dseAttributes.idempotent.map(stmt.setIdempotent)
+      dseAttributes.defaultTimestamp.map(stmt.setDefaultTimestamp)
 
-      // Graph only Options
-      dseAttributes.readCL.map(gStmt.setGraphReadConsistencyLevel)
-      dseAttributes.writeCL.map(gStmt.setGraphWriteConsistencyLevel)
-      dseAttributes.graphLanguage.map(gStmt.setGraphLanguage)
-      dseAttributes.graphName.map(gStmt.setGraphName)
-      dseAttributes.graphSource.map(gStmt.setGraphSource)
-      dseAttributes.graphTransformResults.map(gStmt.setTransformResultFunction)
-
-      if (dseAttributes.graphInternalOptions.isDefined) {
-        dseAttributes.graphInternalOptions.get.foreach { t =>
-          gStmt.setGraphInternalOption(t._1, t._2)
-        }
+      // CQL Only Options
+      dseAttributes.outGoingPayload.map(x => stmt.setOutgoingPayload(x.asJava))
+      dseAttributes.serialCl.map(stmt.setSerialConsistencyLevel)
+      dseAttributes.retryPolicy.map(stmt.setRetryPolicy)
+      dseAttributes.fetchSize.map(stmt.setFetchSize)
+      dseAttributes.pagingState.map(stmt.setPagingState)
+      if (dseAttributes.enableTrace.isDefined && dseAttributes.enableTrace.get) {
+        stmt.enableTracing
       }
 
-      if (dseAttributes.isSystemQuery.isDefined && dseAttributes.isSystemQuery.get) {
-        gStmt.setSystemQuery()
-      }
-
-      val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTime, gStmt, dseAttributes, metricsLogger)
+      val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, responseTime, stmt, dseAttributes, metricsLogger)
       implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
-      protocol.session
-        .executeGraphAsync(gStmt)
+      FutureUtils
+        .toScalaFuture(protocol.session.executeAsync(stmt))
         .onComplete(t => {
           dseRouter ! RecordResult(t, responseHandler)
         })
     })
-  }
-
-  private implicit def toScalaFuture[T](guavaFuture: ListenableFuture[T]): Future[T] = {
-    val scalaPromise = Promise[T]()
-    Futures.addCallback(guavaFuture,
-      new FutureCallback[T] {
-        def onSuccess(result: T): Unit = scalaPromise.success(result)
-
-        def onFailure(exception: Throwable): Unit = scalaPromise.failure(exception)
-      })
-    scalaPromise.future
   }
 }
