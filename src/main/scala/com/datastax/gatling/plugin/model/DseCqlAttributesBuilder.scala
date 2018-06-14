@@ -24,7 +24,7 @@ case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
     *
     * @return
     */
-  def build(): ActionBuilder = new CqlRequestActionBuilder(attr)
+  def build(): CqlRequestActionBuilder = new CqlRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level

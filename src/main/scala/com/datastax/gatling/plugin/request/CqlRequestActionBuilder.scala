@@ -13,7 +13,7 @@ import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.util.NameGen
 
-class CqlRequestActionBuilder(dseAttributes: DseCqlAttributes) extends ActionBuilder with
+class CqlRequestActionBuilder(val dseAttributes: DseCqlAttributes) extends ActionBuilder with
   NameGen {
 
   def build(ctx: ScenarioContext, next: Action): Action = {
