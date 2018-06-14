@@ -51,10 +51,10 @@ val mavenSettings = scala.xml.XML.loadFile(settingsXml)
 val artifactory = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "artifactory" }
 publishTo := {
   if (isSnapshot.value) {
-    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-snapshots-local;" +
+    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-snapshots-local;" +
       "build.timestamp=" + new java.util.Date().getTime)
   } else {
-    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-releases-local")
+    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-releases-local")
   }
 }
 credentials += Credentials(
