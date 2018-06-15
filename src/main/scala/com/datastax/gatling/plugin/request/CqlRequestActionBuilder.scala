@@ -26,7 +26,7 @@ class CqlRequestActionBuilder(val dseAttributes: DseCqlAttributes) extends Actio
       dseComponents.dseProtocol,
       dseAttributes,
       dseComponents.metricsLogger,
-      dseComponents.dseRequestsRouter,
+      dseComponents.dseExecutorService,
       dseComponents.gatlingTimingSource)
   }
 }

@@ -39,7 +39,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       DseProtocol(dseSession),
       dseAttributes,
       NoopMetricsLogger(),
-      system.actorOf(Props[DseRequestActor]),
+      executorServiceForTests(),
       GatlingTimingSource())
   }
 

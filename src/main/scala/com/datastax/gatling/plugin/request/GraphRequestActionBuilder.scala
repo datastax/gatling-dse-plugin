@@ -20,7 +20,7 @@ class GraphRequestActionBuilder(dseAttributes: DseGraphAttributes) extends Actio
       dseComponents.dseProtocol,
       dseAttributes,
       dseComponents.metricsLogger,
-      dseComponents.dseRequestsRouter,
+      dseComponents.dseExecutorService,
       dseComponents.gatlingTimingSource)
   }
 }

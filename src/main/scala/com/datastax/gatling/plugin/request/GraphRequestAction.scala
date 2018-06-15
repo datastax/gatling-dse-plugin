@@ -7,21 +7,20 @@
 package com.datastax.gatling.plugin.request
 
 import java.util.UUID
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ExecutorService, TimeUnit}
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseGraphAttributes
 import com.datastax.gatling.plugin.response.GraphResponseHandler
 import com.datastax.gatling.plugin.utils.{FutureUtils, GatlingTimingSource, ResponseTime}
-import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture, MoreExecutors}
 import io.gatling.commons.stats.KO
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 /**
   *
@@ -48,13 +47,16 @@ class GraphRequestAction(val name: String,
                          val protocol: DseProtocol,
                          val dseAttributes: DseGraphAttributes,
                          val metricsLogger: MetricsLogger,
-                         val dseRouter: ActorRef,
+                         val dseExecutorService: ExecutorService,
                          val gatlingTimingSource: GatlingTimingSource)
   extends ExitableAction {
 
   def execute(session: Session): Unit = {
-    dseRouter ! SendGraphQuery(this, session)
+    dseExecutorService.submit(new Runnable {
+      override def run(): Unit = sendQuery(session)
+    })
   }
+
 
   def sendQuery(session: Session): Unit = {
     ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
@@ -100,12 +102,10 @@ class GraphRequestAction(val name: String,
       }
 
       val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTime, gStmt, dseAttributes, metricsLogger)
-      implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(MoreExecutors.directExecutor())
+      implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
       FutureUtils
         .toScalaFuture(protocol.session.executeGraphAsync(gStmt))
-        .onComplete(t => {
-          dseRouter ! RecordResult(t, responseHandler)
-        })
+        .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
     })
   }
 }
