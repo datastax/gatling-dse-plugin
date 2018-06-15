@@ -58,6 +58,7 @@ class CqlRequestAction(val name: String,
   }
 
   def sendQuery(session: Session): Unit = {
+    ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
     val stmt = dseAttributes.statement.buildFromFeeders(session)
 
     stmt.onFailure(err => {
