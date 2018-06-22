@@ -1,7 +1,7 @@
 scalacOptions += "-target:jvm-1.8"
 
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"     % "1.6.7"
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-graph"    % "1.6.7"
+libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"     % "1.5.1"
+libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-graph"    % "1.5.1"
 libraryDependencies += "com.github.nscala-time"       %% "nscala-time"              % "2.18.0"
 libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala"     % "2.9.1"
 libraryDependencies += "org.hdrhistogram"             %  "HdrHistogram"             % "2.1.10"
