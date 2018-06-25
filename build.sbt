@@ -41,36 +41,49 @@ assemblyMergeStrategy in assembly := {
 }
 
 //
-// Releases should reuse credentials from other build systems
+// Releases should reuse credentials from other build systems.
 //
 // For Jenkins triggered releases, find them in the file denoted by the environment variable MAVEN_USER_SETTINGS_FILE
-// If it is missing, find them in ~/.m2/settings.xml
+// If it is missing, find them in ~/.m2/settings.xml.
 //
-val settingsXml = sys.env.getOrElse("MAVEN_USER_SETTINGS_FILE", System.getProperty("user.home") + "/.m2/settings.xml")
-val mavenSettings = scala.xml.XML.loadFile(settingsXml)
-val artifactory = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "artifactory" }
+// If there is no ~/.m2/settings.xml, do not add anything to the sbt configuration.
+//
+val lookupM2Settings = {
+  val settingsXml = sys.env.getOrElse("MAVEN_USER_SETTINGS_FILE", System.getProperty("user.home") + "/.m2/settings.xml")
+  if (new File(settingsXml).exists()) {
+    val mavenSettings = scala.xml.XML.loadFile(settingsXml)
+    val artifactory = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "artifactory" }
+    if (artifactory.nonEmpty) {
+      Seq(credentials += Credentials(
+        "Artifactory Realm",
+        "datastax.jfrog.io",
+        (artifactory \ "username").text,
+        (artifactory \ "password").text))
+    } else {
+      Seq.empty
+    }
+  } else {
+    Seq.empty
+  }
+}
+
 publishTo := {
   if (isSnapshot.value) {
-    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-snapshots-local;" +
-      "build.timestamp=" + new java.util.Date().getTime)
+    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-snapshots-local;" + "build.timestamp=" + new java.util.Date().getTime)
   } else {
     Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-releases-local")
   }
 }
-credentials += Credentials(
-  "Artifactory Realm",
-  "datastax.jfrog.io",
-  (artifactory \ "username").text,
-  (artifactory \ "password").text)
+
 releaseUseGlobalVersion := false
 
-lazy val root = (project in file(".")).
-  settings(
+lazy val root = (project in file("."))
+  .settings(lookupM2Settings)
+  .settings(
     scalaVersion := "2.12.4",
     organization := "com.datastax.gatling.plugin",
-    name         := "gatling-dse-plugin"
-  ).
-  settings(
+    name := "gatling-dse-plugin")
+  .settings(
     addArtifact(
       Artifact("gatling-dse-plugin", "assembly"),
       sbtassembly.AssemblyKeys.assembly))
