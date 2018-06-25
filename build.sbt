@@ -69,9 +69,9 @@ val lookupM2Settings = {
 
 publishTo := {
   if (isSnapshot.value) {
-    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-snapshots-local;" + "build.timestamp=" + new java.util.Date().getTime)
+    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-snapshots-local;build.timestamp=" + new java.util.Date().getTime)
   } else {
-    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-releases-local")
+    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-releases-local")
   }
 }
 
