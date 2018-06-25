@@ -9,7 +9,22 @@ import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.session.Session
 
 /**
-  * This class contains a single method that verifies if
+  * This class contains a single method that verifies whether the configured
+  * throughput can be achieved.  To do so, it verifies if the actual send time
+  * of a request is within 10 seconds of its expected send time.  If it is not,
+  * an `ERROR` message is emitted so that the user knows something is wrong.
+  *
+  * As of 2018-06-25, the following causes are known for this message.
+  *
+  * (1) The feeder logic is too complex and takes too long.  This typically
+  * includes I/O and heavy synchronization in the feeders.  This also include
+  * cases where a `.exec { session => }` contains too complex logic.
+  *
+  * (2) The capacity of the client (gatling) machine is exceeded.  This case is
+  * usually visible with a CPU usage close to 100% on the gatling machine, and
+  * not on the target DSE cluster.
+  *
+  * (3) Some Akka bad tuning.
   */
 object ThroughputVerifier extends StrictLogging {
   private val warningThresholdInSec = 10
