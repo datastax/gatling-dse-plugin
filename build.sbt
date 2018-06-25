@@ -1,3 +1,7 @@
+import scala.sys.process._
+
+val gatlingVersion = "2.3.0"
+
 scalacOptions += "-target:jvm-1.8"
 
 libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"     % "1.6.7"
@@ -6,14 +10,14 @@ libraryDependencies += "com.github.nscala-time"       %% "nscala-time"          
 libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala"     % "2.9.1"
 libraryDependencies += "org.hdrhistogram"             %  "HdrHistogram"             % "2.1.10"
 
-libraryDependencies += "io.gatling.highcharts"        % "gatling-charts-highcharts" % "2.3.0"   % Provided
+libraryDependencies += "io.gatling.highcharts"        % "gatling-charts-highcharts" % gatlingVersion % Provided
 
-libraryDependencies += "org.fusesource"               %  "sigar"                    % "1.6.4"   % Test
-libraryDependencies += "org.scalatest"                %% "scalatest"                % "3.0.5"   % Test
-libraryDependencies += "org.easymock"                 %  "easymock"                 % "3.5"     % Test
-libraryDependencies += "org.cassandraunit"            %  "cassandra-unit"           % "3.3.0.2" % Test
-libraryDependencies += "org.pegdown"                  %  "pegdown"                  % "1.6.0"   % Test
-libraryDependencies += "com.typesafe.akka"            %% "akka-testkit"             % "2.5.11"  % Test
+libraryDependencies += "org.fusesource"               %  "sigar"                    % "1.6.4"        % Test
+libraryDependencies += "org.scalatest"                %% "scalatest"                % "3.0.5"        % Test
+libraryDependencies += "org.easymock"                 %  "easymock"                 % "3.5"          % Test
+libraryDependencies += "org.cassandraunit"            %  "cassandra-unit"           % "3.3.0.2"      % Test
+libraryDependencies += "org.pegdown"                  %  "pegdown"                  % "1.6.0"        % Test
+libraryDependencies += "com.typesafe.akka"            %% "akka-testkit"             % "2.5.11"       % Test
 
 resolvers += Resolver.mavenLocal
 resolvers += Resolver.mavenCentral
@@ -77,6 +81,21 @@ publishTo := {
 
 releaseUseGlobalVersion := false
 
+lazy val repackageGatling = taskKey[Unit]("Download Gatling highcharts, add the plugin in it and repackage it")
+repackageGatling := {
+  val log = streams.value.log
+  val downloadGatling = s"wget --quiet -O ${crossTarget.value}/gatling-charts-highcharts-bundle-$gatlingVersion-bundle.zip https://repo1.maven.org/maven2/io/gatling/highcharts/gatling-charts-highcharts-bundle/$gatlingVersion/gatling-charts-highcharts-bundle-$gatlingVersion-bundle.zip"
+  val mimicZipStructure = s"mkdir -p gatling-charts-highcharts-bundle-$gatlingVersion/lib/"
+  val copyUberjar = s"cp ${crossTarget.value}/gatling-dse-plugin-assembly-${version.value}.jar gatling-charts-highcharts-bundle-$gatlingVersion/lib/"
+  val addUberjarInZip = s"zip -ur ${crossTarget.value}/gatling-charts-highcharts-bundle-$gatlingVersion-bundle.zip gatling-charts-highcharts-bundle-$gatlingVersion/"
+  val renameBundle = s"mv ${crossTarget.value}/gatling-charts-highcharts-bundle-$gatlingVersion-bundle.zip ${crossTarget.value}/gatling-charts-highcharts-bundle-dse-plugin-$gatlingVersion-bundle.zip"
+  if((downloadGatling #&& mimicZipStructure #&& copyUberjar #&& addUberjarInZip #&& renameBundle !) != 0) {
+    throw new IllegalStateException("Repackaging of gatling bundle failed")
+  }
+}
+repackageGatling := (repackageGatling dependsOn assembly).value
+publish := (publish dependsOn repackageGatling).value
+
 lazy val root = (project in file("."))
   .settings(lookupM2Settings)
   .settings(
@@ -86,4 +105,7 @@ lazy val root = (project in file("."))
   .settings(
     addArtifact(
       Artifact("gatling-dse-plugin", "assembly"),
+      sbtassembly.AssemblyKeys.assembly),
+    addArtifact(
+      Artifact(s"gatling-charts-highcharts-bundle-dse-plugin-$gatlingVersion-bundle.zip", "zip", "zip"),
       sbtassembly.AssemblyKeys.assembly))
