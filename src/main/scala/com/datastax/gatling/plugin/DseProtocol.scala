@@ -10,7 +10,7 @@ import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicLong
 
 import akka.Done
-import akka.actor.{ActorSystem, CoordinatedShutdown}
+import akka.actor.ActorSystem
 import com.datastax.driver.dse.DseSession
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.request.{CqlRequestActionBuilder, GraphRequestActionBuilder}
@@ -47,7 +47,7 @@ import scala.collection.mutable
   * happen, for instance, when there is a warm-up scenario and a real scenario. This is a consequence of Gatling
   * architecture, where each scenario has its own context, and therefore its own component registry.
   */
-object DseProtocol {
+object DseProtocol extends StrictLogging {
   val DseProtocolKey = new ProtocolKey {
     type Protocol = DseProtocol
     type Components = DseComponents
@@ -97,11 +97,7 @@ object DseComponents {
       // Register the cleanup task just before the actor system terminates
       val dseComponents = DseComponents(dseProtocol, metricsLogger, dseExecutorService, GatlingTimingSource())
       componentsCache.put(system, dseComponents)
-      CoordinatedShutdown(system).addTask(
-        CoordinatedShutdown.PhaseBeforeActorSystemTerminate,
-        "Shut down shared components",
-        () => dseComponents.shutdown()
-      )
+      system.registerOnTermination(dseComponents.shutdown())
       dseComponents
     }
   }

@@ -20,7 +20,10 @@ import org.HdrHistogram._
 import scala.collection.JavaConversions._
 
 class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsLogger {
-  protected val simName: String = configuration.core.simulationClass.get.split("\\.").last
+  // FIXME When gatling is invoked from the command line, there is no simulation class
+  protected val simName: String = configuration.core.simulationClass
+    .map(_.split("\\.").last)
+    .getOrElse("default")
   protected val config: HistogramLogConfig = HistogramLogConfig.fromConfig()
 
   private final val baseDir: String = Paths.get(
