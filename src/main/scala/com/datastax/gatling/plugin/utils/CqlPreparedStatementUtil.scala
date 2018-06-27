@@ -40,9 +40,6 @@ trait CqlPreparedStatementUtil {
   def getParamsMap(preparedStatement: PreparedStatement): Map[String, DataType.Name]
 
   def getParamsList(preparedStatement: PreparedStatement): List[DataType.Name]
-
-  def checkIsValidPreparedStatement(preparedStatement: PreparedStatement): Boolean
-
 }
 
 /**
@@ -860,15 +857,4 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
         throw new CqlTypeException(s"$paramName expected to be type of ByteBuffer, Array[Byte] or Byte")
     }
   }
-
-
-  /**
-    * Check if the PreparedStatement is valid with params
-    * @param preparedStatement
-    * @return
-    */
-  def checkIsValidPreparedStatement(preparedStatement: PreparedStatement): Boolean = {
-    preparedStatement.getVariables.iterator.hasNext
-  }
-
 }

@@ -1414,27 +1414,5 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
       }
 
     }
-
   }
-
-  describe("checkIsValidPreparedStatement") {
-
-    val tableName = "valid_prep"
-    createTable(keyspace, tableName, "id int, name text, PRIMARY KEY(id)")
-
-    val validStatement = s"select * from $keyspace.$tableName where id = ?"
-    val invalidStatement = s"select * from $keyspace.$tableName where id = 5"
-
-    val validPrepared = dseSession.prepare(validStatement)
-    val invalidPrepared = dseSession.prepare(invalidStatement)
-
-    it("should return true if valid") {
-      CqlPreparedStatementUtil.checkIsValidPreparedStatement(validPrepared) shouldBe true
-    }
-
-    it("should return false if invalid") {
-      CqlPreparedStatementUtil.checkIsValidPreparedStatement(invalidPrepared) shouldBe false
-    }
-  }
-
 }

@@ -65,7 +65,6 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.bind(fooValue, barValue).andReturn(mockBoundStatement)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(true)
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
@@ -79,7 +78,6 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.getVariables.andStubReturn(mockColDefinitions)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(true)
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
@@ -89,25 +87,6 @@ class DseCqlStatementSpec extends BaseSpec {
         r shouldBe "No attribute named 'foo' is defined".failure
       }
     }
-
-
-    it("should fail if the prepared statement is invalid") {
-
-      expecting {
-        prepared.getQueryString.andReturn(invalidStmt)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(false)
-      }
-
-      whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        val thrown = intercept[DseCqlStatementException] {
-          DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, e1, e2)
-            .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
-        }
-        thrown.getMessage shouldBe invalidExceptionError
-      }
-
-    }
-
   }
 
 
@@ -120,7 +99,6 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(true)
         mockCqlTypes.getParamsList(prepared).andReturn(paramsList)
         mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.Name.TEXT, "foo", 0)
             .andReturn(mockBoundStatement)
@@ -133,40 +111,6 @@ class DseCqlStatementSpec extends BaseSpec {
           .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
       }
     }
-
-    it("should fail if the session is empty of params") {
-
-      expecting {
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(true)
-      }
-
-      whenExecuting(prepared, mockColDefinitions, mockDefinitions, mockDefinitionId, mockCqlTypes) {
-        val thrown = intercept[DseCqlStatementException] {
-          DseCqlBoundStatementWithParamList(mockCqlTypes, prepared, List())
-            .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
-        }
-        thrown.getMessage shouldBe "Gatling session key list cannot be empty"
-      }
-
-    }
-
-    it("should fail if the prepared statement is invalid") {
-
-      expecting {
-        prepared.getQueryString.andReturn(invalidStmt)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(false)
-      }
-
-      whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        val thrown = intercept[DseCqlStatementException] {
-          DseCqlBoundStatementWithParamList(mockCqlTypes, prepared, List())
-            .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
-        }
-        thrown.getMessage shouldBe invalidExceptionError
-      }
-
-    }
-
   }
 
 
@@ -177,7 +121,6 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(true)
         mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
         mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataType.Name.INT, "foo")
             .andReturn(mockBoundStatement)
@@ -188,25 +131,6 @@ class DseCqlStatementSpec extends BaseSpec {
           .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
       }
     }
-
-
-    it("should fail if the prepared statement is invalid") {
-
-      expecting {
-        prepared.getQueryString.andReturn(invalidStmt)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(false)
-      }
-
-      whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        val thrown = intercept[DseCqlStatementException] {
-          DseCqlBoundStatementNamed(mockCqlTypes, prepared)
-            .buildFromFeeders(validGatlingSession) shouldBe a[Failure]
-        }
-        thrown.getMessage shouldBe invalidExceptionError
-      }
-
-    }
-
   }
 
 
@@ -217,7 +141,6 @@ class DseCqlStatementSpec extends BaseSpec {
       val sessionWithStatement: Session = validGatlingSession.set("statementKey", prepared)
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(true)
         mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
         mockCqlTypes.bindParamByName(sessionWithStatement, mockBoundStatement, DataType.Name.INT, "foo")
           .andReturn(mockBoundStatement)
@@ -252,7 +175,6 @@ class DseCqlStatementSpec extends BaseSpec {
         mockBoundStatement.getOutgoingPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
         mockBoundStatement.getOutgoingPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(true)
         mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
         mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataType.Name.INT, "foo")
             .andReturn(mockBoundStatement)
@@ -263,25 +185,6 @@ class DseCqlStatementSpec extends BaseSpec {
           .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
       }
     }
-
-
-    it("should fail if the prepared statement is invalid") {
-
-      expecting {
-        prepared.getQueryString.andReturn(invalidStmt)
-        mockCqlTypes.checkIsValidPreparedStatement(prepared).andReturn(false)
-      }
-
-      whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        val thrown = intercept[DseCqlStatementException] {
-          DseCqlBoundBatchStatement(mockCqlTypes, Seq(prepared))
-            .buildFromFeeders(validGatlingSession) shouldBe a[Failure]
-        }
-        thrown.getMessage shouldBe invalidExceptionError
-      }
-
-    }
-
   }
 
 
