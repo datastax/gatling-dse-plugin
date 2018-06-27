@@ -76,10 +76,9 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
       val status = if (ok) "ok" else "ko"
 
       if (config.globalHistograms.enabled) {
-        val hgrmFile = Paths.get(baseDir, s"Global_${status}.hgrm")
-        logger.debug("Recording in global histogram {}", hgrmFile)
+        logger.debug("Recording in global histogram Global_{}.hgrm", status)
         globalHistograms
-          .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.globalHistograms))
+          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, s"Global_${status}.hgrm"), requestTime, config.globalHistograms))
           .recordLatency(requestTime, responseNanos)
       }
 
@@ -87,21 +86,19 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
         if (groupId.isEmpty) {
           logger.warn("Group level results are enabled but no group was found for query {}", tagId)
         } else {
-          val hgrmFile = Paths.get(baseDir, "groups", s"${groupId}_int_$status.hgrm")
-          logger.debug("Recording in group histogram {}", hgrmFile)
+          logger.debug("Recording in group histogram {}_int_{}.hgrm", groupId, status)
           groupHistograms
             .computeIfAbsent(groupId, _ => new ConcurrentSkipListMap())
-            .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.groupHistograms))
+            .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "groups", s"${groupId}_int_$status.hgrm"), requestTime, config.groupHistograms))
             .recordLatency(requestTime, responseNanos)
         }
       }
 
       if (config.queryHistograms.enabled) {
-        val hgrmFile = Paths.get(baseDir, "tags", s"${tagId}_int_$status.hgrm")
-        logger.debug("Recording in query histogram {}", hgrmFile)
+        logger.debug("Recording in query histogram {}_int_{}.hgrm", tagId, status)
         queryHistograms
           .computeIfAbsent(tagId, _ => new ConcurrentSkipListMap())
-          .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.queryHistograms))
+          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "tags", s"${tagId}_int_$status.hgrm"), requestTime, config.queryHistograms))
           .recordLatency(requestTime, responseNanos)
       }
     }

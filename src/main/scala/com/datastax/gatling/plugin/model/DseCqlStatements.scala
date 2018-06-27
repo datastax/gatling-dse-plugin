@@ -15,6 +15,7 @@ import io.gatling.commons.validation._
 import io.gatling.core.session.{Session, _}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
 
@@ -77,16 +78,15 @@ case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUt
 
   def buildFromFeeders(gatlingSession: Session): Validation[BoundStatement] = {
     val parsedParams: Seq[Validation[AnyRef]] = params.map(param => param(gatlingSession))
-    val (validParsedParams, failures) = parsedParams.partition {
-      case Success(_) => true
-      case _ => false
-    }
-
-    //If we got a failure then fail fast
-    failures.headOption match {
-      case Some(Failure(error)) => error.failure
-      case _ =>
-        preparedStatement.bind(validParsedParams.map(_.get): _*).success
+    if (parsedParams.exists(_.isInstanceOf[Failure])) {
+      val firstError = StringBuilder.newBuilder
+      parsedParams
+        .filter(_.isInstanceOf[Failure])
+        .head
+        .onFailure(msg => firstError.append(msg))
+      firstError.toString().failure
+    } else {
+      preparedStatement.bind(parsedParams.map(_.get): _*).success
     }
   }
 }
