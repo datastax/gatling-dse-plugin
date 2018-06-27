@@ -8,8 +8,8 @@ package com.datastax.gatling.plugin.metrics
 
 import java.io.{Closeable, FileOutputStream, PrintStream}
 import java.nio.file.{Path, Paths}
-import java.util.concurrent.TimeUnit.MILLISECONDS
-import java.util.concurrent.{ConcurrentSkipListMap, TimeUnit}
+import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.TimeUnit.{MILLISECONDS, NANOSECONDS}
 
 import com.datastax.gatling.plugin.utils.ResponseTime
 import com.typesafe.scalalogging.StrictLogging
@@ -17,7 +17,7 @@ import io.gatling.core.Predef._
 import io.gatling.core.session.Session
 import org.HdrHistogram._
 
-import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
 
 class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsLogger {
   protected val simName: String = configuration.core.simulationClass.get.split("\\.").last
@@ -65,32 +65,40 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
       logger.debug("Current time is less than the warm up time {}, skipping " +
         "adding to histograms.", config.logWriterWarmUp)
     } else {
+      logger.debug("Recording latency for {}-{}: {}ns", tag, ok, responseTime.latencyIn(NANOSECONDS))
       val groupId = session.groupHierarchy.map(MetricsLogger.sanitizeString).mkString("_")
       val tagId = MetricsLogger.sanitizeString(tag)
-      val responseNanos = responseTime.latencyIn(TimeUnit.NANOSECONDS)
+      val responseNanos = responseTime.latencyIn(NANOSECONDS)
       val requestTime: Long = responseTime.startTimeInSeconds
       val status = if (ok) "ok" else "ko"
 
       if (config.globalHistograms.enabled) {
         val hgrmFile = Paths.get(baseDir, s"Global_${status}.hgrm")
+        logger.debug("Recording in global histogram {}", hgrmFile)
         globalHistograms
           .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.globalHistograms))
           .recordLatency(requestTime, responseNanos)
       }
 
-      if (config.groupHistograms.enabled && groupId.nonEmpty) {
-        val hgrmFile = Paths.get(baseDir, "groups", s"${groupId}_int_$status.hgrm")
-        groupHistograms
-          .computeIfAbsent(groupId, _ => new ConcurrentSkipListMap())
-          .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.globalHistograms))
-          .recordLatency(requestTime, responseNanos)
+      if (config.groupHistograms.enabled) {
+        if (groupId.isEmpty) {
+          logger.warn("Group level results are enabled but no group was found for query {}", tagId)
+        } else {
+          val hgrmFile = Paths.get(baseDir, "groups", s"${groupId}_int_$status.hgrm")
+          logger.debug("Recording in group histogram {}", hgrmFile)
+          groupHistograms
+            .computeIfAbsent(groupId, _ => new ConcurrentSkipListMap())
+            .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.groupHistograms))
+            .recordLatency(requestTime, responseNanos)
+        }
       }
 
       if (config.queryHistograms.enabled) {
         val hgrmFile = Paths.get(baseDir, "tags", s"${tagId}_int_$status.hgrm")
-        groupHistograms
+        logger.debug("Recording in query histogram {}", hgrmFile)
+        queryHistograms
           .computeIfAbsent(tagId, _ => new ConcurrentSkipListMap())
-          .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.globalHistograms))
+          .computeIfAbsent(status, _ => new PerSecondHistogram(hgrmFile, requestTime, config.queryHistograms))
           .recordLatency(requestTime, responseNanos)
       }
     }
@@ -113,9 +121,11 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
   }
 
   def writeDataUntil(maxTimeStamp: Long) {
+    logger.debug("Writing data created until {}", maxTimeStamp)
     if (config.globalHistograms.enabled) {
+      logger.debug("Writing global histograms that contains keys {}", globalHistograms.keySet())
       for {
-        status <- globalHistograms.keySet().asScala
+        status <- globalHistograms.keySet()
       } {
         logger.debug("Writing global {} histograms", status)
         globalHistograms.get(status).writeUntil(maxTimeStamp)
@@ -123,9 +133,13 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
     }
 
     if (config.groupHistograms.enabled) {
+      logger.debug("Writing group histograms that contains keys {}",
+        groupHistograms.flatMap { case (tag, statusHistograms) =>
+          statusHistograms.keySet().map(status => tag + "-" + status)
+        }.toList)
       for {
-        group <- groupHistograms.keySet().asScala
-        status <- groupHistograms.get(group).keySet().asScala
+        group <- groupHistograms.keySet()
+        status <- groupHistograms.get(group).keySet()
       } {
         logger.debug("Writing group {}:{} histograms", group, status)
         groupHistograms.get(group).get(status).writeUntil(maxTimeStamp)
@@ -133,9 +147,13 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
     }
 
     if (config.queryHistograms.enabled) {
+      logger.debug("Writing query histograms that contains keys {}",
+        queryHistograms.flatMap { case (tag, statusHistograms) =>
+          statusHistograms.keySet().map(status => tag + "-" + status)
+        }.toList)
       for {
-        tag <- queryHistograms.keySet().asScala
-        status <- queryHistograms.get(tag).keySet().asScala
+        tag <- queryHistograms.keySet()
+        status <- queryHistograms.get(tag).keySet()
       } {
         logger.debug("Writing query {}:{} histograms", tag, status)
         queryHistograms.get(tag).get(status).writeUntil(maxTimeStamp)
@@ -182,8 +200,8 @@ class PerSecondHistogram(val hgrmPath: Path,
 
   def writeUntil(maxTimeStampSec: Long) {
     val histogramsToWrite = histograms.headMap(maxTimeStampSec)
-    logger.debug("Writing {} histograms created before {} to {}",
-      histogramsToWrite.size(), maxTimeStampSec, maxTimeStampSec)
+    logger.debug("Writing {} histograms created before {}",
+      histogramsToWrite.size(), maxTimeStampSec)
     histogramsToWrite
       .keySet()
       .forEach(t =>
