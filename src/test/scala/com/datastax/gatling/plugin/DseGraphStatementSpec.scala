@@ -28,12 +28,12 @@ class DseGraphStatementSpec extends BaseSpec {
     val target = GraphStringStatement(el)
 
     it("should succeed for a valid expression") {
-      val result = target.buildFromFeeders(validGatlingSession)
+      val result = target.buildFromSession(validGatlingSession)
       result shouldBe a[Success[_]]
     }
 
     it("should fail if the expression is wrong") {
-      val result = target.buildFromFeeders(invalidGatlingSession)
+      val result = target.buildFromSession(invalidGatlingSession)
       result shouldBe a[Failure]
       result shouldBe Failure("No attribute named 'test' is defined")
     }
@@ -47,7 +47,7 @@ class DseGraphStatementSpec extends BaseSpec {
     val target = GraphFluentStatement(gStatement)
 
     it("should correctly return StringStatement for a valid expression") {
-      val result = target.buildFromFeeders(validGatlingSession)
+      val result = target.buildFromSession(validGatlingSession)
       result shouldBe a[Success[_]]
     }
   }
@@ -58,12 +58,12 @@ class DseGraphStatementSpec extends BaseSpec {
     val target = GraphBoundStatement(graphStatement, Map("test" -> "type"))
 
     it("should suceeed with a valid session") {
-      val result = target.buildFromFeeders(validGatlingSession)
+      val result = target.buildFromSession(validGatlingSession)
       result shouldBe a[Success[_]]
     }
 
     it("should faile with an invalid session") {
-      val result = target.buildFromFeeders(invalidGatlingSession)
+      val result = target.buildFromSession(invalidGatlingSession)
       result shouldBe a[Failure]
     }
 

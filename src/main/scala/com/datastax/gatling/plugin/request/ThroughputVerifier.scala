@@ -24,7 +24,7 @@ import io.gatling.core.session.Session
   * usually visible with a CPU usage close to 100% on the gatling machine, and
   * not on the target DSE cluster.
   *
-  * (3) Some Akka bad tuning.
+  * (3) Some bad Akka tuning.
   */
 object ThroughputVerifier extends StrictLogging {
   private val warningThresholdInSec = 10

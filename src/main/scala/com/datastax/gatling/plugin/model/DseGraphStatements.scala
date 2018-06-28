@@ -17,7 +17,7 @@ import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
 
 trait DseGraphStatement extends DseStatement[GraphStatement] {
-  def buildFromFeeders(session: Session): Validation[GraphStatement]
+  def buildFromSession(session: Session): Validation[GraphStatement]
 }
 
 /**
@@ -26,7 +26,7 @@ trait DseGraphStatement extends DseStatement[GraphStatement] {
   * @param statement the Gremlin String to execute
   */
 case class GraphStringStatement(statement: Expression[String]) extends DseGraphStatement {
-  def buildFromFeeders(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     statement(gatlingSession).flatMap(stmt => new SimpleGraphStatement(stmt).success)
   }
 }
@@ -37,7 +37,7 @@ case class GraphStringStatement(statement: Expression[String]) extends DseGraphS
   * @param statement the Fluent Statement
   */
 case class GraphFluentStatement(statement: GraphStatement) extends DseGraphStatement {
-  def buildFromFeeders(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     statement.success
   }
 }
@@ -50,7 +50,7 @@ case class GraphFluentStatement(statement: GraphStatement) extends DseGraphState
   *               and returns a fluent Graph Statement
   */
 case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement) extends DseGraphStatement {
-  def buildFromFeeders(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     lambda(gatlingSession).success
   }
 }
@@ -63,7 +63,7 @@ case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement
   */
 case class GraphFluentSessionKey(sessionKey: String) extends DseGraphStatement {
 
-  def buildFromFeeders(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
 
     if (!gatlingSession.contains(sessionKey)) {
       throw new DseGraphStatementException(s"Passed sessionKey: {$sessionKey} does not exist in Session.")
@@ -93,7 +93,7 @@ case class GraphBoundStatement(statement: SimpleGraphStatement, sessionKeys: Map
     * @param gatlingSession Gatling Session
     * @return
     */
-  def buildFromFeeders(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     Try {
       sessionKeys.foreach((tuple: (String, String)) => setParam(gatlingSession, tuple._1, tuple._2)).success
       statement

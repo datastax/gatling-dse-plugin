@@ -28,8 +28,6 @@ import io.gatling.core.stats.message.ResponseTimings
 import scala.util.Try
 
 object DseResponseHandler {
-//  private def removeNewLineChars(str: String) = str.replaceAll("""(\r|\n)""", " ")
-
   def sanitize(s: String): String = s.replaceAll("""(\r|\n)""", " ")
 
   def sanitizeAndJoin(statements: Seq[String]): String = statements

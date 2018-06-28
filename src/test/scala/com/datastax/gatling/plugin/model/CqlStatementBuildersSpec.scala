@@ -20,7 +20,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
       .build()
       .dseAttributes
     val statement: SimpleStatement = statementAttributes.statement
-      .buildFromFeeders(Session("the-tag", 42))
+      .buildFromSession(Session("the-tag", 42))
       .get.asInstanceOf[SimpleStatement]
     statementAttributes.cqlStatements should contain only "SELECT foo FROM bar.baz LIMIT 1"
     statement.getQueryString() should be("SELECT foo FROM bar.baz LIMIT 1")
@@ -68,7 +68,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
       .build()
       .dseAttributes
     val statement: SimpleStatement = statementAttributes.statement
-      .buildFromFeeders(Session("the-tag", 42))
+      .buildFromSession(Session("the-tag", 42))
       .get.asInstanceOf[SimpleStatement]
     statementAttributes.cqlStatements should contain only "Some CQL"
     statement.getQueryString() should be("Some CQL")

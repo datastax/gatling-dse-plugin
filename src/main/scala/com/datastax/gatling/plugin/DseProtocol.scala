@@ -116,8 +116,9 @@ case class DseComponents(dseProtocol: DseProtocol,
     metricsLogger.close()
     logger.info("Shutting down thread pool")
     val missed = dseExecutorService.shutdownNow().size()
-    if (missed > 0)
-      logger.warn("{} tasks were not compelted because of shutdown", missed)
+    if (missed > 0) {
+      logger.warn("{} tasks were not completed because of shutdown", missed)
+    }
     logger.info("Shut down complete")
     CompletableFuture.completedFuture(Done)
   }

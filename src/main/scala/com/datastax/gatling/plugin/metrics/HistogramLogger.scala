@@ -17,7 +17,7 @@ import io.gatling.core.Predef._
 import io.gatling.core.session.Session
 import org.HdrHistogram._
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsLogger {
   // FIXME When gatling is invoked from the command line, there is no simulation class
@@ -125,7 +125,7 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
     if (config.globalHistograms.enabled) {
       logger.debug("Writing global histograms that contains keys {}", globalHistograms.keySet())
       for {
-        status <- globalHistograms.keySet()
+        status <- globalHistograms.keySet().asScala
       } {
         logger.debug("Writing global {} histograms", status)
         globalHistograms.get(status).writeUntil(maxTimeStamp)
@@ -134,12 +134,12 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
 
     if (config.groupHistograms.enabled) {
       logger.debug("Writing group histograms that contains keys {}",
-        groupHistograms.flatMap { case (tag, statusHistograms) =>
-          statusHistograms.keySet().map(status => tag + "-" + status)
+        groupHistograms.asScala.flatMap { case (tag, statusHistograms) =>
+          statusHistograms.keySet().asScala.map(status => tag + "-" + status)
         }.toList)
       for {
-        group <- groupHistograms.keySet()
-        status <- groupHistograms.get(group).keySet()
+        group <- groupHistograms.keySet().asScala
+        status <- groupHistograms.get(group).keySet().asScala
       } {
         logger.debug("Writing group {}:{} histograms", group, status)
         groupHistograms.get(group).get(status).writeUntil(maxTimeStamp)
@@ -148,12 +148,12 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
 
     if (config.queryHistograms.enabled) {
       logger.debug("Writing query histograms that contains keys {}",
-        queryHistograms.flatMap { case (tag, statusHistograms) =>
-          statusHistograms.keySet().map(status => tag + "-" + status)
+        queryHistograms.asScala.flatMap { case (tag, statusHistograms) =>
+          statusHistograms.keySet().asScala.map(status => tag + "-" + status)
         }.toList)
       for {
-        tag <- queryHistograms.keySet()
-        status <- queryHistograms.get(tag).keySet()
+        tag <- queryHistograms.keySet().asScala
+        status <- queryHistograms.get(tag).keySet().asScala
       } {
         logger.debug("Writing query {}:{} histograms", tag, status)
         queryHistograms.get(tag).get(status).writeUntil(maxTimeStamp)

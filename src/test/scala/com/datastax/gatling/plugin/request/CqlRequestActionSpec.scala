@@ -71,7 +71,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
         dseCqlStatement)
 
       expecting {
-        dseCqlStatement.buildFromFeeders(gatlingSession).andReturn(new SimpleStatement("select * from test")
+        dseCqlStatement.buildFromSession(gatlingSession).andReturn(new SimpleStatement("select * from test")
           .success)
         dseSession.executeAsync(capture(statementCapture)) andReturn mockResultSetFuture()
       }
@@ -108,7 +108,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
         enableTrace = Some(true))
 
       expecting {
-        dseCqlStatement.buildFromFeeders(gatlingSession).andReturn(new SimpleStatement("select * from test")
+        dseCqlStatement.buildFromSession(gatlingSession).andReturn(new SimpleStatement("select * from test")
           .success)
         dseSession.executeAsync(capture(statementCapture)) andReturn mockResultSetFuture()
       }

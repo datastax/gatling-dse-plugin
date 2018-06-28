@@ -82,7 +82,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       )
 
       expecting {
-        dseGraphStatement.buildFromFeeders(gatlingSession).andReturn(new SimpleGraphStatement("g.V()").success)
+        dseGraphStatement.buildFromSession(gatlingSession).andReturn(new SimpleGraphStatement("g.V()").success)
         dseSession.executeGraphAsync(capture(statementCapture)) andReturn Futures.immediateFuture(mock[GraphResultSet])
       }
 
@@ -114,7 +114,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       )
 
       expecting {
-        dseGraphStatement.buildFromFeeders(gatlingSession).andReturn(new SimpleGraphStatement("g.V()").success)
+        dseGraphStatement.buildFromSession(gatlingSession).andReturn(new SimpleGraphStatement("g.V()").success)
         dseSession.executeGraphAsync(capture(statementCapture)) andReturn Futures.immediateFuture(mock[GraphResultSet])
       }
 

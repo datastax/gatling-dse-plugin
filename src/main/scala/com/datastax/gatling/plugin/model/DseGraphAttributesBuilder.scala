@@ -153,22 +153,22 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
   /**
     * Backwards compatibility to set consistencyLevel
     *
-    * @deprecated
     * @see [[DseGraphAttributesBuilder.withConsistencyLevel]]
     * @param level Consistency Level to use
     * @return
     */
+  @deprecated("use withConsistencyLevel() instead, will be removed in future version")
   def consistencyLevel(level: ConsistencyLevel) = withConsistencyLevel(level)
 
 
   /**
     * For Backwards compatibility
     *
-    * @deprecated
     * @see [[DseGraphAttributesBuilder.executeAs]]
     * @param userOrRole User or role to use
     * @return
     */
+  @deprecated("use withUserOrRole() instead, will be removed in future version")
   def executeAs(userOrRole: String) = withUserOrRole(userOrRole: String)
 
   def check(check: DseGraphCheck) = DseGraphAttributesBuilder(attr.copy(graphChecks = check :: attr.graphChecks))

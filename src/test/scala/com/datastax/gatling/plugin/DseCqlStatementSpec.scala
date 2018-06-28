@@ -47,7 +47,7 @@ class DseCqlStatementSpec extends BaseSpec {
     it("should succeed with a passed SimpleStatement", CqlTest) {
 
       val stmt = new SimpleStatement("select * from keyspace.table where id = 5")
-      val result = DseCqlSimpleStatement(stmt).buildFromFeeders(validGatlingSession)
+      val result = DseCqlSimpleStatement(stmt).buildFromSession(validGatlingSession)
 
       result shouldBe a[Success[_]]
       result.get.toString shouldBe stmt.toString
@@ -69,7 +69,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, e1, e2)
-          .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
+          .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
 
@@ -82,7 +82,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         val r = DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, e1, e2)
-          .buildFromFeeders(invalidGatlingSession)
+          .buildFromSession(invalidGatlingSession)
         r shouldBe a[Failure]
         r shouldBe "No attribute named 'foo' is defined".failure
       }
@@ -108,7 +108,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         DseCqlBoundStatementWithParamList(mockCqlTypes, prepared, validParamList)
-          .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
+          .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
   }
@@ -128,7 +128,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         DseCqlBoundStatementNamed(mockCqlTypes, prepared)
-          .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
+          .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
   }
@@ -147,7 +147,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey")
-          .buildFromFeeders(sessionWithStatement) shouldBe a[Success[_]]
+          .buildFromSession(sessionWithStatement) shouldBe a[Success[_]]
       }
     }
 
@@ -157,7 +157,7 @@ class DseCqlStatementSpec extends BaseSpec {
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         val thrown = intercept[DseCqlStatementException] {
           DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey")
-            .buildFromFeeders(validGatlingSession) shouldBe a[Failure]
+            .buildFromSession(validGatlingSession) shouldBe a[Failure]
         }
         thrown.getMessage shouldBe "Passed sessionKey: {statementKey} does not exist in Session."
       }
@@ -182,7 +182,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         DseCqlBoundBatchStatement(mockCqlTypes, Seq(prepared))
-          .buildFromFeeders(validGatlingSession) shouldBe a[Success[_]]
+          .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
   }
@@ -199,7 +199,7 @@ class DseCqlStatementSpec extends BaseSpec {
       )
 
       val result = DseCqlCustomPayloadStatement(stmt, "payload")
-        .buildFromFeeders(payloadGatlingSession)
+        .buildFromSession(payloadGatlingSession)
 
       result shouldBe a[Success[_]]
       result.get.toString shouldBe stmt.toString
@@ -209,7 +209,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       val thrown = intercept[DseCqlStatementException] {
         DseCqlCustomPayloadStatement(stmt, "payload")
-          .buildFromFeeders(validGatlingSession) shouldBe a[Failure]
+          .buildFromSession(validGatlingSession) shouldBe a[Failure]
       }
       thrown.getMessage shouldBe  s"Passed sessionKey: {payload} does not exist in Session."
     }
@@ -218,7 +218,7 @@ class DseCqlStatementSpec extends BaseSpec {
     it("should fail with an invalid payload", CqlTest) {
       val payloadGatlingSession = new Session("name", 1, Map("payload" -> 12))
       DseCqlCustomPayloadStatement(stmt, "payload")
-        .buildFromFeeders(payloadGatlingSession) shouldBe a[Failure]
+        .buildFromSession(payloadGatlingSession) shouldBe a[Failure]
     }
 
   }

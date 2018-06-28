@@ -7,6 +7,7 @@
 package com.datastax.gatling.plugin.request
 
 import java.util.UUID
+import java.util.concurrent.TimeUnit.MICROSECONDS
 import java.util.concurrent.{ExecutorService, TimeUnit}
 
 import akka.actor.ActorSystem
@@ -61,7 +62,7 @@ class CqlRequestAction(val name: String,
 
   def sendQuery(session: Session): Unit = {
     ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
-    val stmt = dseAttributes.statement.buildFromFeeders(session)
+    val stmt = dseAttributes.statement.buildFromSession(session)
 
     stmt.onFailure(err => {
       val responseTime: ResponseTime = ResponseTime(session, gatlingTimingSource)
@@ -69,7 +70,7 @@ class CqlRequestAction(val name: String,
       val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
 
       statsEngine.logResponse(session, name, responseTime.toGatlingResponseTimings, KO, None,
-        Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(TimeUnit.MICROSECONDS), "PRE", logUuid))
+        Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(MICROSECONDS), "PRE", logUuid))
 
       logger.error("[{}] {} - Preparing: {} - Attrs: {}", logUuid, tagString, err, session.attributes.mkString(","))
       next ! session.markAsFailed

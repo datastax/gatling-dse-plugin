@@ -11,5 +11,5 @@ import io.gatling.core.session.Session
   * usage is, for instance, finding the values to bind to CQL parameters.
   */
 trait DseStatement[S] {
-  def buildFromFeeders(session: Session): Validation[S]
+  def buildFromSession(session: Session): Validation[S]
 }
