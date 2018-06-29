@@ -17,13 +17,15 @@ import io.gatling.core.session.Session
 import scala.concurrent.ExecutionException
 import scala.util.{Failure, Success, Try}
 
-case class SendQuery(dseRequestAction: DseRequestAction, session: Session)
+case class SendCqlQuery(dseRequestAction: CqlRequestAction, session: Session)
+case class SendGraphQuery(dseRequestAction: GraphRequestAction, session: Session)
 
 case class RecordResult[T](t: Try[T], callback: FutureCallback[T])
 
 class DseRequestActor extends Actor with StrictLogging {
   override def receive: Actor.Receive = {
-    case SendQuery(action, session) => action.sendQuery(session)
+    case SendCqlQuery(action, session) => action.sendQuery(session)
+    case SendGraphQuery(action, session) => action.sendQuery(session)
     case r: RecordResult[_] => DseRequestActor.recordResult(r)
   }
 }

@@ -6,69 +6,116 @@
 
 package com.datastax.gatling.plugin.response
 
-import com.datastax.driver.core.{ResultSet, Row}
+import com.datastax.driver.core._
 import com.datastax.driver.dse.graph._
-import com.datastax.gatling.plugin.exceptions.DseCheckException
-import com.datastax.gatling.plugin.request.DseAttributes
+import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.typesafe.scalalogging.LazyLogging
 
+import scala.collection.JavaConverters._
 import scala.util.Try
 
-case class DseResponseBase(resultSet: Any)
-
-class DseResponse(dseResultSet: Any, dseAttributes: DseAttributes) extends DseResponseBase(dseResultSet) with LazyLogging {
-
-  private var graphResultSet: Option[GraphResultSet] = None
-  private var cqlResultSet: Option[ResultSet] = None
-
-  dseResultSet match {
-    case rs: ResultSet =>
-      cqlResultSet = Some(rs)
-    case gr: GraphResultSet =>
-      graphResultSet = Some(gr)
-  }
-
-  private lazy val allCqlRows: Seq[Row] = collection.JavaConverters.asScalaBuffer(cqlResultSet.get.all())
-  private lazy val allGraphNodes: Seq[GraphNode] = collection.JavaConverters.asScalaBuffer(graphResultSet.get.all())
+abstract class DseResponse {
+  def executionInfo(): ExecutionInfo
+  def rowCount(): Int
+  def applied(): Boolean
+  def exhausted(): Boolean
+  def queriedHost(): Host = executionInfo().getQueriedHost
+  def achievedConsistencyLevel(): ConsistencyLevel = executionInfo().getAchievedConsistencyLevel
+  def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutions
+  def pagingState(): PagingState = executionInfo().getPagingState
+  def triedHosts(): List[Host] = executionInfo().getTriedHosts.asScala.toList
+  def warnings(): List[String] = executionInfo().getWarnings.asScala.toList
+  def successFullExecutionIndex(): Int = executionInfo().getSuccessfulExecutionIndex
+  def schemaInAgreement(): Boolean = executionInfo().isSchemaInAgreement
+}
 
 
-  /**
-    * Was the LWT applied
-    *
-    * @return
-    */
-  def isApplied: Boolean = {
-    if (graphResultSet.isDefined) {
-      return false // graph doesn't support LWTs so always return false
-    }
-    cqlResultSet.get.wasApplied()
-  }
+class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes) extends DseResponse with LazyLogging {
+  private lazy val allGraphNodes: Seq[GraphNode] = collection.JavaConverters.asScalaBuffer(graphResultSet.all())
 
-
-  /**
-    * Is the current resultSet completed in fetching
-    *
-    * @return
-    */
-  def isExhausted: Boolean = {
-    if (cqlResultSet.isDefined) {
-      cqlResultSet.get.isExhausted
-    } else {
-      graphResultSet.get.isExhausted
-    }
-  }
+  override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo()
+  override def applied(): Boolean = false // graph doesn't support LWTs so always return false
+  override def exhausted(): Boolean = graphResultSet.isExhausted()
 
   /**
     * Get the number of all rows returned by the query.
     * Note: Calling this function fetches <b>all</b> rows from the result set!
     */
-  def getRowCount: Int = {
-    if (cqlResultSet.isDefined) {
-      allCqlRows.size
-    } else {
-      allGraphNodes.size
-    }
+  override def rowCount(): Int = allGraphNodes.size
+
+  def getGraphResultSet: GraphResultSet = {
+    graphResultSet
   }
+
+  def getAllNodes: Seq[GraphNode] = allGraphNodes
+
+  def getOneNode: GraphNode = {
+    graphResultSet.one()
+  }
+
+
+  def getGraphResultColumnValues(column: String): Seq[Any] = {
+    if (allGraphNodes.isEmpty) return Seq.empty
+
+    allGraphNodes.map(node => if (node.get(column) != null) node.get(column))
+  }
+
+
+  def getEdges(name: String): Seq[Edge] = {
+    val columnValues = collection.mutable.Buffer[Edge]()
+    graphResultSet.forEach { n =>
+      Try(
+        if (n.get(name).isEdge) {
+          columnValues.append(n.get(name).asEdge())
+        }
+      )
+    }
+    columnValues
+  }
+
+
+  def getVertexes(name: String): Seq[Vertex] = {
+    val columnValues = collection.mutable.Buffer[Vertex]()
+    graphResultSet.forEach { n => Try(if (n.get(name).isVertex) columnValues.append(n.get(name).asVertex())) }
+    columnValues
+  }
+
+
+  def getPaths(name: String): Seq[Path] = {
+    val columnValues = collection.mutable.Buffer[Path]()
+    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asPath())) }
+    columnValues
+  }
+
+
+  def getProperties(name: String): Seq[Property] = {
+    val columnValues = collection.mutable.Buffer[Property]()
+    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asProperty())) }
+    columnValues
+  }
+
+
+  def getVertexProperties(name: String): Seq[VertexProperty] = {
+    val columnValues = collection.mutable.Buffer[VertexProperty]()
+    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asVertexProperty())) }
+    columnValues
+  }
+
+  def getDseAttributes: DseGraphAttributes = dseAttributes
+}
+
+class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes) extends DseResponse with LazyLogging {
+  private lazy val allCqlRows: Seq[Row] = collection.JavaConverters.asScalaBuffer(cqlResultSet.all())
+
+  override def executionInfo(): ExecutionInfo = cqlResultSet.getExecutionInfo()
+  override def applied(): Boolean = cqlResultSet.wasApplied()
+  override def exhausted(): Boolean = cqlResultSet.isExhausted()
+
+  /**
+    * Get the number of all rows returned by the query.
+    * Note: Calling this function fetches <b>all</b> rows from the result set!
+    */
+  def rowCount: Int = allCqlRows.size
 
   /**
     * Get CQL ResultSet
@@ -76,8 +123,7 @@ class DseResponse(dseResultSet: Any, dseAttributes: DseAttributes) extends DseRe
     * @return
     */
   def getCqlResultSet: ResultSet = {
-    if (cqlResultSet.isEmpty) throw new DseCheckException("getCqlResultSet requires the use of CQL Query")
-    cqlResultSet.get
+    cqlResultSet
   }
 
 
@@ -90,15 +136,11 @@ class DseResponse(dseResultSet: Any, dseAttributes: DseAttributes) extends DseRe
 
 
   def getOneRow: Row = {
-    if (cqlResultSet.isEmpty) throw new DseCheckException("getOneRow requires the use of CQL Query")
-
-    cqlResultSet.get.one()
+    cqlResultSet.one()
   }
 
 
   def getCqlResultColumnValues(column: String): Seq[Any] = {
-    if (cqlResultSet.isEmpty) throw new DseCheckException("getCqlResultColumnValues requires the use of CQL Query")
-
     if (allCqlRows.isEmpty || !allCqlRows.head.getColumnDefinitions.contains(column)) {
       return Seq.empty
     }
@@ -106,80 +148,5 @@ class DseResponse(dseResultSet: Any, dseAttributes: DseAttributes) extends DseRe
     allCqlRows.map(row => row.getObject(column))
   }
 
-
-  def getGraphResultSet: GraphResultSet = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getGraphResultSet requires the use of CQL Query")
-    graphResultSet.get
-  }
-
-  def getAllNodes: Seq[GraphNode] = allGraphNodes
-
-
-  def getOneNode: GraphNode = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getOneNode requires the use of Graph Query")
-
-    graphResultSet.get.one()
-  }
-
-
-  def getGraphResultColumnValues(column: String): Seq[Any] = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getGraphResultColumnValues requires the use of Graph Query")
-
-    if (allGraphNodes.isEmpty) return Seq.empty
-
-    allGraphNodes.map(node => if (node.get(column) != null) node.get(column))
-  }
-
-
-  def getEdges(name: String): Seq[Edge] = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getEdges requires the use of a Graph Query")
-
-    val columnValues = collection.mutable.Buffer[Edge]()
-    graphResultSet.get.forEach { n =>
-      Try(
-        if (n.get(name).isEdge) {
-          columnValues.append(n.get(name).asEdge())
-        }
-      )
-    }
-    columnValues
-  }
-
-
-  def getVertexes(name: String): Seq[Vertex] = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getVertexes requires the use of a Graph Query")
-
-    val columnValues = collection.mutable.Buffer[Vertex]()
-    graphResultSet.get.forEach { n => Try(if (n.get(name).isVertex) columnValues.append(n.get(name).asVertex())) }
-    columnValues
-  }
-
-
-  def getPaths(name: String): Seq[Path] = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getPaths requires the use of a Graph Query")
-
-    val columnValues = collection.mutable.Buffer[Path]()
-    graphResultSet.get.forEach { n => Try(columnValues.append(n.get(name).asPath())) }
-    columnValues
-  }
-
-
-  def getProperties(name: String): Seq[Property] = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getProperties requires the use of a Graph Query")
-
-    val columnValues = collection.mutable.Buffer[Property]()
-    graphResultSet.get.forEach { n => Try(columnValues.append(n.get(name).asProperty())) }
-    columnValues
-  }
-
-
-  def getVertexProperties(name: String): Seq[VertexProperty] = {
-    if (graphResultSet.isEmpty) throw new DseCheckException("getVertexProperties requires the use of a Graph Query")
-
-    val columnValues = collection.mutable.Buffer[VertexProperty]()
-    graphResultSet.get.forEach { n => Try(columnValues.append(n.get(name).asVertexProperty())) }
-    columnValues
-  }
-
-  def getDseAttributes = dseAttributes
+  def getDseAttributes: DseCqlAttributes = dseAttributes
 }

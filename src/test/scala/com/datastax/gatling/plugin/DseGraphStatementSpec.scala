@@ -4,6 +4,7 @@ import com.datastax.driver.dse.DseSession
 import com.datastax.driver.dse.graph.SimpleGraphStatement
 import com.datastax.dse.graph.api.DseGraph
 import com.datastax.gatling.plugin.base.BaseSpec
+import com.datastax.gatling.plugin.model.{GraphBoundStatement, GraphFluentStatement, GraphStringStatement}
 import io.gatling.commons.validation.{Failure, Success}
 import io.gatling.core.session.Session
 import io.gatling.core.session.el.ElCompiler
@@ -27,12 +28,12 @@ class DseGraphStatementSpec extends BaseSpec {
     val target = GraphStringStatement(el)
 
     it("should succeed for a valid expression") {
-      val result = target(validGatlingSession)
+      val result = target.buildFromSession(validGatlingSession)
       result shouldBe a[Success[_]]
     }
 
     it("should fail if the expression is wrong") {
-      val result = target(invalidGatlingSession)
+      val result = target.buildFromSession(invalidGatlingSession)
       result shouldBe a[Failure]
       result shouldBe Failure("No attribute named 'test' is defined")
     }
@@ -46,7 +47,7 @@ class DseGraphStatementSpec extends BaseSpec {
     val target = GraphFluentStatement(gStatement)
 
     it("should correctly return StringStatement for a valid expression") {
-      val result = target(validGatlingSession)
+      val result = target.buildFromSession(validGatlingSession)
       result shouldBe a[Success[_]]
     }
   }
@@ -57,12 +58,12 @@ class DseGraphStatementSpec extends BaseSpec {
     val target = GraphBoundStatement(graphStatement, Map("test" -> "type"))
 
     it("should suceeed with a valid session") {
-      val result = target(validGatlingSession)
+      val result = target.buildFromSession(validGatlingSession)
       result shouldBe a[Success[_]]
     }
 
     it("should faile with an invalid session") {
-      val result = target(invalidGatlingSession)
+      val result = target.buildFromSession(invalidGatlingSession)
       result shouldBe a[Failure]
     }
 

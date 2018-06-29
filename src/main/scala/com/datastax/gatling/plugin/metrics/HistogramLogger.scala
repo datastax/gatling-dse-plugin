@@ -6,309 +6,209 @@
 
 package com.datastax.gatling.plugin.metrics
 
-import java.io.{FileOutputStream, PrintStream}
-import java.nio.file.Paths
-import java.util.Collections
-import java.util.concurrent.{ConcurrentSkipListMap, TimeUnit}
+import java.io.{Closeable, FileOutputStream, PrintStream}
+import java.nio.file.{Path, Paths}
+import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.TimeUnit.{MILLISECONDS, NANOSECONDS}
 
-import com.datastax.gatling.plugin.utils.ResponseTimers
-import com.fasterxml.jackson.databind.{ObjectMapper, SerializationFeature}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.typesafe.scalalogging.LazyLogging
+import com.datastax.gatling.plugin.utils.ResponseTime
+import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.Predef._
 import io.gatling.core.session.Session
 import org.HdrHistogram._
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.ArrayBuffer
-import scala.reflect.io.File
 
-class HistogramLogger(startEpoch: Long) extends LazyLogging with MetricsLogger {
-  protected val simName: String = configuration.core.simulationClass.get.split("\\.").last
-  protected val histogramLogConfig: HistogramLogConfig = HistogramLogConfig.fromConfig()
+class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsLogger {
+  // FIXME When gatling is invoked from the command line, there is no simulation class
+  protected val simName: String = configuration.core.simulationClass
+    .map(_.split("\\.").last)
+    .getOrElse("default")
+  protected val config: HistogramLogConfig = HistogramLogConfig.fromConfig()
 
   private final val baseDir: String = Paths.get(
     configuration.core.directory.results,
-    MetricsLogger.sanitizeString(simName).toLowerCase + "-" + startEpoch,
-    histogramLogConfig.directory).toString
+    MetricsLogger.sanitizeString(simName).toLowerCase + "-" + startTimeMillis,
+    config.directory).toString
 
-  private val sanitizedGroups = new ConcurrentSkipListMap[String, String]()
-  private val sanitizedTags = new ConcurrentSkipListMap[String, String]()
-  private val tags = Collections.newSetFromMap(new ConcurrentSkipListMap[String, java.lang.Boolean]())
-  private val groupTags = new ConcurrentSkipListMap[String, ArrayBuffer[String]]()
+  /**
+    * For each status (ok/ko) and at each second, there is one global histogram.
+    */
+  private val globalHistograms = new
+      ConcurrentSkipListMap[String, PerSecondHistogram]()
 
-  private val globalHistogram = Map(
-    "ok" -> new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes),
-    "ko" -> new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes)
-  )
+  /**
+    * For each group of requests, for each status (ok/ko) and at each second,
+    * there is one group histogram.
+    */
+  private val groupHistograms = new
+      ConcurrentSkipListMap[String,
+        ConcurrentSkipListMap[String, PerSecondHistogram]]()
 
-  private val globalTagHistograms = Map(
-    "ok" -> new ConcurrentSkipListMap[String, AtomicHistogram](),
-    "ko" -> new ConcurrentSkipListMap[String, AtomicHistogram]()
-  )
-
-  private val globalGroupHistograms = Map(
-    "ok" -> new ConcurrentSkipListMap[String, AtomicHistogram](),
-    "ko" -> new ConcurrentSkipListMap[String, AtomicHistogram]()
-  )
-
-  private val perSecondTagHistograms = new
-      ConcurrentSkipListMap[String, // For each tag name (request)
-        ConcurrentSkipListMap[String, // And for each status (OK/KO)
-          ConcurrentSkipListMap[Long, AtomicHistogram]]]() // And for each second, there is one histogram
-
-  private val perSecondTagHistogramWriters = new
-      ConcurrentSkipListMap[String, // For each tag name (request)
-        ConcurrentSkipListMap[String, HistogramLogWriter]]() // And for each status (OK/KO), there is one file writer
-
-  private val perSecondGroupHistograms = new
-      ConcurrentSkipListMap[String, // For each group of requests
-        ConcurrentSkipListMap[String, // And for each status (OK/KO)
-          ConcurrentSkipListMap[Long, AtomicHistogram]]]() // And for each second, there is one histogram
-
-  private val perSecondGroupHistogramWriters = new
-      ConcurrentSkipListMap[String, // For each group of requests
-        ConcurrentSkipListMap[String, HistogramLogWriter]]() // And for each status (OK/KO), there is one file writer
+  /**
+    * For each tag name (request), for each status (ok/ko) and at each second,
+    * there is one query histogram.
+    */
+  private val queryHistograms = new
+      ConcurrentSkipListMap[String,
+        ConcurrentSkipListMap[String, PerSecondHistogram]]()
 
   /**
     * Log Metrics
     *
-    * @param session        Gatling Session
-    * @param tag            Event Tag
-    * @param responseTimers Response Timers
-    * @param ok             OK/KO
+    * @param session      Gatling Session
+    * @param tag          Event Tag
+    * @param responseTime Response Time
+    * @param ok           OK/KO
     */
-  def log(session: Session, tag: String, responseTimers: ResponseTimers, ok: Boolean): Unit = {
-    val responseNanos = responseTimers.diffNanos
+  def log(session: Session, tag: String, responseTime: ResponseTime, ok: Boolean): Unit = {
+    if (!config.enabled) {
+      logger.debug("Histogram logger is disabled, nothing to do")
+    } else if (System.currentTimeMillis() < (startTimeMillis + config.logWriterWarmUp.toMillis)) {
+      logger.debug("Current time is less than the warm up time {}, skipping " +
+        "adding to histograms.", config.logWriterWarmUp)
+    } else {
+      logger.debug("Recording latency for {}-{}: {}ns", tag, ok, responseTime.latencyIn(NANOSECONDS))
+      val groupId = session.groupHierarchy.map(MetricsLogger.sanitizeString).mkString("_")
+      val tagId = MetricsLogger.sanitizeString(tag)
+      val responseNanos = responseTime.latencyIn(NANOSECONDS)
+      val requestTime: Long = responseTime.startTimeInSeconds
+      val status = if (ok) "ok" else "ko"
 
-    if (System.currentTimeMillis() < (startEpoch + histogramLogConfig.logWriterWarmUp.toMillis)) {
-      logger.trace(s"Current time is less than the warm up time ${histogramLogConfig.logWriterWarmUp}, " +
-          s"skipping adding to histograms.")
-      return
+      if (config.globalHistograms.enabled) {
+        logger.debug("Recording in global histogram Global_{}.hgrm", status)
+        globalHistograms
+          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, s"Global_${status}.hgrm"), requestTime, config.globalHistograms))
+          .recordLatency(requestTime, responseNanos)
+      }
+
+      if (config.groupHistograms.enabled) {
+        if (groupId.isEmpty) {
+          logger.warn("Group level results are enabled but no group was found for query {}", tagId)
+        } else {
+          logger.debug("Recording in group histogram {}_int_{}.hgrm", groupId, status)
+          groupHistograms
+            .computeIfAbsent(groupId, _ => new ConcurrentSkipListMap())
+            .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "groups", s"${groupId}_int_$status.hgrm"), requestTime, config.groupHistograms))
+            .recordLatency(requestTime, responseNanos)
+        }
+      }
+
+      if (config.queryHistograms.enabled) {
+        logger.debug("Recording in query histogram {}_int_{}.hgrm", tagId, status)
+        queryHistograms
+          .computeIfAbsent(tagId, _ => new ConcurrentSkipListMap())
+          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "tags", s"${tagId}_int_$status.hgrm"), requestTime, config.queryHistograms))
+          .recordLatency(requestTime, responseNanos)
+      }
     }
-
-    val groupId = getGroupId(session)
-    val tagId = getTagId(groupId, tag)
-
-    val status = if (ok) "ok" else "ko"
-
-    // record to global all encompassing histogram
-    globalHistogram(status).recordValue(responseNanos)
-
-    // record into global histogram for group + tag
-    globalTagHistograms(status)
-        .computeIfAbsent(tagId, _ =>
-          new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes))
-        .recordValue(responseNanos)
-
-    // check if the tag has a histogram stored for the request time already
-    perSecondTagHistograms
-        .computeIfAbsent(tagId, _ => new ConcurrentSkipListMap())
-        .computeIfAbsent(status, _ => new ConcurrentSkipListMap())
-        .computeIfAbsent(responseTimers.getStartTimeInSeconds, _ =>
-          new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes)
-        ).recordValue(responseNanos)
-
-    // log groups if enabled in the configs
-    if (histogramLogConfig.groupLogsEnabled && groupId.nonEmpty) {
-
-      globalGroupHistograms(status)
-          .computeIfAbsent(groupId, _ => new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes))
-          .recordValue(responseNanos)
-
-      perSecondGroupHistograms
-          .computeIfAbsent(groupId, _ => new ConcurrentSkipListMap())
-          .computeIfAbsent(status, _ => new ConcurrentSkipListMap())
-          .computeIfAbsent(responseTimers.getStartTimeInSeconds, _ =>
-            new AtomicHistogram(histogramLogConfig.globalHighest, histogramLogConfig.globalRes)
-          ).recordValue(responseNanos)
-    }
-
   }
 
   /**
     * Close the File buffers
     */
   def close(): Unit = {
-    val endTime = System.currentTimeMillis
-
     logger.info("Closing down HdrHistogram Metrics...")
 
-    // flush global intervals
-    globalHistogram.foreach { case (status: String, histogram: AtomicHistogram) =>
-      initGlobalLogWriter(status).outputIntervalHistogram(startEpoch, endTime, histogram)
-    }
-
-    globalTagHistograms.foreach { case (status, tagHisto) =>
-      tagHisto.keySet().forEach(tag =>
-        initTagLogWriter(tag, status, "gbl").outputIntervalHistogram(startEpoch, endTime, tagHisto.get(tag))
-      )
-    }
-
-    perSecondTagHistograms.keySet().asScala.foreach { tag =>
-      perSecondTagHistograms.get(tag).keySet()
-          .forEach(logTagHistogramsToFileUntil(tag, _, TimeUnit.MILLISECONDS.toSeconds(endTime) + 2))
-    }
-
-    perSecondGroupHistograms.keySet().asScala.foreach { group =>
-      perSecondGroupHistograms.get(group).keySet()
-          .forEach(logGroupHistogramsToFileUntil(group, _, TimeUnit.MILLISECONDS.toSeconds(endTime) + 2))
-    }
-
-    writeJsonFile(baseDir, endTime)
+    val endTimeStamp = System.currentTimeMillis
+    writeDataUntil(endTimeStamp)
   }
 
   def writeNewData(): Unit = {
-    perSecondTagHistograms.keySet().asScala.foreach { tag =>
-      perSecondTagHistograms.get(tag).keySet().asScala.foreach(logIntervalTagHistogramsToFile(tag, _))
-    }
-
-    perSecondGroupHistograms.keySet().asScala.foreach { tag =>
-      perSecondGroupHistograms.get(tag).keySet().asScala.foreach(logIntervalGroupHistogramsToFile(tag, _))
-    }
+    val maxTimeStamp = MILLISECONDS.toSeconds(
+      System.currentTimeMillis - config.logWriterDelay.toMillis)
+    writeDataUntil(maxTimeStamp)
   }
 
-  /**
-    * write the metrics captured details to a json file for reporting purposes
-    *
-    * @param baseDir base directory to store the hdrhistograms
-    * @param endTime endtime of the simulation running
-    */
-  private def writeJsonFile(baseDir: String, endTime: Long): Unit = {
-    val metricsJson = new MetricsJson(
-      simName = simName,
-      groups = groupTags,
-      tags = tags,
-      startTime = startEpoch,
-      endTime = endTime)
-
-    val objectMapper = new ObjectMapper()
-    objectMapper.registerModule(DefaultScalaModule)
-    objectMapper.enable(SerializationFeature.INDENT_OUTPUT)
-    objectMapper.writeValue(File(baseDir + File.separator + "metrics.json").outputStream(), metricsJson)
-  }
-
-  private def initGlobalLogWriter(status: String): HistogramLogWriter = {
-    val globalHgrm = baseDir + File.separator + "Global_" + status + ".hgrm"
-
-    File(baseDir).createDirectory()
-
-    val log: PrintStream = new PrintStream(new FileOutputStream(globalHgrm), false)
-    initHistogramLogWriter(log)
-  }
-
-  private def initTagLogWriter(tag: String, status: String, logType: String = "int"): HistogramLogWriter = {
-
-    logger.trace("Base Dir: " + baseDir)
-    val tagDir = baseDir + File.separator + "tags" + File.separator
-    val tagFile = tagDir + tag + "_" + logType + "_" + status + ".hgrm"
-
-    File(baseDir).createDirectory()
-    File(tagDir).createDirectory()
-
-    logger.trace("Creating hdr file: " + tagFile)
-    val log: PrintStream = new PrintStream(new FileOutputStream(tagFile), false)
-
-    initHistogramLogWriter(log)
-  }
-
-  private def initGroupLogWriter(group: String, status: String, logType: String = "int"): HistogramLogWriter = {
-
-    logger.trace("Base Dir: " + baseDir)
-    val groupDir = baseDir + File.separator + "groups" + File.separator
-    val groupFile = groupDir + group + "_" + logType + "_" + status + ".hgrm"
-
-    File(baseDir).createDirectory()
-    File(groupDir).createDirectory()
-
-    logger.trace("Creating hdr file: " + groupFile)
-    val log: PrintStream = new PrintStream(new FileOutputStream(groupFile), false)
-
-    initHistogramLogWriter(log)
-  }
-
-  private def initHistogramLogWriter(log: PrintStream) = {
-    val histogramLogWriter: HistogramLogWriter = new HistogramLogWriter(log)
-    histogramLogWriter.outputComment("[Logged with Gatling DSE Plugin v1.1.0]")
-    histogramLogWriter.outputLogFormatVersion()
-    histogramLogWriter.outputStartTime(startEpoch)
-    histogramLogWriter.setBaseTime(startEpoch)
-    histogramLogWriter.outputLegend()
-    histogramLogWriter.get
-  }
-
-  private def logIntervalTagHistogramsToFile(tag: String, status: String) {
-    logger.trace(s"Writing $tag:$status histograms older than ${histogramLogConfig.logWriterDelay.toSeconds} seconds ago")
-    logTagHistogramsToFileUntil(tag, status,
-      TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis) - histogramLogConfig.logWriterDelay.toSeconds)
-  }
-
-  private def logTagHistogramsToFileUntil(tag: String, status: String, maxTimestamp: Long) {
-    logger.trace(s"Writing $tag:$status histograms created before $maxTimestamp")
-    val perSecondHistograms = perSecondTagHistograms.get(tag).get(status)
-
-    val writer = perSecondTagHistogramWriters
-        .computeIfAbsent(tag, _ => new ConcurrentSkipListMap())
-        .computeIfAbsent(status, initTagLogWriter(tag, _))
-
-    var cnt = 0
-
-    perSecondHistograms.headMap(maxTimestamp).forEach { (timestamp: Long, _: AtomicHistogram) =>
-      writer.outputIntervalHistogram(timestamp, timestamp + 1, perSecondHistograms.remove(timestamp))
-      cnt += 1
-    }
-    logger.debug(s"Logged $cnt seconds for $tag to histogram file")
-  }
-
-  private def logIntervalGroupHistogramsToFile(group: String, status: String) {
-    logger.trace(s"Writing $group histograms older than ${histogramLogConfig.logWriterDelay.toSeconds} seconds ago")
-    logGroupHistogramsToFileUntil(group, status,
-      TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis) - histogramLogConfig.logWriterDelay.toSeconds)
-  }
-
-  private def logGroupHistogramsToFileUntil(group: String, status: String, maxTimestamp: Long) {
-    logger.trace(s"Writing $group histograms created before $maxTimestamp")
-    val perSecondHistograms = perSecondGroupHistograms.get(group).get(status)
-    val writer = perSecondGroupHistogramWriters
-        .computeIfAbsent(group, _ => new ConcurrentSkipListMap())
-        .computeIfAbsent(status, initGroupLogWriter(group, _))
-    var cnt = 0
-    perSecondHistograms.headMap(maxTimestamp).forEach { (timestamp: Long, _) =>
-      writer.outputIntervalHistogram(timestamp, timestamp + 1, perSecondHistograms.remove(timestamp))
-      cnt += 1
-    }
-    logger.trace(s"Logged $cnt seconds for $group to histogram file")
-  }
-
-  private def getGroupId(session: Session): String = {
-    if (session.groupHierarchy.isEmpty) {
-      ""
-    } else {
-      sanitizedGroups.computeIfAbsent(session.groupHierarchy.mkString("_"), MetricsLogger.sanitizeString)
-    }
-  }
-
-  private def getTagId(groupId: String, tag: String): String = {
-    if (groupId.nonEmpty) {
-      if (!groupTags.containsKey(groupId)) {
-        groupTags.put(groupId, ArrayBuffer(tag))
-      } else {
-        if (!groupTags.get(groupId).contains(tag)) {
-          groupTags.get(groupId).append(tag)
-        }
+  def writeDataUntil(maxTimeStamp: Long) {
+    logger.debug("Writing data created until {}", maxTimeStamp)
+    if (config.globalHistograms.enabled) {
+      logger.debug("Writing global histograms that contains keys {}", globalHistograms.keySet())
+      for {
+        status <- globalHistograms.keySet().asScala
+      } {
+        logger.debug("Writing global {} histograms", status)
+        globalHistograms.get(status).writeUntil(maxTimeStamp)
       }
     }
 
-    if (tag.nonEmpty && !tags.contains(tag)) {
-      tags.add(tag)
+    if (config.groupHistograms.enabled) {
+      logger.debug("Writing group histograms that contains keys {}",
+        groupHistograms.asScala.flatMap { case (tag, statusHistograms) =>
+          statusHistograms.keySet().asScala.map(status => tag + "-" + status)
+        }.toList)
+      for {
+        group <- groupHistograms.keySet().asScala
+        status <- groupHistograms.get(group).keySet().asScala
+      } {
+        logger.debug("Writing group {}:{} histograms", group, status)
+        groupHistograms.get(group).get(status).writeUntil(maxTimeStamp)
+      }
     }
 
-    sanitizedTags.computeIfAbsent(tag, MetricsLogger.sanitizeString)
+    if (config.queryHistograms.enabled) {
+      logger.debug("Writing query histograms that contains keys {}",
+        queryHistograms.asScala.flatMap { case (tag, statusHistograms) =>
+          statusHistograms.keySet().asScala.map(status => tag + "-" + status)
+        }.toList)
+      for {
+        tag <- queryHistograms.keySet().asScala
+        status <- queryHistograms.get(tag).keySet().asScala
+      } {
+        logger.debug("Writing query {}:{} histograms", tag, status)
+        queryHistograms.get(tag).get(status).writeUntil(maxTimeStamp)
+      }
+    }
   }
 }
 
-class MetricsJson(val simName: String,
-                  val groups: java.util.Map[String, ArrayBuffer[String]],
-                  val tags: java.util.Set[String],
-                  val startTime: Long = 0,
-                  val endTime: Long = 0)
+class PerSecondHistogram(val hgrmPath: Path,
+                         val startTimeMillis: Long,
+                         val config: HistogramCategoryConfig)
+  extends StrictLogging with Closeable {
+  /**
+    * For each second, there is one histogram.
+    */
+  private val histograms = new ConcurrentSkipListMap[Long, AtomicHistogram]()
+
+  /**
+    * There is a single writer for this histogram.
+    */
+  private lazy val writer: HistogramLogWriter = initWriter()
+
+  private def initWriter() = {
+    logger.debug("Creating histogram writer for {}", hgrmPath)
+    hgrmPath.getParent.toFile.mkdirs()
+    val result = new HistogramLogWriter(
+      new PrintStream(
+        new FileOutputStream(hgrmPath.toString)))
+    result.outputComment("[Logged with Gatling DSE Plugin v1.3.0]")
+    result.outputLogFormatVersion()
+    result.outputStartTime(startTimeMillis)
+    result.setBaseTime(startTimeMillis)
+    result.outputLegend()
+    result
+  }
+
+  override def close(): Unit =
+    writer.close()
+
+  def recordLatency(timeSec: Long, latencyNanos: Long): Unit =
+    histograms
+      .computeIfAbsent(timeSec, _ => newHistogram())
+      .recordValue(latencyNanos)
+
+  def writeUntil(maxTimeStampSec: Long) {
+    val histogramsToWrite = histograms.headMap(maxTimeStampSec)
+    logger.debug("Writing {} histograms created before {}",
+      histogramsToWrite.size(), maxTimeStampSec)
+    histogramsToWrite
+      .keySet()
+      .forEach(t =>
+        writer.outputIntervalHistogram(t, t + 1, histograms.remove(t)))
+  }
+
+  private def newHistogram() =
+    new AtomicHistogram(config.highestValue, config.resolution)
+
+}

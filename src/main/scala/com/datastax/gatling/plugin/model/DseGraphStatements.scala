@@ -4,7 +4,7 @@
  * This software can be used solely with DataStax products. Please consult the file LICENSE.md.
  */
 
-package com.datastax.gatling.plugin
+package com.datastax.gatling.plugin.model
 
 import com.datastax.driver.dse.graph.{GraphStatement, SimpleGraphStatement}
 import com.datastax.dse.graph.api.DseGraph
@@ -16,28 +16,28 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
 
-trait DseGraphStatement {
-  def apply(session: Session): Validation[GraphStatement]
+trait DseGraphStatement extends DseStatement[GraphStatement] {
+  def buildFromSession(session: Session): Validation[GraphStatement]
 }
 
 /**
-  * Graph Statement String
+  * Simple DSE Graph Statement from a String
   *
-  * @param statement Passed String
+  * @param statement the Gremlin String to execute
   */
 case class GraphStringStatement(statement: Expression[String]) extends DseGraphStatement {
-  def apply(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     statement(gatlingSession).flatMap(stmt => new SimpleGraphStatement(stmt).success)
   }
 }
 
 /**
-  * Graph Fluent API Statement support
+  * DSE Graph Fluent API Statement
   *
-  * @param statement Graph Statement
+  * @param statement the Fluent Statement
   */
 case class GraphFluentStatement(statement: GraphStatement) extends DseGraphStatement {
-  def apply(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     statement.success
   }
 }
@@ -50,7 +50,7 @@ case class GraphFluentStatement(statement: GraphStatement) extends DseGraphState
   *               and returns a fluent Graph Statement
   */
 case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement) extends DseGraphStatement {
-  def apply(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     lambda(gatlingSession).success
   }
 }
@@ -63,7 +63,7 @@ case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement
   */
 case class GraphFluentSessionKey(sessionKey: String) extends DseGraphStatement {
 
-  def apply(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
 
     if (!gatlingSession.contains(sessionKey)) {
       throw new DseGraphStatementException(s"Passed sessionKey: {$sessionKey} does not exist in Session.")
@@ -93,7 +93,7 @@ case class GraphBoundStatement(statement: SimpleGraphStatement, sessionKeys: Map
     * @param gatlingSession Gatling Session
     * @return
     */
-  def apply(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
     Try {
       sessionKeys.foreach((tuple: (String, String)) => setParam(gatlingSession, tuple._1, tuple._2)).success
       statement

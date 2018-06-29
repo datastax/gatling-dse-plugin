@@ -6,60 +6,49 @@
 
 package com.datastax.gatling.plugin.checks
 
-import com.datastax.gatling.plugin.checks.DseCheckBuilders._
-import com.datastax.gatling.plugin.response.DseResponse
-import com.datastax.gatling.plugin.utils.{CountColumnValueExtractor, MultipleColumnValueExtractor, SingleColumnValueExtractor}
-import io.gatling.core.check._
-import io.gatling.core.session.{Expression, RichExpression}
+import io.gatling.core.session.ExpressionSuccessWrapper
 
 trait DseCheckSupport {
 
   // start global checks
-  lazy val exhausted = DseCheckBuilder.Exhausted
-  lazy val applied = DseCheckBuilder.Applied
-  lazy val rowCount = DseCheckBuilder.RowCount
+  lazy val exhausted = GenericChecks.exhausted
+  lazy val applied = GenericChecks.applied
+  lazy val rowCount = GenericChecks.rowCount
 
   // execution info and subsets
-  lazy val executionInfo = DseCheckBuilder.ExecutionInfo
-  lazy val achievedCL = DseCheckBuilder.AchievedConsistencyLevel
-  lazy val statement = DseCheckBuilder.GetStatement
-  lazy val incomingPayload = DseCheckBuilder.IncomingPayload
-  lazy val pagingState = DseCheckBuilder.PagingState
-  lazy val queriedHost = DseCheckBuilder.QueriedHost
-  lazy val schemaAgreement = DseCheckBuilder.SchemaInAgreement
-  lazy val speculativeExecutions = DseCheckBuilder.SpeculativeExecutions
-  lazy val successfulExecutionIndex = DseCheckBuilder.SuccessfulExecutionIndex
-  lazy val triedHosts = DseCheckBuilder.TriedHosts
-  lazy val warnings = DseCheckBuilder.Warnings
-  lazy val dseAttributes = DseCheckBuilder.RequestAttributes
-
+  lazy val executionInfo = GenericChecks.executionInfo
+  lazy val achievedCL = GenericChecks.achievedConsistencyLevel
+  lazy val pagingState = GenericChecks.pagingState
+  lazy val queriedHost = GenericChecks.queriedHost
+  lazy val schemaAgreement = GenericChecks.schemaInAgreement
+  lazy val successfulExecutionIndex = GenericChecks.successfulExecutionIndex
+  lazy val triedHosts = GenericChecks.triedHosts
+  lazy val warnings = GenericChecks.warnings
 
   // start CQL only checks
-  lazy val resultSet = DseCheckBuilder.ResultSet
-  lazy val allRows = DseCheckBuilder.AllRows
-  lazy val oneRow = DseCheckBuilder.OneRow
-
+  lazy val resultSet = CqlChecks.resultSet
+  lazy val allRows = CqlChecks.allRows
+  lazy val oneRow = CqlChecks.oneRow
 
   // start Graph only checks
-  lazy val graphResultSet = DseCheckBuilder.GraphResultSet
-  lazy val allNodes = DseCheckBuilder.AllNodes
-  lazy val oneNode = DseCheckBuilder.OneNode
-  def edges(columnName: String) = DseCheckBuilder.Edges(columnName)
-  def vertexes(columnName: String) = DseCheckBuilder.Vertexes(columnName)
-  def paths(columnName: String) = DseCheckBuilder.Paths(columnName)
-  def properties(columnName: String) = DseCheckBuilder.Properties(columnName)
-  def vertexProperties(columnName: String) = DseCheckBuilder.VertexProperties(columnName)
+  lazy val graphResultSet = GraphChecks.graphResultSet
+  lazy val allNodes = GraphChecks.allNodes
+  lazy val oneNode = GraphChecks.oneNode
 
+  def edges(columnName: String) = GraphChecks.edges(columnName)
+
+  def vertexes(columnName: String) = GraphChecks.vertexes(columnName)
+
+  def paths(columnName: String) = GraphChecks.paths(columnName)
+
+  def properties(columnName: String) = GraphChecks.paths(columnName)
+
+  def vertexProperties(columnName: String) = GraphChecks.vertexProperties(columnName)
 
   /**
     * Get a column by name returned by the CQL statement.
     * Note that this statement implicitly fetches <b>all</b> rows from the result set!
     */
-  def columnValue(columnName: Expression[String]) =
-    new DefaultMultipleFindCheckBuilder[DseCheck, DseResponse, DseResponse, Any](ResponseExtender, PassThroughResponsePreparer) {
-      def findExtractor(occurrence: Int) = columnName.map(new SingleColumnValueExtractor(_, occurrence))
-      def findAllExtractor = columnName.map(new MultipleColumnValueExtractor(_))
-      def countExtractor = columnName.map(new CountColumnValueExtractor(_))
-    }
+  def columnValue(columnName: String) = CqlChecks.columnValue(columnName.expressionSuccess)
 }
 

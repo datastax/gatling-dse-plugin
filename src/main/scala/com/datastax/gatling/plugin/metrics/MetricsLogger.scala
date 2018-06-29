@@ -8,9 +8,10 @@ package com.datastax.gatling.plugin.metrics
 
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeUnit.MILLISECONDS
 
 import akka.actor.ActorSystem
-import com.datastax.gatling.plugin.utils.ResponseTimers
+import com.datastax.gatling.plugin.utils.ResponseTime
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.session.Session
 
@@ -18,23 +19,23 @@ import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration.Duration
 
 trait MetricsLogger extends Closeable {
-  def log(session: Session, tag: String, responseTimers: ResponseTimers, ok: Boolean): Unit
+  def log(session: Session, tag: String, responseTime: ResponseTime, ok: Boolean): Unit
 }
 
 object MetricsLogger extends StrictLogging {
   def newMetricsLogger(actorSystem: ActorSystem, startEpoch: Long): MetricsLogger = {
-    val histogramLogConfig = HistogramLogConfig.fromConfig()
-    if (histogramLogConfig.enabled) {
+    val config = HistogramLogConfig.fromConfig()
+    if (config.enabled) {
       logger.info("HDRHistogram results recording is enabled")
       logger.info("Starting flushing actor with delay {}s and interval {}s",
-        histogramLogConfig.logWriterDelay.toSeconds,
-        histogramLogConfig.logWriterInterval.toSeconds)
+        MILLISECONDS.toSeconds(config.logWriterDelay.toMillis),
+        MILLISECONDS.toSeconds(config.logWriterInterval.toMillis))
 
       val histogramLogger = new HistogramLogger(startEpoch)
       implicit val executor: ExecutionContextExecutor = actorSystem.dispatcher
       actorSystem.scheduler.schedule(
-        initialDelay = Duration(histogramLogConfig.logWriterDelay.toSeconds, TimeUnit.SECONDS),
-        interval = Duration(histogramLogConfig.logWriterInterval.toSeconds, TimeUnit.SECONDS),
+        initialDelay = Duration(config.logWriterDelay.toMillis, MILLISECONDS),
+        interval = Duration(config.logWriterInterval.toMillis, MILLISECONDS),
         runnable = () => histogramLogger.writeNewData()
       )
       histogramLogger

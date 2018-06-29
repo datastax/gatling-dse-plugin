@@ -6,48 +6,66 @@
 
 package com.datastax.gatling.plugin.metrics
 
-import com.typesafe.config.ConfigFactory
+import java.util.concurrent.TimeUnit
+
+import com.typesafe.config.{Config, ConfigFactory}
 import io.gatling.core.Predef.configuration
 
-import scala.collection.JavaConverters._
-import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.util.Try
 
 object HistogramLogConfig {
-  protected final val metricType = "hgrm"
-  protected val metricsConfBase: String = "metrics."
-
   def fromConfig(): HistogramLogConfig = {
-    val config = ConfigFactory.load()
+    val histogramsConfig: Config = ConfigFactory.load()
       .withFallback(ConfigFactory.load("dse-plugin"))
       .withFallback(configuration.config)
-    new HistogramLogConfig(
-      enabled = config.getConfig(metricsConfBase + metricType).getBoolean("enabled"),
-      directory = config.getConfig(metricsConfBase + metricType).getString("directory"),
-      logTypes = config.getConfig(metricsConfBase + metricType).getStringList("logTypes").asScala.toList,
-      logWriterWarmUp = config.getConfig(metricsConfBase + metricType).getDuration("logWriter.warmUp"),
-      logWriterDelay = config.getConfig(metricsConfBase + metricType).getDuration("logWriter.delay"),
-      logWriterInterval = config.getConfig(metricsConfBase + metricType).getDuration("logWriter.interval"),
-      globalHighest = config.getConfig(metricsConfBase + metricType).getDuration("globalHgrm.highestTrackableValue").toNanos,
-      globalRes = config.getConfig(metricsConfBase + metricType).getInt("globalHgrm.resolution"),
-      intervalHighest = config.getConfig(metricsConfBase + metricType).getDuration("intervalHgrm.highestTrackableValue"),
-      intervalRes = config.getConfig(metricsConfBase + metricType).getInt("intervalHgrm.resolution"),
-      groupLogsEnabled = config.getConfig(metricsConfBase + metricType).getBoolean("groupLogsEnabled")
+      .getConfig("metrics.hgrm")
+    HistogramLogConfig(
+      histogramsConfig.getBoolean("enabled"),
+      histogramsConfig.getString("directory"),
+      histogramsConfig.getDuration("logWriter.warmUp"),
+      histogramsConfig.getDuration("logWriter.delay"),
+      histogramsConfig.getDuration("logWriter.interval"),
+      categoryConfig(histogramsConfig, "query", "default"),
+      categoryConfig(histogramsConfig, "group", "query"),
+      categoryConfig(histogramsConfig, "global", "default")
     )
   }
 
-  private implicit def asFiniteDuration(d: java.time.Duration): FiniteDuration = {
-    scala.concurrent.duration.Duration.fromNanos(d.toNanos)
+  /**
+    * Builds a histogram category configuration for the given category.
+    * If values are missing, the values of the provided defaultCategory (except
+    * `enabled` are used).
+    */
+  private def categoryConfig(config: Config,
+                             mainCategory: String,
+                             fallbackCategory: String) = {
+    val main = config.getConfig(mainCategory)
+    val fallback = config.getConfig(fallbackCategory)
+    val enabled: Boolean =
+      Try(main.getBoolean("enabled"))
+        .getOrElse(false)
+    val highestValue: Long =
+      Try(main.getDuration("highestTrackableValue"))
+        .orElse(Try(fallback.getDuration("highestTrackableValue")))
+        .map(d => d.toNanos)
+        .getOrElse(TimeUnit.MINUTES.toNanos(5))
+    val resolution: Int =
+      Try(main.getInt("resolution"))
+        .orElse(Try(fallback.getInt("resolution")))
+        .getOrElse(3)
+    HistogramCategoryConfig(enabled, highestValue, resolution)
   }
 }
 
-class HistogramLogConfig(val enabled: Boolean,
-                         val directory: String,
-                         val logTypes: List[String],
-                         val logWriterWarmUp: Duration,
-                         val logWriterDelay: Duration,
-                         val logWriterInterval: Duration,
-                         val intervalHighest: Duration,
-                         val intervalRes: Int,
-                         val globalHighest: Long,
-                         val globalRes: Int,
-                         val groupLogsEnabled: Boolean)
+case class HistogramLogConfig(enabled: Boolean,
+                              directory: String,
+                              logWriterWarmUp: java.time.Duration,
+                              logWriterDelay: java.time.Duration,
+                              logWriterInterval: java.time.Duration,
+                              queryHistograms: HistogramCategoryConfig,
+                              groupHistograms: HistogramCategoryConfig,
+                              globalHistograms: HistogramCategoryConfig)
+
+case class HistogramCategoryConfig(enabled: Boolean,
+                                   highestValue: Long,
+                                   resolution: Int)

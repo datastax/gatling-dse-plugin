@@ -60,7 +60,6 @@ class GraphStatementSimulation extends BaseGraphSimulation {
 
       .pause(1.seconds)
       .exec(queryGraph
-          .check(columnValue("label").find.saveAs("test"))
           .check(rowCount greaterThan 1)
       )
       .pause(1.seconds)
