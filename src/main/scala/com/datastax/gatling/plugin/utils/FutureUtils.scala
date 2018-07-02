@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2018 Datastax Inc.
+ *
+ * This software can be used solely with DataStax products. Please consult the file LICENSE.md.
+ */
+
 package com.datastax.gatling.plugin.utils
 
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
