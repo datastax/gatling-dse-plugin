@@ -94,7 +94,7 @@ repackageGatling := {
   }
 }
 repackageGatling := (repackageGatling dependsOn assembly).value
-publish := (publish dependsOn repackageGatling).value
+//publish := (publish dependsOn repackageGatling).value
 
 lazy val root = (project in file("."))
   .settings(lookupM2Settings)
