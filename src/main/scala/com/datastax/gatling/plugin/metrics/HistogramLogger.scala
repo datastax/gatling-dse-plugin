@@ -193,10 +193,13 @@ class PerSecondHistogram(val hgrmPath: Path,
   override def close(): Unit =
     writer.close()
 
-  def recordLatency(timeSec: Long, latencyNanos: Long): Unit =
+  def recordLatency(timeSec: Long, latencyNanos: Long): Unit = {
+    val maybeCappedcappedLatency =
+      config.maximumLatencyVerifier.maybeTruncateAndLog(latencyNanos)
     histograms
       .computeIfAbsent(timeSec, _ => newHistogram())
-      .recordValue(latencyNanos)
+      .recordValue(maybeCappedcappedLatency)
+  }
 
   def writeUntil(maxTimeStampSec: Long) {
     val histogramsToWrite = histograms.headMap(maxTimeStampSec)
