@@ -13,6 +13,23 @@ import io.gatling.commons.util.ClockSingleton
 import io.gatling.core.Predef.Session
 import io.gatling.core.stats.message.ResponseTimings
 
+trait ResponseTime {
+  def latencyIn(targetTimeUnit: TimeUnit): Long
+
+  def toGatlingResponseTimings: ResponseTimings
+
+  def startTimeInSeconds: Long
+}
+
+trait ResponseTimeBuilder {
+  def build(): ResponseTime
+}
+
+object GatlingResponseTime {
+  def startedByGatling(session: Session, timingSource: TimingSource): ResponseTimeBuilder =
+    () => GatlingResponseTime(session, timingSource)
+}
+
 /**
   * Gatling computes absolute timestamps in milliseconds based on the result of
   * [[System.nanoTime()]] and [[System.currentTimeMillis()]].  See the
@@ -28,19 +45,39 @@ import io.gatling.core.stats.message.ResponseTimings
   * method [[TimingUtils.timeSinceSessionStart()]] to get an absolute timestamp
   * in nanoseconds.
   */
-case class ResponseTime(session: Session, timingSource: TimingSource) {
+case class GatlingResponseTime(session: Session, timingSource: TimingSource)
+  extends ResponseTime {
   private val latencyInNanos =
     TimingUtils.timeSinceSessionStart(session, timingSource, NANOSECONDS)
 
-  def latencyIn(targetTimeUnit: TimeUnit): Long =
+  override def latencyIn(targetTimeUnit: TimeUnit): Long =
     targetTimeUnit.convert(latencyInNanos, NANOSECONDS)
 
-  def startTimeInSeconds: Long =
+  override def startTimeInSeconds: Long =
     MILLISECONDS.toSeconds(session.startDate)
 
-  def toGatlingResponseTimings: ResponseTimings =
+  override def toGatlingResponseTimings: ResponseTimings =
     ResponseTimings(
       // Gatling records durations based on absolute timestamps in milliseconds
       session.startDate,
       session.startDate + NANOSECONDS.toMillis(latencyInNanos))
+}
+
+object COAffectedResponseTime {
+  def startingAt(startNanos: Long): ResponseTimeBuilder =
+    () => COAffectedResponseTime(startNanos, System.nanoTime())
+}
+
+case class COAffectedResponseTime(startNanos: Long, endNanos: Long)
+  extends ResponseTime {
+  override def latencyIn(targetTimeUnit: TimeUnit): Long =
+    targetTimeUnit.convert(endNanos - startNanos, NANOSECONDS)
+
+  override def toGatlingResponseTimings: ResponseTimings =
+    ResponseTimings(
+      NANOSECONDS.toMillis(startNanos),
+      NANOSECONDS.toMillis(endNanos))
+
+  override def startTimeInSeconds: Long =
+    TimeUnit.NANOSECONDS.toSeconds(startNanos)
 }
