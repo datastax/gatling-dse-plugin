@@ -20,7 +20,7 @@ class ResponseTimeSpec extends BaseSimulationSpec {
         timingSource.currentTimeNanos().andReturn(123456789)
       }
       whenExecuting(timingSource) {
-        ResponseTime(session, timingSource).latencyIn(NANOSECONDS) shouldBe 456789
+        GatlingResponseTime(session, timingSource).latencyIn(NANOSECONDS) shouldBe 456789
       }
     }
 
@@ -32,7 +32,7 @@ class ResponseTimeSpec extends BaseSimulationSpec {
         timingSource.currentTimeNanos().andReturn(0)
       }
       whenExecuting(timingSource) {
-        ResponseTime(session, timingSource).startTimeInSeconds shouldBe 44
+        GatlingResponseTime(session, timingSource).startTimeInSeconds shouldBe 44
       }
     }
 
@@ -42,7 +42,7 @@ class ResponseTimeSpec extends BaseSimulationSpec {
         timingSource.currentTimeNanos().andReturn(444666888)
       }
       whenExecuting(timingSource) {
-        val rt = ResponseTime(session, timingSource).toGatlingResponseTimings
+        val rt = GatlingResponseTime(session, timingSource).toGatlingResponseTimings
         rt.startTimestamp shouldBe 111
         rt.endTimestamp shouldBe 444
       }

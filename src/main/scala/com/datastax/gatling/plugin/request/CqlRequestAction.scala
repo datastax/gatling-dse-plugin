@@ -69,8 +69,6 @@ class CqlRequestAction(val name: String,
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
     }
-
-    ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
     val stmt = dseAttributes.statement.buildFromSession(session)
 
     stmt.onFailure(err => {
