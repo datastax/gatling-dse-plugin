@@ -9,7 +9,7 @@ package com.datastax.gatling.plugin.metrics
 import java.io.{Closeable, FileOutputStream, PrintStream}
 import java.nio.file.{Path, Paths}
 import java.util.concurrent.ConcurrentSkipListMap
-import java.util.concurrent.TimeUnit.{MILLISECONDS, NANOSECONDS}
+import java.util.concurrent.TimeUnit.{MILLISECONDS, NANOSECONDS, SECONDS}
 
 import com.datastax.gatling.plugin.utils.ResponseTime
 import com.typesafe.scalalogging.StrictLogging
@@ -72,14 +72,15 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
       val groupId = session.groupHierarchy.map(MetricsLogger.sanitizeString).mkString("_")
       val tagId = MetricsLogger.sanitizeString(tag)
       val responseNanos = responseTime.latencyIn(NANOSECONDS)
-      val requestTime: Long = responseTime.startTimeInSeconds
+      val requestTimeInMillis: Long = responseTime.startTimeIn(MILLISECONDS)
+      val requestTimeInSec: Long = responseTime.startTimeIn(SECONDS)
       val status = if (ok) "ok" else "ko"
 
       if (config.globalHistograms.enabled) {
         logger.debug("Recording in global histogram Global_{}.hgrm", status)
         globalHistograms
-          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, s"Global_${status}.hgrm"), requestTime, config.globalHistograms))
-          .recordLatency(requestTime, responseNanos)
+          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, s"Global_${status}.hgrm"), requestTimeInMillis, config.globalHistograms))
+          .recordLatency(requestTimeInSec, responseNanos)
       }
 
       if (config.groupHistograms.enabled) {
@@ -89,8 +90,8 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
           logger.debug("Recording in group histogram {}_int_{}.hgrm", groupId, status)
           groupHistograms
             .computeIfAbsent(groupId, _ => new ConcurrentSkipListMap())
-            .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "groups", s"${groupId}_int_$status.hgrm"), requestTime, config.groupHistograms))
-            .recordLatency(requestTime, responseNanos)
+            .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "groups", s"${groupId}_int_$status.hgrm"), requestTimeInMillis, config.groupHistograms))
+            .recordLatency(requestTimeInSec, responseNanos)
         }
       }
 
@@ -98,8 +99,8 @@ class HistogramLogger(startTimeMillis: Long) extends StrictLogging with MetricsL
         logger.debug("Recording in query histogram {}_int_{}.hgrm", tagId, status)
         queryHistograms
           .computeIfAbsent(tagId, _ => new ConcurrentSkipListMap())
-          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "tags", s"${tagId}_int_$status.hgrm"), requestTime, config.queryHistograms))
-          .recordLatency(requestTime, responseNanos)
+          .computeIfAbsent(status, _ => new PerSecondHistogram(Paths.get(baseDir, "tags", s"${tagId}_int_$status.hgrm"), requestTimeInMillis, config.queryHistograms))
+          .recordLatency(requestTimeInSec, responseNanos)
       }
     }
   }

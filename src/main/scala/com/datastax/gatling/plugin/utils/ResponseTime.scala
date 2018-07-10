@@ -18,7 +18,7 @@ trait ResponseTime {
 
   def toGatlingResponseTimings: ResponseTimings
 
-  def startTimeInSeconds: Long
+  def startTimeIn(targetTimeUnit: TimeUnit): Long
 }
 
 trait ResponseTimeBuilder {
@@ -53,8 +53,8 @@ case class GatlingResponseTime(session: Session, timingSource: TimingSource)
   override def latencyIn(targetTimeUnit: TimeUnit): Long =
     targetTimeUnit.convert(latencyInNanos, NANOSECONDS)
 
-  override def startTimeInSeconds: Long =
-    MILLISECONDS.toSeconds(session.startDate)
+  override def startTimeIn(targetTimeUnit: TimeUnit): Long =
+    targetTimeUnit.convert(session.startDate, MILLISECONDS)
 
   override def toGatlingResponseTimings: ResponseTimings =
     ResponseTimings(
@@ -78,6 +78,6 @@ case class COAffectedResponseTime(startNanos: Long, endNanos: Long)
       NANOSECONDS.toMillis(startNanos),
       NANOSECONDS.toMillis(endNanos))
 
-  override def startTimeInSeconds: Long =
-    TimeUnit.NANOSECONDS.toSeconds(startNanos)
+  override def startTimeIn(targetTimeUnit: TimeUnit): Long =
+    targetTimeUnit.convert(startNanos, NANOSECONDS)
 }

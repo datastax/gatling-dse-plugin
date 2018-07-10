@@ -1,6 +1,6 @@
 package com.datastax.gatling.plugin.utils
 
-import java.util.concurrent.TimeUnit.NANOSECONDS
+import java.util.concurrent.TimeUnit.{NANOSECONDS, SECONDS}
 
 import com.datastax.gatling.plugin.base.BaseSimulationSpec
 import io.gatling.core.session.Session
@@ -32,7 +32,7 @@ class ResponseTimeSpec extends BaseSimulationSpec {
         timingSource.currentTimeNanos().andReturn(0)
       }
       whenExecuting(timingSource) {
-        GatlingResponseTime(session, timingSource).startTimeInSeconds shouldBe 44
+        GatlingResponseTime(session, timingSource).startTimeIn(SECONDS) shouldBe 44
       }
     }
 
