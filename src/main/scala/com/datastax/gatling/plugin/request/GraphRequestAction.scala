@@ -6,16 +6,17 @@
 
 package com.datastax.gatling.plugin.request
 
+import java.lang.Boolean
 import java.util.UUID
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
-import java.util.concurrent.{ExecutorService, TimeUnit}
 
 import akka.actor.ActorSystem
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseGraphAttributes
 import com.datastax.gatling.plugin.response.GraphResponseHandler
-import com.datastax.gatling.plugin.utils.{FutureUtils, GatlingTimingSource, ResponseTime}
+import com.datastax.gatling.plugin.utils._
 import io.gatling.commons.stats.KO
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
@@ -60,11 +61,18 @@ class GraphRequestAction(val name: String,
 
 
   def sendQuery(session: Session): Unit = {
-    ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
+    val enableCO = Boolean.getBoolean("gatling.dse.plugin.measure_service_time")
+    val responseTimeBuilder: ResponseTimeBuilder = if (enableCO) {
+      // The throughput checker is useless in CO affected scenarios since throughput is not known in advance
+      COAffectedResponseTime.startingAt(System.nanoTime())
+    } else {
+      ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
+      GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
+    }
     val stmt = dseAttributes.statement.buildFromSession(session)
 
     stmt.onFailure(err => {
-      val responseTime = ResponseTime(session, gatlingTimingSource)
+      val responseTime = responseTimeBuilder.build()
       val logUuid = UUID.randomUUID.toString
       val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
 
@@ -76,7 +84,6 @@ class GraphRequestAction(val name: String,
     })
 
     stmt.onSuccess({ gStmt =>
-      val responseTime = ResponseTime(session, gatlingTimingSource)
       // global options
       dseAttributes.cl.map(gStmt.setConsistencyLevel)
       dseAttributes.defaultTimestamp.map(gStmt.setDefaultTimestamp)
@@ -102,7 +109,7 @@ class GraphRequestAction(val name: String,
         gStmt.setSystemQuery()
       }
 
-      val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTime, gStmt, dseAttributes, metricsLogger)
+      val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTimeBuilder, gStmt, dseAttributes, metricsLogger)
       implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
       FutureUtils
         .toScalaFuture(protocol.session.executeGraphAsync(gStmt))

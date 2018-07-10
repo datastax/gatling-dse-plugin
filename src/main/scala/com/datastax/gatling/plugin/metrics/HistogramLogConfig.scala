@@ -68,4 +68,6 @@ case class HistogramLogConfig(enabled: Boolean,
 
 case class HistogramCategoryConfig(enabled: Boolean,
                                    highestValue: Long,
-                                   resolution: Int)
+                                   resolution: Int) {
+  val maximumLatencyVerifier = new MaximumLatencyVerifier(highestValue)
+}
