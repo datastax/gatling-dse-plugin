@@ -61,7 +61,7 @@ class GraphRequestAction(val name: String,
 
 
   def sendQuery(session: Session): Unit = {
-    val enableCO = Boolean.getBoolean("gatling.dse.plugin.enable_coordinated_omission")
+    val enableCO = Boolean.getBoolean("gatling.dse.plugin.measure_service_time")
     val responseTimeBuilder: ResponseTimeBuilder = if (enableCO) {
       // The throughput checker is useless in CO affected scenarios since throughput is not known in advance
       COAffectedResponseTime.startingAt(System.nanoTime())
