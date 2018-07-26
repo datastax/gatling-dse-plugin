@@ -1,6 +1,6 @@
 import scala.sys.process._
 
-val gatlingVersion = "2.3.0"
+val gatlingVersion = "2.3.1"
 
 scalacOptions += "-target:jvm-1.8"
 
