@@ -9,6 +9,8 @@ package com.datastax.gatling.plugin.utils
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit.{MILLISECONDS, NANOSECONDS}
 
+import com.datastax.gatling.plugin.request.ThroughputVerifier
+import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.util.ClockSingleton
 import io.gatling.core.Predef.Session
 import io.gatling.core.stats.message.ResponseTimings
@@ -19,6 +21,32 @@ trait ResponseTime {
   def toGatlingResponseTimings: ResponseTimings
 
   def startTimeIn(targetTimeUnit: TimeUnit): Long
+}
+
+object ResponseTimeBuilder extends StrictLogging {
+  val measureServiceTime: Boolean = {
+    if (java.lang.Boolean.getBoolean("gatling.dse.plugin.measure_service_time")) {
+      logger.info("Gatling DSE plugin is configured to measure service time")
+      true
+    } else {
+      logger.info("Gatling DSE plugin is configured to measure response time")
+      false
+    }
+  }
+
+  def newResponseTimeBuilder(session: Session, gatlingTimingSource: GatlingTimingSource): ResponseTimeBuilder = {
+    if (measureServiceTime) {
+      // The throughput checker is useless in CO affected scenarios since throughput is not known in advance
+      // Also, measuring service time MUST exclude the time spent in the feeder.
+      // So it makes sense to take the "start" measurement from `nanoTime()` here.
+      ServiceTime.startingAt(System.nanoTime())
+    } else {
+      // We trust Gatling for the user creation time when we measure response time.
+      // Therefore, the response time builder can be built anywhere.
+      ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
+      GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
+    }
+  }
 }
 
 trait ResponseTimeBuilder {
@@ -63,12 +91,12 @@ case class GatlingResponseTime(session: Session, timingSource: TimingSource)
       session.startDate + NANOSECONDS.toMillis(latencyInNanos))
 }
 
-object COAffectedResponseTime {
+object ServiceTime {
   def startingAt(startNanos: Long): ResponseTimeBuilder =
-    () => COAffectedResponseTime(startNanos, System.nanoTime())
+    () => ServiceTime(startNanos, System.nanoTime())
 }
 
-case class COAffectedResponseTime(startNanos: Long, endNanos: Long)
+case class ServiceTime(startNanos: Long, endNanos: Long)
   extends ResponseTime {
   override def latencyIn(targetTimeUnit: TimeUnit): Long =
     targetTimeUnit.convert(endNanos - startNanos, NANOSECONDS)

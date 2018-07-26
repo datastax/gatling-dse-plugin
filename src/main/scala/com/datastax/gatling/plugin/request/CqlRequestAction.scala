@@ -61,18 +61,10 @@ class CqlRequestAction(val name: String,
   }
 
   def sendQuery(session: Session): Unit = {
-    val enableCO = Boolean.getBoolean("gatling.dse.plugin.measure_service_time")
-    val responseTimeBuilder: ResponseTimeBuilder = if (enableCO) {
-      // The throughput checker is useless in CO affected scenarios since throughput is not known in advance
-      COAffectedResponseTime.startingAt(System.nanoTime())
-    } else {
-      ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
-      GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
-    }
     val stmt = dseAttributes.statement.buildFromSession(session)
 
     stmt.onFailure(err => {
-      val responseTime: ResponseTime = responseTimeBuilder.build()
+      val responseTime = new ServiceTime(0, 0)
       val logUuid = UUID.randomUUID.toString
       val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
 
@@ -84,6 +76,8 @@ class CqlRequestAction(val name: String,
     })
 
     stmt.onSuccess({ stmt =>
+      val responseTimeBuilder = ResponseTimeBuilder.newResponseTimeBuilder(session, gatlingTimingSource)
+
       // global options
       dseAttributes.cl.map(stmt.setConsistencyLevel)
       dseAttributes.userOrRole.map(stmt.executingAs)
