@@ -100,6 +100,7 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
         logger.warn("[{}] {} - Execute: {}, Query: {}",
           logUuid, tagString, t.getMessage, DseResponseHandler.sanitizeAndJoin(queries)
         )
+        logger.debug("Complete exception:", t)
     }
 
   }
