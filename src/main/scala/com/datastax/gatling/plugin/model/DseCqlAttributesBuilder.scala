@@ -35,6 +35,14 @@ case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
   def withConsistencyLevel(level: ConsistencyLevel) = DseCqlAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
+    * Set Consistency Level
+    *
+    * @param dynamicLevel ConsistencyLevel
+    * @return
+    */
+  def withDynamicConsistencyLevel(dynamicLevel: () => ConsistencyLevel) = DseCqlAttributesBuilder(attr.copy(dynamicCl = Some(dynamicLevel)))
+
+  /**
     * Execute a query as another user or another role, provided the current logged in user has PROXY.EXECUTE permission.
     *
     * This permission MUST be granted to the currently logged in user using the CQL statement: `GRANT PROXY.EXECUTE ON

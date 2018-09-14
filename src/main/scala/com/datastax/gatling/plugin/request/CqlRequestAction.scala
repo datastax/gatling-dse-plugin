@@ -86,6 +86,7 @@ class CqlRequestAction(val name: String,
     stmt.onSuccess({ stmt =>
       // global options
       dseAttributes.cl.map(stmt.setConsistencyLevel)
+      dseAttributes.dynamicCl.map(f => stmt.setConsistencyLevel(f()))
       dseAttributes.userOrRole.map(stmt.executingAs)
       dseAttributes.readTimeout.map(stmt.setReadTimeoutMillis)
       dseAttributes.idempotent.map(stmt.setIdempotent)

@@ -21,6 +21,7 @@ import io.gatling.core.check.Check
   * @param tag              Name of Query to include in reports
   * @param statement        CQL Statement to be sent to Cluster
   * @param cl               Consistency Level to be used
+  * @param dynamicCl         Consistency Level to be used, will be called on every request
   * @param cqlChecks        Data-level checks to be run after response is returned
   * @param genericChecks    Low-level checks to be run after response is returned
   * @param userOrRole       User or role to be used when proxy auth is enabled
@@ -39,6 +40,7 @@ import io.gatling.core.check.Check
 case class DseCqlAttributes(tag: String,
                             statement: DseStatement[Statement],
                             cl: Option[ConsistencyLevel] = None,
+                            dynamicCl: Option[() => ConsistencyLevel] = None,
                             cqlChecks: List[Check[CqlResponse]] = List.empty,
                             genericChecks: List[Check[DseResponse]] = List.empty,
                             userOrRole: Option[String] = None,
