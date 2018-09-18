@@ -69,43 +69,54 @@ class CqlRequestAction(val name: String,
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
     }
-    val stmt = dseAttributes.statement.buildFromSession(session)
+    try {
+      val stmt = dseAttributes.statement.buildFromSession(session)
 
-    stmt.onFailure(err => {
-      val responseTime: ResponseTime = responseTimeBuilder.build()
-      val logUuid = UUID.randomUUID.toString
-      val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
+      stmt.onFailure(err => {
+        handleFailure(session, responseTimeBuilder, err)
+      })
 
-      statsEngine.logResponse(session, name, responseTime.toGatlingResponseTimings, KO, None,
-        Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(MICROSECONDS), "PRE", logUuid))
+      stmt.onSuccess({ stmt =>
+        // global options
+        dseAttributes.cl.map(stmt.setConsistencyLevel)
+        dseAttributes.dynamicCl.map(f => stmt.setConsistencyLevel(f()))
+        dseAttributes.userOrRole.map(stmt.executingAs)
+        dseAttributes.readTimeout.map(stmt.setReadTimeoutMillis)
+        dseAttributes.idempotent.map(stmt.setIdempotent)
+        dseAttributes.defaultTimestamp.map(stmt.setDefaultTimestamp)
 
-      logger.error("[{}] {} - Preparing: {} - Attrs: {}", logUuid, tagString, err, session.attributes.mkString(","))
-      next ! session.markAsFailed
-    })
+        // CQL Only Options
+        dseAttributes.outGoingPayload.map(x => stmt.setOutgoingPayload(x.asJava))
+        dseAttributes.serialCl.map(stmt.setSerialConsistencyLevel)
+        dseAttributes.retryPolicy.map(stmt.setRetryPolicy)
+        dseAttributes.fetchSize.map(stmt.setFetchSize)
+        dseAttributes.pagingState.map(stmt.setPagingState)
+        if (dseAttributes.enableTrace.isDefined && dseAttributes.enableTrace.get) {
+          stmt.enableTracing
+        }
 
-    stmt.onSuccess({ stmt =>
-      // global options
-      dseAttributes.cl.map(stmt.setConsistencyLevel)
-      dseAttributes.userOrRole.map(stmt.executingAs)
-      dseAttributes.readTimeout.map(stmt.setReadTimeoutMillis)
-      dseAttributes.idempotent.map(stmt.setIdempotent)
-      dseAttributes.defaultTimestamp.map(stmt.setDefaultTimestamp)
-
-      // CQL Only Options
-      dseAttributes.outGoingPayload.map(x => stmt.setOutgoingPayload(x.asJava))
-      dseAttributes.serialCl.map(stmt.setSerialConsistencyLevel)
-      dseAttributes.retryPolicy.map(stmt.setRetryPolicy)
-      dseAttributes.fetchSize.map(stmt.setFetchSize)
-      dseAttributes.pagingState.map(stmt.setPagingState)
-      if (dseAttributes.enableTrace.isDefined && dseAttributes.enableTrace.get) {
-        stmt.enableTracing
+        val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, responseTimeBuilder, stmt, dseAttributes, metricsLogger)
+        implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
+        FutureUtils
+          .toScalaFuture(protocol.session.executeAsync(stmt))
+          .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
+      })
+    } catch {
+      case e:Exception => {
+        handleFailure(session, responseTimeBuilder, e.getMessage)
       }
+    }
+  }
 
-      val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, responseTimeBuilder, stmt, dseAttributes, metricsLogger)
-      implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
-      FutureUtils
-        .toScalaFuture(protocol.session.executeAsync(stmt))
-        .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
-    })
+  private def handleFailure(session: Session, responseTimeBuilder: ResponseTimeBuilder, err: String) = {
+    val responseTime: ResponseTime = responseTimeBuilder.build()
+    val logUuid = UUID.randomUUID.toString
+    val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
+
+    statsEngine.logResponse(session, name, responseTime.toGatlingResponseTimings, KO, None,
+      Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(MICROSECONDS), "PRE", logUuid))
+
+    logger.error("[{}] {} - Err: {} - Attrs: {}", logUuid, tagString, err, session.attributes.mkString(","))
+    next ! session.markAsFailed
   }
 }
