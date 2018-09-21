@@ -30,12 +30,15 @@ abstract class DseResponse {
 }
 
 
-class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes) extends DseResponse with LazyLogging {
-  private lazy val allGraphNodes: Seq[GraphNode] = collection.JavaConverters.asScalaBuffer(graphResultSet.all())
+class GraphResponse(graphResults: Iterable[GraphNode], executionInfoP: ExecutionInfo, dseAttributes: DseGraphAttributes) extends DseResponse with LazyLogging {
+  private val allGraphNodesIter: Iterator[GraphNode] = graphResults.iterator
 
-  override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo()
+//  private lazy val allGraphNodes: Seq[GraphNode] = collection.JavaConverters.asScalaBuffer(graphResults)
+  private lazy val allGraphNodes: Seq[GraphNode] = allGraphNodesIter.toSeq
+
+  override def executionInfo(): ExecutionInfo = executionInfoP
   override def applied(): Boolean = false // graph doesn't support LWTs so always return false
-  override def exhausted(): Boolean = graphResultSet.isExhausted()
+  override def exhausted(): Boolean = allGraphNodesIter.hasNext
 
   /**
     * Get the number of all rows returned by the query.
@@ -43,14 +46,10 @@ class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttri
     */
   override def rowCount(): Int = allGraphNodes.size
 
-  def getGraphResultSet: GraphResultSet = {
-    graphResultSet
-  }
-
   def getAllNodes: Seq[GraphNode] = allGraphNodes
 
   def getOneNode: GraphNode = {
-    graphResultSet.one()
+    allGraphNodesIter.next
   }
 
 
@@ -60,10 +59,21 @@ class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttri
     allGraphNodes.map(node => if (node.get(column) != null) node.get(column))
   }
 
+  def getEdges(): Seq[Edge] = {
+    val columnValues = collection.mutable.Buffer[Edge]()
+    for (n <- allGraphNodesIter) {
+      Try(
+        if (n.isEdge) {
+          columnValues.append(n.asEdge())
+        }
+      )
+    }
+    columnValues
+  }
 
   def getEdges(name: String): Seq[Edge] = {
     val columnValues = collection.mutable.Buffer[Edge]()
-    graphResultSet.forEach { n =>
+    for (n <- allGraphNodesIter) {
       Try(
         if (n.get(name).isEdge) {
           columnValues.append(n.get(name).asEdge())
@@ -73,31 +83,37 @@ class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttri
     columnValues
   }
 
-
-  def getVertexes(name: String): Seq[Vertex] = {
+  def getVertexes(): Seq[Vertex] = {
     val columnValues = collection.mutable.Buffer[Vertex]()
-    graphResultSet.forEach { n => Try(if (n.get(name).isVertex) columnValues.append(n.get(name).asVertex())) }
+    for (n <- allGraphNodesIter) {
+      Try(if (n.isVertex) columnValues.append(n.asVertex()))
+    }
     columnValues
   }
 
+  def getVertexes(name: String): Seq[Vertex] = {
+    val columnValues = collection.mutable.Buffer[Vertex]()
+    for (n <- allGraphNodesIter) { Try(if (n.get(name).isVertex) columnValues.append(n.get(name).asVertex())) }
+    columnValues
+  }
 
   def getPaths(name: String): Seq[Path] = {
     val columnValues = collection.mutable.Buffer[Path]()
-    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asPath())) }
+    for (n <- allGraphNodesIter) { Try(columnValues.append(n.get(name).asPath())) }
     columnValues
   }
 
 
   def getProperties(name: String): Seq[Property] = {
     val columnValues = collection.mutable.Buffer[Property]()
-    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asProperty())) }
+    for (n <- allGraphNodesIter) { Try(columnValues.append(n.get(name).asProperty())) }
     columnValues
   }
 
 
   def getVertexProperties(name: String): Seq[VertexProperty] = {
     val columnValues = collection.mutable.Buffer[VertexProperty]()
-    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asVertexProperty())) }
+    for (n <- allGraphNodesIter) { Try(columnValues.append(n.get(name).asVertexProperty())) }
     columnValues
   }
 

@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
+import com.datastax.driver.core.{ConsistencyLevel, ContinuousPagingOptions, Row}
 import com.datastax.driver.dse.graph.{GraphNode, GraphStatement}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 
@@ -32,6 +32,7 @@ import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
   * @param  isSystemQuery         Whether the query is a system one and should be used without any graph name
   * @param  graphInternalOptions  Query-specific options not available in the driver public API
   * @param  graphTransformResults Function to use in order to transform a row into a Graph node
+  * @param  pagingOptions
   */
 case class DseGraphAttributes(tag: String,
                               statement: DseStatement[GraphStatement],
@@ -49,4 +50,5 @@ case class DseGraphAttributes(tag: String,
                               graphSource: Option[String] = None,
                               isSystemQuery: Option[Boolean] = None,
                               graphInternalOptions: Option[Seq[(String, String)]] = None,
-                              graphTransformResults: Option[com.google.common.base.Function[Row, GraphNode]] = None)
+                              graphTransformResults: Option[com.google.common.base.Function[Row, GraphNode]] = None,
+                              pagingOptions: Option[ContinuousPagingOptions] = None)

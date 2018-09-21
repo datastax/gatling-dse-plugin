@@ -52,11 +52,6 @@ private class GraphResponseExtractor[X](val name: String,
 }
 
 object GraphChecks {
-  val graphResultSet =
-    new GraphResponseExtractor[GraphResultSet](
-      "graphResultSet",
-      r => r.getGraphResultSet)
-      .toCheckBuilder
 
   val allNodes =
     new GraphResponseExtractor[Seq[GraphNode]](
@@ -70,11 +65,22 @@ object GraphChecks {
       r => r.getOneNode)
       .toCheckBuilder
 
+  def edges() =
+    new GraphResponseExtractor[Seq[Edge]](
+      "edges",
+      r => r.getEdges())
+    .toCheckBuilder
+
   def edges(column: String) =
     new GraphResponseExtractor[Seq[Edge]](
       "edges",
       r => r.getEdges(column))
       .toCheckBuilder
+
+  def vertexes() = new GraphResponseExtractor[Seq[Vertex]](
+    "vertices",
+    r => r.getVertexes())
+    .toCheckBuilder
 
   def vertexes(column: String) =
     new GraphResponseExtractor[Seq[Vertex]](

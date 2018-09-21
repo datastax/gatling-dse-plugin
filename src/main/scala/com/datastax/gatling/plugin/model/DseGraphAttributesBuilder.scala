@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
+import com.datastax.driver.core.{ConsistencyLevel, ContinuousPagingOptions, Row}
 import com.datastax.driver.dse.graph.GraphNode
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.GraphRequestActionBuilder
@@ -149,6 +149,7 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     */
   def withWriteConsistency(writeCL: ConsistencyLevel) = DseGraphAttributesBuilder(attr.copy(writeCL = Some(writeCL)))
 
+  def withPagingOptions(pagingOptions: ContinuousPagingOptions) = DseGraphAttributesBuilder(attr.copy(pagingOptions = Some(pagingOptions)))
 
   /**
     * Backwards compatibility to set consistencyLevel

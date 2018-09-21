@@ -31,7 +31,7 @@ trait DseCheckSupport {
   lazy val oneRow = CqlChecks.oneRow
 
   // start Graph only checks
-  lazy val graphResultSet = GraphChecks.graphResultSet
+//  lazy val graphResultSet = GraphChecks.graphResultSet
   lazy val allNodes = GraphChecks.allNodes
   lazy val oneNode = GraphChecks.oneNode
 

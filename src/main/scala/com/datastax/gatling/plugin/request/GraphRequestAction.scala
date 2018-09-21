@@ -15,7 +15,7 @@ import akka.actor.ActorSystem
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseGraphAttributes
-import com.datastax.gatling.plugin.response.GraphResponseHandler
+import com.datastax.gatling.plugin.response.{ContinuousGraphResponseHandler, GraphResponseHandler}
 import com.datastax.gatling.plugin.utils._
 import io.gatling.commons.stats.KO
 import io.gatling.core.action.{Action, ExitableAction}
@@ -109,11 +109,20 @@ class GraphRequestAction(val name: String,
         gStmt.setSystemQuery()
       }
 
-      val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTimeBuilder, gStmt, dseAttributes, metricsLogger)
       implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
-      FutureUtils
-        .toScalaFuture(protocol.session.executeGraphAsync(gStmt))
-        .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
+
+      if (dseAttributes.pagingOptions.isDefined) {
+        val responseHandler = new ContinuousGraphResponseHandler(next, session, system, statsEngine, responseTimeBuilder, gStmt, dseAttributes, metricsLogger)
+        FutureUtils
+          .toScalaFuture(protocol.session.executeGraphContinuouslyAsync(gStmt, dseAttributes.pagingOptions.get))
+          .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
+      } else {
+        val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTimeBuilder, gStmt, dseAttributes, metricsLogger)
+        FutureUtils
+          .toScalaFuture(protocol.session.executeGraphAsync(gStmt))
+          .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
+      }
+
     })
   }
 }
