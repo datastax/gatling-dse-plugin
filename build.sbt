@@ -4,8 +4,8 @@ val gatlingVersion = "2.3.0"
 
 scalacOptions += "-target:jvm-1.8"
 
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"     % "1.6.7-SNAPSHOT"
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-graph"    % "1.6.7-SNAPSHOT"
+libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"     % "1.6.7-aaaceb47a-java1712-SNAPSHOT"
+libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-graph"    % "1.6.7-aaaceb47a-java1712-SNAPSHOT"
 libraryDependencies += "com.github.nscala-time"       %% "nscala-time"              % "2.18.0"
 libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala"     % "2.9.1"
 libraryDependencies += "org.hdrhistogram"             %  "HdrHistogram"             % "2.1.10"
