@@ -4,6 +4,9 @@ import java.util.concurrent.{Executor, TimeUnit}
 
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKitBase
+import ch.qos.logback.classic.{Level, Logger}
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.datastax.driver.core._
 import com.datastax.driver.core.policies.FallthroughRetryPolicy
 import com.datastax.driver.dse.DseSession
@@ -20,13 +23,14 @@ import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 import org.easymock.EasyMock
 import org.easymock.EasyMock._
+import org.slf4j.LoggerFactory
 
 class CqlRequestActionSpec extends BaseSpec with TestKitBase {
-  implicit lazy val system = ActorSystem()
-  val gatlingTestConfig = GatlingConfiguration.loadForTest()
-  val dseSession = mock[DseSession]
-  val dseCqlStatement = mock[DseCqlStatement]
-  val pagingState = mock[PagingState]
+  implicit lazy val system:ActorSystem = ActorSystem()
+  val gatlingTestConfig: GatlingConfiguration = GatlingConfiguration.loadForTest()
+  val dseSession: DseSession = mock[DseSession]
+  val dseCqlStatement: DseCqlStatement = mock[DseCqlStatement]
+  val pagingState: PagingState = mock[PagingState]
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
@@ -93,7 +97,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement.getQueryString should be("select * from test")
     }
 
-    it("should enabled all the CQL Attributes in DseAttributes") {
+    it("should enable all the CQL Attributes in DseAttributes") {
       val cqlAttributes = DseCqlAttributes(
         "test",
         dseCqlStatement,
@@ -128,6 +132,36 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement.getRetryPolicy shouldBe FallthroughRetryPolicy.INSTANCE
       capturedStatement.getQueryString should be("select * from test")
       capturedStatement.isTracing shouldBe true
+    }
+
+    it("should log exceptions encountered") {
+      val errorMessage = "Invalid format: \"2016-11-16 06:43:19.77\" is malformed at \" 06:43:19.77\""
+
+      expecting {
+        dseCqlStatement.buildFromSession(gatlingSession).andThrow(new IllegalArgumentException(errorMessage))
+      }
+
+      val cqlAttributesWithDefaults = DseCqlAttributes(
+        "test",
+        dseCqlStatement)
+
+      val cqlRequestAction = getTarget(cqlAttributesWithDefaults)
+
+      val classLogger = LoggerFactory.getLogger(classOf[CqlRequestAction]).asInstanceOf[Logger]
+      val listAppender: ListAppender[ILoggingEvent] = new ListAppender[ILoggingEvent]
+      listAppender.start()
+      classLogger.addAppender(listAppender)
+
+      whenExecuting(dseCqlStatement, dseSession) {
+        cqlRequestAction.sendQuery(gatlingSession)
+      }
+
+      assert(listAppender.list.size() > 0)
+
+      val logEntry = listAppender.list.get(0)
+
+      assert(logEntry.getLevel == Level.ERROR)
+      assert(logEntry.getFormattedMessage.contains(errorMessage))
     }
   }
 }

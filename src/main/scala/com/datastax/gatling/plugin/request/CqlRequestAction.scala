@@ -18,6 +18,7 @@ import com.datastax.gatling.plugin.model.DseCqlAttributes
 import com.datastax.gatling.plugin.response.CqlResponseHandler
 import com.datastax.gatling.plugin.utils._
 import io.gatling.commons.stats.KO
+import io.gatling.commons.validation.safely
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
@@ -69,18 +70,10 @@ class CqlRequestAction(val name: String,
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
     }
-    val stmt = dseAttributes.statement.buildFromSession(session)
+    val stmt = safely()(dseAttributes.statement.buildFromSession(session))
 
     stmt.onFailure(err => {
-      val responseTime: ResponseTime = responseTimeBuilder.build()
-      val logUuid = UUID.randomUUID.toString
-      val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
-
-      statsEngine.logResponse(session, name, responseTime.toGatlingResponseTimings, KO, None,
-        Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(MICROSECONDS), "PRE", logUuid))
-
-      logger.error("[{}] {} - Preparing: {} - Attrs: {}", logUuid, tagString, err, session.attributes.mkString(","))
-      next ! session.markAsFailed
+      handleFailure(session, responseTimeBuilder, err)
     })
 
     stmt.onSuccess({ stmt =>
@@ -107,5 +100,17 @@ class CqlRequestAction(val name: String,
         .toScalaFuture(protocol.session.executeAsync(stmt))
         .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
     })
+  }
+
+  private def handleFailure(session: Session, responseTimeBuilder: ResponseTimeBuilder, err: String) = {
+    val responseTime: ResponseTime = responseTimeBuilder.build()
+    val logUuid = UUID.randomUUID.toString
+    val tagString = if (session.groupHierarchy.nonEmpty) session.groupHierarchy.mkString("/") + "/" + dseAttributes.tag else dseAttributes.tag
+
+    statsEngine.logResponse(session, name, responseTime.toGatlingResponseTimings, KO, None,
+      Some(s"$tagString - Preparing: ${err.take(50)}"), List(responseTime.latencyIn(MICROSECONDS), "PRE", logUuid))
+
+    logger.error("[{}] {} - Err: {} - Attrs: {}", logUuid, tagString, err, session.attributes.mkString(","))
+    next ! session.markAsFailed
   }
 }
