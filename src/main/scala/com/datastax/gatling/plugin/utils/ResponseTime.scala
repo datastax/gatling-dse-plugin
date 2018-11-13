@@ -79,5 +79,5 @@ case class COAffectedResponseTime(startNanos: Long, endNanos: Long)
       NANOSECONDS.toMillis(endNanos))
 
   override def startTimeIn(targetTimeUnit: TimeUnit): Long =
-    targetTimeUnit.convert(startNanos, NANOSECONDS)
+    targetTimeUnit.convert(startNanos, MILLISECONDS)
 }
