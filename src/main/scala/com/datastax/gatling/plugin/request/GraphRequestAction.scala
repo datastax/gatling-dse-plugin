@@ -10,6 +10,7 @@ import java.lang.Boolean
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
+import java.time.Instant
 
 import akka.actor.ActorSystem
 import com.datastax.gatling.plugin.DseProtocol
@@ -64,7 +65,8 @@ class GraphRequestAction(val name: String,
     val enableCO = Boolean.getBoolean("gatling.dse.plugin.measure_service_time")
     val responseTimeBuilder: ResponseTimeBuilder = if (enableCO) {
       // The throughput checker is useless in CO affected scenarios since throughput is not known in advance
-      COAffectedResponseTime.startingAt(System.nanoTime())
+      val now = Instant.now()
+      COAffectedResponseTime.startingAt(now.getEpochSecond()*1000000000 + now.getNano())
     } else {
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)

@@ -8,6 +8,7 @@ package com.datastax.gatling.plugin.utils
 
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit.{MILLISECONDS, NANOSECONDS}
+import java.time.Instant
 
 import io.gatling.commons.util.ClockSingleton
 import io.gatling.core.Predef.Session
@@ -65,7 +66,10 @@ case class GatlingResponseTime(session: Session, timingSource: TimingSource)
 
 object COAffectedResponseTime {
   def startingAt(startNanos: Long): ResponseTimeBuilder =
-    () => COAffectedResponseTime(startNanos, System.nanoTime())
+    () => {
+      val now = Instant.now()
+      COAffectedResponseTime(startNanos, now.getEpochSecond()*1000000000 + now.getNano())
+    }
 }
 
 case class COAffectedResponseTime(startNanos: Long, endNanos: Long)
