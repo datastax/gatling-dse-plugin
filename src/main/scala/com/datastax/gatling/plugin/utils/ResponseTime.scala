@@ -64,8 +64,10 @@ case class GatlingResponseTime(session: Session, timingSource: TimingSource)
 }
 
 object COAffectedResponseTime {
-  def startingAt(startNanos: Long): ResponseTimeBuilder =
-    () => COAffectedResponseTime(startNanos, System.nanoTime())
+  def startingNow(timingSource: TimingSource): ResponseTimeBuilder = {
+    val currentTimeInNanos = timingSource.currentTimeNanos()
+    () => COAffectedResponseTime(currentTimeInNanos, timingSource.currentTimeNanos())
+  }
 }
 
 case class COAffectedResponseTime(startNanos: Long, endNanos: Long)
