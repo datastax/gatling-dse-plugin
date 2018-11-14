@@ -64,7 +64,7 @@ class GraphRequestAction(val name: String,
     val enableCO = Boolean.getBoolean("gatling.dse.plugin.measure_service_time")
     val responseTimeBuilder: ResponseTimeBuilder = if (enableCO) {
       // The throughput checker is useless in CO affected scenarios since throughput is not known in advance
-      COAffectedResponseTime.startingAt(System.nanoTime())
+      COAffectedResponseTime.startingNow(gatlingTimingSource)
     } else {
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
