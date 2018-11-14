@@ -47,5 +47,18 @@ class ResponseTimeSpec extends BaseSimulationSpec {
         rt.endTimestamp shouldBe 444
       }
     }
+
+    it("should rely on the timing source for service times as well") {
+      expecting {
+        timingSource.currentTimeNanos()
+          .andReturn(4000000L) // 4ms
+          .andReturn(5000000L) // 5ms
+      }
+      whenExecuting(timingSource) {
+        val rt = COAffectedResponseTime.startingNow(timingSource).build().toGatlingResponseTimings
+        rt.startTimestamp shouldBe 4
+        rt.endTimestamp shouldBe 5
+      }
+    }
   }
 }
