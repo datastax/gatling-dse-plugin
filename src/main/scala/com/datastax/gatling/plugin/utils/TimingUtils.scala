@@ -41,9 +41,9 @@ case class GatlingTimingSource() extends TimingSource {
     unlock(gatlingInternalClock, "nanoTimeReference")
       .asInstanceOf[Long]
 
-  private val gatlingMillisTimeReference =
+  private val gatlingStartTimeInNanos = MILLISECONDS.toNanos(
     unlock(gatlingInternalClock, "currentTimeMillisReference")
-      .asInstanceOf[Long]
+      .asInstanceOf[Long])
 
   private def unlock(o: AnyRef, declaredMethodName: String) = {
     val method = o.getClass.getDeclaredMethod(declaredMethodName)
@@ -51,9 +51,8 @@ case class GatlingTimingSource() extends TimingSource {
     method.invoke(o)
   }
 
-  // t0 in millis + t0 as of RDTSC - current RDTSC
+  // Current time in nanos = JVM absolute startup time in nanos inferred from currentTimeMillis + (elapsed nanoseconds
+  // since JVM startup)
   override def currentTimeNanos(): Long =
-    MILLISECONDS.toNanos(gatlingMillisTimeReference) +
-      System.nanoTime() -
-      gatlingNanoTimeReference
+    gatlingStartTimeInNanos + (System.nanoTime() - gatlingNanoTimeReference)
 }
