@@ -8,17 +8,15 @@ package com.datastax.gatling.plugin.request
 
 
 import akka.actor.Actor
-import com.datastax.driver.core.ResultSet
-import com.datastax.driver.dse.graph.GraphResultSet
+import com.datastax.dse.driver.api.core.DseSession
 import com.google.common.util.concurrent.FutureCallback
 import com.typesafe.scalalogging.StrictLogging
-import io.gatling.core.session.Session
 
 import scala.concurrent.ExecutionException
 import scala.util.{Failure, Success, Try}
 
-case class SendCqlQuery(dseRequestAction: CqlRequestAction, session: Session)
-case class SendGraphQuery(dseRequestAction: GraphRequestAction, session: Session)
+case class SendCqlQuery(dseRequestAction: CqlRequestAction, session: DseSession)
+case class SendGraphQuery(dseRequestAction: GraphRequestAction, session: DseSession)
 
 case class RecordResult[T](t: Try[T], callback: FutureCallback[T])
 

@@ -6,10 +6,11 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
-import com.datastax.driver.dse.graph.GraphNode
+import com.datastax.dse.driver.api.core.graph.GraphNode
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.GraphRequestActionBuilder
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.Row
 import io.gatling.core.action.builder.ActionBuilder
 
 
@@ -39,8 +40,8 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     *
     * This permission MUST be granted to the currently logged in user using the CQL statement: `GRANT PROXY.EXECUTE ON
     * ROLE someRole TO alice`.  The user MUST be logged in with
-    * [[com.datastax.driver.dse.auth.DsePlainTextAuthProvider]] or
-    * [[com.datastax.driver.dse.auth.DseGSSAPIAuthProvider]]
+    * [[com.datastax.dse.driver.internal.core.auth.DsePlainTextAuthProvider]] or
+    * [[com.datastax.dse.driver.internal.core.auth.DseGssApiAuthProvider]]
     *
     * @param userOrRole String
     * @return

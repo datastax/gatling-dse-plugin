@@ -6,11 +6,12 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.driver.core.{ConsistencyLevel, PagingState}
+import java.nio.ByteBuffer
+
 import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
-import io.gatling.core.action.builder.ActionBuilder
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.retry.RetryPolicy
 
 
 /**
@@ -18,13 +19,13 @@ import io.gatling.core.action.builder.ActionBuilder
   *
   * @param attr Addition Attributes
   */
-case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
+case class DseCqlAttributesBuilder[T](attr: DseCqlAttributes[T]) {
   /**
     * Builds to final action to run
     *
     * @return
     */
-  def build(): CqlRequestActionBuilder = new CqlRequestActionBuilder(attr)
+  def build(): CqlRequestActionBuilder[T] = new CqlRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level
@@ -39,8 +40,8 @@ case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
     *
     * This permission MUST be granted to the currently logged in user using the CQL statement: `GRANT PROXY.EXECUTE ON
     * ROLE someRole TO alice`.  The user MUST be logged in with
-    * [[com.datastax.driver.dse.auth.DsePlainTextAuthProvider]] or
-    * [[com.datastax.driver.dse.auth.DseGSSAPIAuthProvider]]
+    * [[com.datastax.dse.driver.internal.core.auth.DsePlainTextAuthProvider]] or
+    * [[com.datastax.dse.driver.internal.core.auth.DseGssApiAuthProvider]]
     *
     * @param userOrRole String
     * @return
@@ -83,7 +84,7 @@ case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
 
 
   /**
-    * Define the [[com.datastax.driver.core.policies.RetryPolicy]] to be used for query
+    * Define the [[com.datastax.oss.driver.api.core.retry.RetryPolicy]] to be used for query
     *
     * @param retryPolicy DataStax drivers retry policy
     * @return
@@ -113,7 +114,7 @@ case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
     * @param pagingState CQL Paging state
     * @return
     */
-  def withPagingState(pagingState: PagingState) = DseCqlAttributesBuilder(attr.copy(pagingState = Some(pagingState)))
+  def withPagingState(pagingState: ByteBuffer) = DseCqlAttributesBuilder(attr.copy(pagingState = Some(pagingState)))
 
 
   /**

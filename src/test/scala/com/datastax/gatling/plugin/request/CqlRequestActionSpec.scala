@@ -1,5 +1,6 @@
 package com.datastax.gatling.plugin.request
 
+import java.nio.ByteBuffer
 import java.util.concurrent.{Executor, TimeUnit}
 
 import akka.actor.{ActorSystem, Props}
@@ -10,11 +11,14 @@ import ch.qos.logback.core.read.ListAppender
 import com.datastax.driver.core._
 import com.datastax.driver.core.policies.FallthroughRetryPolicy
 import com.datastax.driver.dse.DseSession
+import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseCqlStatement}
+import com.datastax.oss.driver.api.core.cql.{ResultSet, SimpleStatement, Statement}
+import com.datastax.oss.protocol.internal.ProtocolConstants.ConsistencyLevel
 import com.google.common.util.concurrent.{Futures, ListenableFuture}
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.Exit
@@ -30,7 +34,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   val gatlingTestConfig: GatlingConfiguration = GatlingConfiguration.loadForTest()
   val dseSession: DseSession = mock[DseSession]
   val dseCqlStatement: DseCqlStatement = mock[DseCqlStatement]
-  val pagingState: PagingState = mock[PagingState]
+  val pagingState: ByteBuffer = mock[ByteBuffer]
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
@@ -68,7 +72,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   }
 
   describe("CQL") {
-    val statementCapture = EasyMock.newCapture[RegularStatement]
+    val statementCapture = EasyMock.newCapture[Statement]
     it("should have default CQL attributes set if nothing passed") {
       val cqlAttributesWithDefaults = DseCqlAttributes(
         "test",

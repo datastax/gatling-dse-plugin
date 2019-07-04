@@ -6,9 +6,9 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{PreparedStatement, SimpleStatement}
 import com.datastax.gatling.plugin._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
+import com.datastax.oss.driver.api.core.cql.{BatchableStatement, BoundStatement, PreparedStatement, SimpleStatement}
 import io.gatling.core.session.Expression
 
 /**
@@ -20,7 +20,7 @@ import io.gatling.core.session.Expression
   *
   * @param tag Name of the CQL query to execute
   */
-case class DseCqlStatementBuilder(tag: String) {
+case class DseCqlStatementBuilder[T](tag: String) {
 
   /**
     * Execute a simple Statement built from a CQL string.
@@ -29,7 +29,7 @@ case class DseCqlStatementBuilder(tag: String) {
     * @return
     */
   @deprecated("Replaced by executeStatement(String)")
-  def executeCql(query: String): DseCqlAttributesBuilder =
+  def executeCql(query: String): DseCqlAttributesBuilder[SimpleStatement] =
     executeStatement(query)
 
   /**
@@ -38,8 +38,8 @@ case class DseCqlStatementBuilder(tag: String) {
     * @param query Simple string query
     * @return
     */
-  def executeStatement(query: String): DseCqlAttributesBuilder =
-    executeStatement(new SimpleStatement(query))
+  def executeStatement(query: String): DseCqlAttributesBuilder[SimpleStatement] =
+    executeStatement(SimpleStatement.newInstance(query))
 
   /**
     * Execute a Simple Statement
@@ -47,12 +47,12 @@ case class DseCqlStatementBuilder(tag: String) {
     * @param statement SimpleStatement
     * @return
     */
-  def executeStatement(statement: SimpleStatement): DseCqlAttributesBuilder =
+  def executeStatement(statement: SimpleStatement): DseCqlAttributesBuilder[SimpleStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
         DseCqlSimpleStatement(statement),
-        cqlStatements = Seq(statement.getQueryString))
+        cqlStatements = Seq(statement.getQuery))
     )
 
   /**
@@ -90,7 +90,7 @@ case class DseCqlStatementBuilder(tag: String) {
     *
     * @param preparedStatement CQL Prepared statement with named parameters
     */
-  def executeNamed(preparedStatement: PreparedStatement): DseCqlAttributesBuilder =
+  def executeNamed(preparedStatement: PreparedStatement): DseCqlAttributesBuilder[BoundStatement] =
     DsePreparedCqlStatementBuilder(tag, preparedStatement).withSessionParams()
 
   /**
@@ -102,7 +102,7 @@ case class DseCqlStatementBuilder(tag: String) {
     DseCqlAttributes(
       tag,
       DseCqlBoundBatchStatement(CqlPreparedStatementUtil, preparedStatements),
-      cqlStatements = preparedStatements.map(_.getQueryString)
+      cqlStatements = preparedStatements.map(_.getQuery)
     )
   )
 
@@ -113,14 +113,14 @@ case class DseCqlStatementBuilder(tag: String) {
     * @param payloadSessionKey Session key of the payload from session/feed
     * @return
     */
-  def executeCustomPayload(statement: SimpleStatement, payloadSessionKey: String): DseCqlAttributesBuilder =
+  def executeCustomPayload(statement: SimpleStatement, payloadSessionKey: String): DseCqlAttributesBuilder[SimpleStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
         DseCqlCustomPayloadStatement(statement, payloadSessionKey),
-        cqlStatements = Seq(statement.getQueryString)))
+        cqlStatements = Seq(statement.getQuery)))
 
-  def executePreparedFromSession(key: String): DseCqlAttributesBuilder =
+  def executePreparedFromSession(key: String): DseCqlAttributesBuilder[SimpleStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
@@ -140,12 +140,12 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
     *
     * @return
     */
-  def withSessionParams(): DseCqlAttributesBuilder =
+  def withSessionParams(): DseCqlAttributesBuilder[BoundStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
         DseCqlBoundStatementNamed(CqlPreparedStatementUtil, prepared),
-        cqlStatements = Seq(prepared.getQueryString)))
+        cqlStatements = Seq(prepared.getQuery)))
 
   /**
     * Bind Gatling Session Values to CQL Prepared Statement
@@ -153,12 +153,12 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
     * @param params Gatling Session variables
     * @return
     */
-  def withParams(params: Expression[AnyRef]*): DseCqlAttributesBuilder =
+  def withParams(params: Expression[AnyRef]*): DseCqlAttributesBuilder[BoundStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
         DseCqlBoundStatementWithPassedParams(CqlPreparedStatementUtil, prepared, params: _*),
-        cqlStatements = Seq(prepared.getQueryString))
+        cqlStatements = Seq(prepared.getQuery))
     )
 
   /**
@@ -172,6 +172,6 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
       DseCqlAttributes(
         tag,
         DseCqlBoundStatementWithParamList(CqlPreparedStatementUtil, prepared, sessionKeys),
-        cqlStatements = Seq(prepared.getQueryString))
+        cqlStatements = Seq(prepared.getQuery))
     )
 }

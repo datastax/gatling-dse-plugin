@@ -8,8 +8,9 @@ package com.datastax.gatling.plugin.model
 
 import java.nio.ByteBuffer
 
-import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.driver.core.{ConsistencyLevel, PagingState, Statement}
+import com.datastax.oss.driver.api.core.retry.RetryPolicy
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.Statement
 import com.datastax.gatling.plugin.response.{CqlResponse, DseResponse}
 import io.gatling.core.check.Check
 
@@ -36,8 +37,8 @@ import io.gatling.core.check.Check
   * @param cqlStatements    String version of the CQL statement that is sent
   *
   */
-case class DseCqlAttributes(tag: String,
-                            statement: DseStatement[Statement],
+case class DseCqlAttributes[T](tag: String,
+                            statement: DseCqlStatement[T],
                             cl: Option[ConsistencyLevel] = None,
                             cqlChecks: List[Check[CqlResponse]] = List.empty,
                             genericChecks: List[Check[DseResponse]] = List.empty,
@@ -50,5 +51,5 @@ case class DseCqlAttributes(tag: String,
                             serialCl: Option[ConsistencyLevel] = None,
                             fetchSize: Option[Int] = None,
                             retryPolicy: Option[RetryPolicy] = None,
-                            pagingState: Option[PagingState] = None,
+                            pagingState: Option[ByteBuffer] = None,
                             cqlStatements: Seq[String] = Seq.empty)

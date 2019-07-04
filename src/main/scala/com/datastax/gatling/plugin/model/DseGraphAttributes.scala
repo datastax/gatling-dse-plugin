@@ -6,14 +6,15 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
-import com.datastax.driver.dse.graph.{GraphNode, GraphStatement}
+import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement, ScriptGraphStatement}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.Row
 
 /**
   * Graph Query Attributes to be applied to the current query
   *
-  * See [[GraphStatement]] for documentation on each option.
+  * See [[com.datastax.dse.driver.api.core.graph.GraphStatement]] for documentation on each option.
   *
   * @param tag                    Name of Query to include in reports
   * @param statement              Graph Statement to be sent to Cluster
@@ -34,7 +35,7 @@ import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
   * @param  graphTransformResults Function to use in order to transform a row into a Graph node
   */
 case class DseGraphAttributes(tag: String,
-                              statement: DseStatement[GraphStatement],
+                              statement: DseStatement[GraphStatement[ScriptGraphStatement]],
                               cl: Option[ConsistencyLevel] = None,
                               graphChecks: List[DseGraphCheck] = List.empty,
                               genericChecks: List[GenericCheck] = List.empty,

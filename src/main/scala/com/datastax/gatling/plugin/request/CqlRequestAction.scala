@@ -7,16 +7,19 @@
 package com.datastax.gatling.plugin.request
 
 import java.lang.Boolean
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
+import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseCqlAttributes
 import com.datastax.gatling.plugin.response.CqlResponseHandler
 import com.datastax.gatling.plugin.utils._
+import com.datastax.oss.driver.api.core.cql.SimpleStatement
 import io.gatling.commons.stats.KO
 import io.gatling.commons.validation.safely
 import io.gatling.core.action.{Action, ExitableAction}
@@ -49,7 +52,7 @@ class CqlRequestAction(val name: String,
                        val system: ActorSystem,
                        val statsEngine: StatsEngine,
                        val protocol: DseProtocol,
-                       val dseAttributes: DseCqlAttributes,
+                       val dseAttributes: DseCqlAttributes[SimpleStatement],
                        val metricsLogger: MetricsLogger,
                        val dseExecutorService: ExecutorService,
                        val gatlingTimingSource: GatlingTimingSource)
@@ -79,25 +82,27 @@ class CqlRequestAction(val name: String,
     stmt.onSuccess({ stmt =>
       // global options
       dseAttributes.cl.map(stmt.setConsistencyLevel)
-      dseAttributes.userOrRole.map(stmt.executingAs)
-      dseAttributes.readTimeout.map(stmt.setReadTimeoutMillis)
-      dseAttributes.idempotent.map(stmt.setIdempotent)
-      dseAttributes.defaultTimestamp.map(stmt.setDefaultTimestamp)
+      // TODO refactored
+      //dseAttributes.userOrRole.map(stmt.executingAs)
+      dseAttributes.readTimeout.map( timeout => stmt.setTimeout(Duration.ofMillis(timeout)))
+      dseAttributes.idempotent.map( idempotent => stmt.setIdempotent(idempotent))
+      dseAttributes.defaultTimestamp.map(stmt.setQueryTimestamp)
 
       // CQL Only Options
-      dseAttributes.outGoingPayload.map(x => stmt.setOutgoingPayload(x.asJava))
+      dseAttributes.outGoingPayload.map(x => stmt.setCustomPayload(x.asJava))
       dseAttributes.serialCl.map(stmt.setSerialConsistencyLevel)
-      dseAttributes.retryPolicy.map(stmt.setRetryPolicy)
-      dseAttributes.fetchSize.map(stmt.setFetchSize)
+      //TODO find equivalent methods
+      //dseAttributes.retryPolicy.map(stmt.setRetryPolicy)
+      //dseAttributes.fetchSize.map(stmt.setFetchSize)
       dseAttributes.pagingState.map(stmt.setPagingState)
       if (dseAttributes.enableTrace.isDefined && dseAttributes.enableTrace.get) {
-        stmt.enableTracing
+        stmt.isTracing
       }
 
       val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, responseTimeBuilder, stmt, dseAttributes, metricsLogger)
       implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
       FutureUtils
-        .toScalaFuture(protocol.session.executeAsync(stmt))
+        .toScalaFuture(session.executeAsync(stmt))
         .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
     })
   }

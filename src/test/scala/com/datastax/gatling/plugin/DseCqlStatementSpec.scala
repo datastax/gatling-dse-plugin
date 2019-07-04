@@ -2,16 +2,17 @@ package com.datastax.gatling.plugin
 
 import java.nio.ByteBuffer
 
-import com.datastax.driver.core.ColumnDefinitions.Definition
-import com.datastax.driver.core._
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.exceptions.DseCqlStatementException
 import com.datastax.gatling.plugin.model._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
+import com.datastax.oss.driver.api.core.cql.{BoundStatement, ColumnDefinitions, PreparedStatement}
+import com.datastax.oss.protocol.internal.ProtocolConstants.DataType
 import io.gatling.commons.validation._
 import io.gatling.core.session.Session
 import io.gatling.core.session.el.ElCompiler
 import org.easymock.EasyMock._
+import org.scalatest.enablers.Definition
 
 import scala.collection.JavaConverters._
 
@@ -93,14 +94,14 @@ class DseCqlStatementSpec extends BaseSpec {
   describe("DseCqlBoundStatementWithParamList") {
 
     val validParamList = Seq("foo", "bar")
-    val paramsList = List[DataType.Name](DataType.Name.TEXT, DataType.Name.INT)
+    val paramsList = List[Integer](DataType.VARCHAR, DataType.INT)
 
     it("correctly bind values to a prepared statement") {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
         mockCqlTypes.getParamsList(prepared).andReturn(paramsList)
-        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.Name.TEXT, "foo", 0)
+        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.TEXT, "foo", 0)
             .andReturn(mockBoundStatement)
         mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.Name.INT, "bar", 1)
             .andReturn(mockBoundStatement)
@@ -121,7 +122,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.INT))
         mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataType.Name.INT, "foo")
             .andReturn(mockBoundStatement)
       }
@@ -141,7 +142,7 @@ class DseCqlStatementSpec extends BaseSpec {
       val sessionWithStatement: Session = validGatlingSession.set("statementKey", prepared)
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.INT))
         mockCqlTypes.bindParamByName(sessionWithStatement, mockBoundStatement, DataType.Name.INT, "foo")
           .andReturn(mockBoundStatement)
       }

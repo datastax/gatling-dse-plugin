@@ -6,7 +6,8 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.dse.graph.{GraphStatement, SimpleGraphStatement}
+import com.datastax.dse.driver.api.core.graph.ScriptGraphStatement
+import com.datastax.dse.graph.api._
 import io.gatling.core.session.{Expression, Session}
 
 /**
@@ -34,7 +35,7 @@ case class DseGraphStatementBuilder(tag: String) {
     * @return
     */
   @deprecated("Replaced by executeGraph(SimpleGraphStatement)")
-  def executeGraphStatement(gStatement: SimpleGraphStatement) =
+  def executeGraphStatement(gStatement: ScriptGraphStatement) =
     executeGraph(gStatement)
 
   /**

@@ -6,7 +6,9 @@
 
 package com.datastax.gatling.plugin.checks
 
-import com.datastax.driver.core._
+import com.datastax.oss.driver.api.core.cql._
+import com.datastax.oss.driver.api.core._
+import com.datastax.oss.driver.api.core.metadata._
 import com.datastax.gatling.plugin.response.DseResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
@@ -14,6 +16,7 @@ import io.gatling.core.check._
 import io.gatling.core.session.{Expression, ExpressionSuccessWrapper, Session}
 
 import scala.collection.mutable
+import java.nio.ByteBuffer
 
 /**
   * This class allows to execute checks on either CQL or Graph responses.
@@ -61,7 +64,7 @@ object GenericChecks {
       .toCheckBuilder
 
   val queriedHost =
-    new GenericResponseExtractor[Host](
+    new GenericResponseExtractor[Node](
       "queriedHost",
       r => r.queriedHost())
       .toCheckBuilder
@@ -69,7 +72,7 @@ object GenericChecks {
   val achievedConsistencyLevel =
     new GenericResponseExtractor[ConsistencyLevel](
       "achievedConsistencyLevel",
-      r => r.achievedConsistencyLevel())
+      r => r.executionInfo().getStatement.getConsistencyLevel())
       .toCheckBuilder
 
   val speculativeExecutionsExtractor =
@@ -79,13 +82,13 @@ object GenericChecks {
       .toCheckBuilder
 
   val pagingState =
-    new GenericResponseExtractor[PagingState](
+    new GenericResponseExtractor[ByteBuffer](
       "pagingState",
       r => r.pagingState())
       .toCheckBuilder
 
   val triedHosts =
-    new GenericResponseExtractor[List[Host]](
+    new GenericResponseExtractor[List[Node]](
       "triedHost",
       r => r.triedHosts())
       .toCheckBuilder
@@ -123,7 +126,6 @@ object GenericChecks {
   val exhausted =
     new GenericResponseExtractor[Boolean](
       "exhausted",
-      r => r.exhausted())
+      r => r.applied())
       .toCheckBuilder
 }
-

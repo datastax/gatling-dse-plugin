@@ -6,8 +6,13 @@
 
 package com.datastax.gatling.plugin.utils
 
-import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 
+import java.util.concurrent.{CompletableFuture, CompletionStage}
+
+import com.datastax.oss.driver.shaded.guava.common.util.concurrent.{FutureCallback, Futures}
+import org.asynchttpclient.ListenableFuture
+
+import scala.concurrent.java8.FuturesConvertersImpl._
 import scala.concurrent.{Future, Promise}
 
 object FutureUtils {
@@ -24,16 +29,13 @@ object FutureUtils {
     * @return a Scala [[Future]] that will be completed when the Guava future
     *         completes
     */
-  def toScalaFuture[T](guavaFuture: ListenableFuture[T]): Future[T] = {
-    val scalaPromise = Promise[T]()
-    Futures.addCallback(
-      guavaFuture,
-      new FutureCallback[T] {
-        def onSuccess(result: T): Unit = scalaPromise.success(result)
-
-        def onFailure(exception: Throwable): Unit = scalaPromise.failure(exception)
-      }
-    )
-    scalaPromise.future
+  def toScalaFuture[T](guavaFuture: CompletionStage[T]): Future[T] = {
+    guavaFuture match {
+      case cf: CF[T] => cf.wrapped
+      case _ =>
+        val p = new P[T](guavaFuture)
+        guavaFuture whenComplete p
+        p.future
+    }
   }
 }
