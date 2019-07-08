@@ -1,8 +1,7 @@
 package com.datastax.gatling.plugin
 
-import com.datastax.driver.dse.DseSession
-import com.datastax.driver.dse.graph.SimpleGraphStatement
-import com.datastax.dse.graph.api.DseGraph
+import com.datastax.dse.driver.api.core.DseSession
+import com.datastax.dse.driver.api.core.graph.{DseGraph, FluentGraphStatement, ScriptGraphStatement}
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.model.{GraphBoundStatement, GraphFluentStatement, GraphStringStatement}
 import io.gatling.commons.validation.{Failure, Success}
@@ -42,8 +41,8 @@ class DseGraphStatementSpec extends BaseSpec {
 
   describe("FluentStatement") {
 
-    val g = DseGraph.traversal(mockDseSession)
-    val gStatement = DseGraph.statementFromTraversal(g.V().limit(5))
+    val g = DseGraph.g
+    val gStatement = FluentGraphStatement.newInstance(g.V().limit(5))
     val target = GraphFluentStatement(gStatement)
 
     it("should correctly return StringStatement for a valid expression") {
@@ -54,8 +53,8 @@ class DseGraphStatementSpec extends BaseSpec {
 
   describe("GraphBoundStatement") {
 
-    val graphStatement = new SimpleGraphStatement("g.addV(label, vertexLabel).property('type', myType)")
-    val target = GraphBoundStatement(graphStatement, Map("test" -> "type"))
+    val target = GraphBoundStatement(ScriptGraphStatement.newInstance(
+      "g.addV(label, vertexLabel).property('type', myType)"), Map("test" -> "type"))
 
     it("should suceeed with a valid session") {
       val result = target.buildFromSession(validGatlingSession)

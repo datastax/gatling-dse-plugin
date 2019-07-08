@@ -1,6 +1,6 @@
 package com.datastax.gatling.plugin.simulations.cql
 
-import com.datastax.gatling.plugin.DsePredef._
+import com.datastax.gatling.plugin.CqlPredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
 import io.gatling.core.Predef._
 
@@ -51,20 +51,19 @@ class PreparedStatementSimulation extends BaseCqlSimulation {
   val scnPassed = scenario("ABCPreparedStatement")
       .feed(feeder)
       .exec(insertCql
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
-      )
+        .check(rowCount is 0)
+        .build())
       .pause(1.seconds)
 
       .exec(selectCql
           .check(rowCount is 1)
-          .check(columnValue("name") is insertName)
+          .check(columnValue("name") is insertName).build()
       )
       .pause(1.seconds)
 
       .exec(selectCqlSessionParam
           .check(rowCount is 1)
-          .check(columnValue("name") is insertName)
+          .check(columnValue("name") is insertName).build()
       )
 
 

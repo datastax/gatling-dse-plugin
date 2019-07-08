@@ -1,6 +1,6 @@
 package com.datastax.gatling.plugin.simulations.cql
 
-import com.datastax.gatling.plugin.DsePredef._
+import com.datastax.gatling.plugin.CqlPredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
 import io.gatling.core.Predef._
 
@@ -44,12 +44,14 @@ class NamedStatementSimulation extends BaseCqlSimulation {
       .exec(insertCql
           .check(exhausted is true)
           .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .build()
       )
       .pause(1.seconds)
 
       .exec(selectCql
           .check(rowCount is 1)
           .check(columnValue("str") is insertStr)
+          .build()
       )
 
 

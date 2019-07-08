@@ -54,7 +54,7 @@ private class GraphResponseExtractor[X](val name: String,
   }
 }
 
-object GraphChecks {
+object GraphChecks extends GenericChecks[GraphExecutionInfo] {
   val graphResultSet =
     new GraphResponseExtractor[GraphResultSet](
       "graphResultSet",

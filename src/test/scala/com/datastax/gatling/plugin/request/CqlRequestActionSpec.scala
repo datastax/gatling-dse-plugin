@@ -8,9 +8,6 @@ import akka.testkit.TestKitBase
 import ch.qos.logback.classic.{Level, Logger}
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import com.datastax.driver.core._
-import com.datastax.driver.core.policies.FallthroughRetryPolicy
-import com.datastax.driver.dse.DseSession
 import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
@@ -20,7 +17,6 @@ import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseCqlStatement}
 import com.datastax.oss.driver.api.core.cql.{ResultSet, SimpleStatement, Statement}
 import com.datastax.oss.protocol.internal.ProtocolConstants.ConsistencyLevel
 import com.google.common.util.concurrent.{Futures, ListenableFuture}
-import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.Exit
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Session
@@ -33,12 +29,12 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system:ActorSystem = ActorSystem()
   val gatlingTestConfig: GatlingConfiguration = GatlingConfiguration.loadForTest()
   val dseSession: DseSession = mock[DseSession]
-  val dseCqlStatement: DseCqlStatement = mock[DseCqlStatement]
+  val dseCqlStatement: DseCqlStatement[SimpleStatement] = mock[DseCqlStatement[SimpleStatement]]
   val pagingState: ByteBuffer = mock[ByteBuffer]
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseCqlAttributes): CqlRequestAction = {
+  def getTarget(dseAttributes: DseCqlAttributes[SimpleStatement]): CqlRequestAction = {
     new CqlRequestAction(
       "sample-dse-request",
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),

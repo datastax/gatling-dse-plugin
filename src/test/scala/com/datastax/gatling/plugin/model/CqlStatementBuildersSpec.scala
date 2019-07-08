@@ -1,10 +1,11 @@
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.ConsistencyLevel.{EACH_QUORUM, THREE}
-import com.datastax.driver.core._
-import com.datastax.driver.core.policies.FallthroughRetryPolicy
+import java.nio.ByteBuffer
+
 import com.datastax.gatling.plugin.DsePredef._
-import com.datastax.gatling.plugin.checks.{CqlChecks, DseCqlCheck, GenericCheck, GenericChecks}
+import com.datastax.gatling.plugin.checks.{CqlChecks, CqlGenericChecks, DseCqlCheck, GenericCheck}
+import com.datastax.oss.driver.api.core.cql.{Row, SimpleStatement}
+import com.datastax.oss.protocol.internal.ProtocolConstants.ConsistencyLevel
 import io.gatling.core.Predef._
 import io.gatling.core.session.{ExpressionSuccessWrapper, Session}
 import org.scalatest.easymock.EasyMockSugar
@@ -15,7 +16,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
 
 
   it should "build statements from a CQL String" in {
-    val statementAttributes: DseCqlAttributes = cql("the-tag")
+    val statementAttributes: DseCqlAttributes[SimpleStatement] = cql("the-tag")
       .executeCql("SELECT foo FROM bar.baz LIMIT 1")
       .build()
       .dseAttributes
@@ -23,22 +24,21 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
       .buildFromSession(Session("the-tag", 42))
       .get.asInstanceOf[SimpleStatement]
     statementAttributes.cqlStatements should contain only "SELECT foo FROM bar.baz LIMIT 1"
-    statement.getQueryString() should be("SELECT foo FROM bar.baz LIMIT 1")
+    statement.getQuery() should be("SELECT foo FROM bar.baz LIMIT 1")
   }
 
   it should "forward all attributs to DseCqlAttributes" in {
-    val pagingState = mock[PagingState]
-    val genericCheck = GenericCheck(GenericChecks.exhausted.is(true))
+    val pagingState = mock[ByteBuffer]
+    val genericCheck = GenericCheck(CqlGenericChecks.exhausted.is(true))
     val cqlCheck = DseCqlCheck(CqlChecks.oneRow.is(mock[Row].expressionSuccess))
-    val statementAttributes: DseCqlAttributes = cql("the-session-tag")
+    val statementAttributes: DseCqlAttributes[SimpleStatement] = cql("the-session-tag")
       .executeCql("FOO")
-      .withConsistencyLevel(EACH_QUORUM)
+      .withConsistencyLevel(ConsistencyLevel.EACH_QUORUM)
       .withUserOrRole("User or role")
       .withDefaultTimestamp(-76)
       .withIdempotency()
       .withReadTimeout(99)
-      .withSerialConsistencyLevel(THREE)
-      .withRetryPolicy(FallthroughRetryPolicy.INSTANCE)
+      .withSerialConsistencyLevel(ConsistencyLevel.THREE)
       .withFetchSize(3)
       .withTracingEnabled()
       .withPagingState(pagingState)
@@ -47,7 +47,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
       .build()
       .dseAttributes
     statementAttributes.tag should be("the-session-tag")
-    statementAttributes.cl should be(Some(EACH_QUORUM))
+    statementAttributes.cl should be(Some(ConsistencyLevel.EACH_QUORUM))
     statementAttributes.cqlChecks should contain only cqlCheck
     statementAttributes.genericChecks should contain only genericCheck
     statementAttributes.userOrRole should be(Some("User or role"))
@@ -55,23 +55,22 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
     statementAttributes.idempotent should be(Some(true))
     statementAttributes.defaultTimestamp should be(Some(-76))
     statementAttributes.enableTrace should be(Some(true))
-    statementAttributes.serialCl should be(Some(THREE))
+    statementAttributes.serialCl should be(Some(ConsistencyLevel.THREE))
     statementAttributes.fetchSize should be(Some(3))
-    statementAttributes.retryPolicy should be(Some(FallthroughRetryPolicy.INSTANCE))
     statementAttributes.pagingState should be(Some(pagingState))
     statementAttributes.cqlStatements should contain only "FOO"
   }
 
   it should "build statements from a SimpleStatement" in {
-    val statementAttributes: DseCqlAttributes = cql("the-tag")
-      .executeStatement(new SimpleStatement("Some CQL"))
+    val statementAttributes: DseCqlAttributes[SimpleStatement] = cql("the-tag")
+      .executeStatement(SimpleStatement.newInstance("Some CQL"))
       .build()
       .dseAttributes
     val statement: SimpleStatement = statementAttributes.statement
       .buildFromSession(Session("the-tag", 42))
       .get.asInstanceOf[SimpleStatement]
     statementAttributes.cqlStatements should contain only "Some CQL"
-    statement.getQueryString() should be("Some CQL")
+    statement.getQuery() should be("Some CQL")
   }
 
   //  it should "build statements from a PreparedStatement" in {

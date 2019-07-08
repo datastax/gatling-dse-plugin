@@ -1,8 +1,8 @@
 package com.datastax.gatling.plugin.simulations.cql
 
-import com.datastax.driver.core.ResultSet
-import com.datastax.gatling.plugin.DsePredef._
+import com.datastax.gatling.plugin.CqlPredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
+import com.datastax.oss.driver.api.core.cql.ResultSet
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -17,12 +17,12 @@ class UdtStatementSimulation extends BaseCqlSimulation {
 
   val cqlConfig = cql.session(session)
   //Initialize Gatling DSL with your session
-  val addressType = session.getCluster.getMetadata.getKeyspace(testKeyspace).getUserType("fullname")
+  val addressType = session.getMetadata.getKeyspace(testKeyspace).get.getUserDefinedType("fullname")
 
   val simpleId = 1
   val preparedId = 2
   val namedId = 3
-  val insertFullName = addressType.newValue()
+  val insertFullName = addressType.get().newValue()
       .setString("firstname", "John")
       .setString("lastname", "Smith")
 
@@ -92,6 +92,7 @@ class UdtStatementSimulation extends BaseCqlSimulation {
           .withParams(List("id", "fullname"))
           .check(exhausted is true)
           .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .build()
       )
       .pause(100.millis)
 
@@ -99,6 +100,7 @@ class UdtStatementSimulation extends BaseCqlSimulation {
           .withParams(List("id"))
           .check(rowCount is 1)
           .check(columnValue("name").find(0) not "")
+          .build()
       )
       .pause(100.millis)
 
@@ -106,12 +108,14 @@ class UdtStatementSimulation extends BaseCqlSimulation {
       .exec(insertNamedCql
           .check(exhausted is true)
           .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .build()
       )
       .pause(100.millis)
 
       .exec(selectNamedCql
           .check(rowCount is 1)
           .check(columnValue("name").find(0) not "")
+          .build()
       )
 
   setUp(

@@ -11,6 +11,7 @@ import java.nio.ByteBuffer
 import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
 import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.ExecutionInfo
 import com.datastax.oss.driver.api.core.retry.RetryPolicy
 
 
@@ -33,7 +34,7 @@ case class DseCqlAttributesBuilder[T](attr: DseCqlAttributes[T]) {
     * @param level ConsistencyLevel
     * @return
     */
-  def withConsistencyLevel(level: ConsistencyLevel) = DseCqlAttributesBuilder(attr.copy(cl = Some(level)))
+  def withConsistencyLevel(level: Int) = DseCqlAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
     * Execute a query as another user or another role, provided the current logged in user has PROXY.EXECUTE permission.
@@ -80,7 +81,7 @@ case class DseCqlAttributesBuilder[T](attr: DseCqlAttributes[T]) {
     * @param level ConsistencyLevel
     * @return
     */
-  def withSerialConsistencyLevel(level: ConsistencyLevel) = DseCqlAttributesBuilder(attr.copy(serialCl = Some(level)))
+  def withSerialConsistencyLevel(level: Int) = DseCqlAttributesBuilder(attr.copy(serialCl = Some(level)))
 
 
   /**
@@ -124,7 +125,7 @@ case class DseCqlAttributesBuilder[T](attr: DseCqlAttributes[T]) {
     * @return
     */
   @deprecated("Replaced by withSerialConsistencyLevel")
-  def serialConsistencyLevel(level: ConsistencyLevel) = withSerialConsistencyLevel(level)
+  def serialConsistencyLevel(level: Int) = withSerialConsistencyLevel(level)
 
 
   /**
@@ -135,7 +136,7 @@ case class DseCqlAttributesBuilder[T](attr: DseCqlAttributes[T]) {
     * @return
     */
   @deprecated("Replaced by withConsistencyLevel")
-  def consistencyLevel(level: ConsistencyLevel) = withConsistencyLevel(level)
+  def consistencyLevel(level: Int) = withConsistencyLevel(level)
 
 
   /**
@@ -150,5 +151,5 @@ case class DseCqlAttributesBuilder[T](attr: DseCqlAttributes[T]) {
 
   def check(check: DseCqlCheck) = DseCqlAttributesBuilder(attr.copy(cqlChecks = check :: attr.cqlChecks))
 
-  def check(check: GenericCheck) = DseCqlAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
+  def check(check: GenericCheck[ExecutionInfo]) = DseCqlAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }

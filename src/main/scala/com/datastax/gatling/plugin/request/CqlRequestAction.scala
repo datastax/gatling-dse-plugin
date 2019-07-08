@@ -19,7 +19,9 @@ import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseCqlAttributes
 import com.datastax.gatling.plugin.response.CqlResponseHandler
 import com.datastax.gatling.plugin.utils._
+import com.datastax.oss.driver.api.core.DefaultConsistencyLevel
 import com.datastax.oss.driver.api.core.cql.SimpleStatement
+import com.datastax.oss.protocol.internal.ProtocolConstants.ConsistencyLevel
 import io.gatling.commons.stats.KO
 import io.gatling.commons.validation.safely
 import io.gatling.core.action.{Action, ExitableAction}
@@ -81,7 +83,7 @@ class CqlRequestAction(val name: String,
 
     stmt.onSuccess({ stmt =>
       // global options
-      dseAttributes.cl.map(stmt.setConsistencyLevel)
+      dseAttributes.cl.map(cl => stmt.setConsistencyLevel(DefaultConsistencyLevel.fromCode(cl)))
       // TODO refactored
       //dseAttributes.userOrRole.map(stmt.executingAs)
       dseAttributes.readTimeout.map( timeout => stmt.setTimeout(Duration.ofMillis(timeout)))
@@ -90,7 +92,7 @@ class CqlRequestAction(val name: String,
 
       // CQL Only Options
       dseAttributes.outGoingPayload.map(x => stmt.setCustomPayload(x.asJava))
-      dseAttributes.serialCl.map(stmt.setSerialConsistencyLevel)
+      dseAttributes.serialCl.map(serialCl => stmt.setSerialConsistencyLevel(DefaultConsistencyLevel.fromCode(serialCl)))
       //TODO find equivalent methods
       //dseAttributes.retryPolicy.map(stmt.setRetryPolicy)
       //dseAttributes.fetchSize.map(stmt.setFetchSize)

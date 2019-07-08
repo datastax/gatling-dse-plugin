@@ -14,31 +14,45 @@ import com.typesafe.scalalogging.LazyLogging
 
 import scala.util.Try
 import java.nio.ByteBuffer
+
 import org.apache.tinkerpop.gremlin.structure._
 import org.apache.tinkerpop.gremlin.process.traversal.Path
 import java.util.stream.Collectors
+
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+
+import collection.JavaConverters._
 
 abstract class DseResponse[E] {
   def executionInfo(): E
   def rowCount(): Int
   def applied(): Boolean
-  def queriedHost(): Node = executionInfo().getCoordinator()
-  def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutionCount
-  def pagingState(): ByteBuffer = executionInfo().getPagingState
-  def triedHosts(): List[Node] = executionInfo().getErrors.stream.map(_.getKey).collect(Collectors.toList[Node]).asScala.toList
-  def warnings(): List[String] = executionInfo().getWarnings.asScala.toList
-  def successFullExecutionIndex(): Int = executionInfo().getSuccessfulExecutionIndex
-  def schemaInAgreement(): Boolean = executionInfo().isSchemaInAgreement
+  def queriedHost(): Node
+  def speculativeExecutions(): Int
+  def pagingState(): ByteBuffer
+  def triedHosts(): List[Node]
+  def warnings(): List[String]
+  def successFullExecutionIndex(): Int
+  def schemaInAgreement(): Boolean
+  def exhausted(): Boolean
+  def getConsistencyLevel(): ConsistencyLevel
 }
 
 
-class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes) extends DseResponse with LazyLogging {
+class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes) extends DseResponse[GraphExecutionInfo] with LazyLogging {
   private lazy val allGraphNodes: Seq[GraphNode] = collection.JavaConverters.asScalaBuffer(graphResultSet.all())
 
-  def graphExecutionInfo(): GraphExecutionInfo = graphResultSet.getExecutionInfo()
-  override def executionInfo(): ExecutionInfo = null
+  override def executionInfo(): GraphExecutionInfo = graphResultSet.getExecutionInfo()
   override def applied(): Boolean = false // graph doesn't support LWTs so always return false
-  //override def exhausted(): Boolean = isFullyFetched()
+  override def queriedHost(): Node = executionInfo().getCoordinator()
+  override def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutionCount()
+  override def pagingState(): ByteBuffer = null
+  def triedHosts(): List[Node] = executionInfo().getErrors().asScala.map[Node](_.getKey).toList
+  def warnings(): List[String] = executionInfo().getWarnings().asScala.toList
+  override def successFullExecutionIndex(): Int = ???
+  override def schemaInAgreement(): Boolean = ???
+  override def exhausted(): Boolean = true
+  override def getConsistencyLevel(): ConsistencyLevel = graphResultSet.getExecutionInfo.getStatement.getConsistencyLevel
 
   /**
     * Get the number of all rows returned by the query.
@@ -105,13 +119,21 @@ class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttri
   }
 
   def getDseAttributes: DseGraphAttributes = dseAttributes
+
 }
 
-class CqlResponse[T](cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[T]) extends DseResponse with LazyLogging {
+class CqlResponse[T](cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[T]) extends DseResponse[ExecutionInfo] with LazyLogging {
   private lazy val allCqlRows: Seq[Row] = collection.JavaConverters.asScalaBuffer(cqlResultSet.all())
 
   override def executionInfo(): ExecutionInfo = cqlResultSet.getExecutionInfo()
   override def applied(): Boolean = cqlResultSet.wasApplied()
+  override def pagingState(): ByteBuffer = executionInfo().getPagingState()
+  override def triedHosts(): List[Node] = executionInfo().getErrors().asScala.map[Node](_.getKey).toList
+  override def warnings(): List[String] = executionInfo().getWarnings().asScala.toList
+  override def successFullExecutionIndex(): Int = executionInfo().getSuccessfulExecutionIndex
+  override def schemaInAgreement(): Boolean = executionInfo().isSchemaInAgreement
+  override def getConsistencyLevel(): ConsistencyLevel = cqlResultSet.getExecutionInfo.getStatement.getConsistencyLevel
+
 
   /**
     * Get the number of all rows returned by the query.

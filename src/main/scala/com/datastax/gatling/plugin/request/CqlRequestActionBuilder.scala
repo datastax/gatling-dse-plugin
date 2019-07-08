@@ -24,7 +24,7 @@ class CqlRequestActionBuilder[T](val dseAttributes: DseCqlAttributes[T]) extends
       ctx.system,
       ctx.coreComponents.statsEngine,
       dseComponents.dseProtocol,
-      dseAttributes,
+      dseAttributes[T],
       dseComponents.metricsLogger,
       dseComponents.dseExecutorService,
       dseComponents.gatlingTimingSource)

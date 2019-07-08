@@ -8,7 +8,7 @@ package com.datastax.gatling.plugin.model
 
 import com.datastax.gatling.plugin._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
-import com.datastax.oss.driver.api.core.cql.{BatchableStatement, BoundStatement, PreparedStatement, SimpleStatement}
+import com.datastax.oss.driver.api.core.cql.{BoundStatement, PreparedStatement, SimpleStatement}
 import io.gatling.core.session.Expression
 
 /**

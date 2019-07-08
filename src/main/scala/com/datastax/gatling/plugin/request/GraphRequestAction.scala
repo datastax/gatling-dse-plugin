@@ -43,12 +43,12 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class GraphRequestAction(val name: String,
+class GraphRequestAction[G](val name: String,
                          val next: Action,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val protocol: DseProtocol,
-                         val dseAttributes: DseGraphAttributes,
+                         val dseAttributes: DseGraphAttributes[G],
                          val metricsLogger: MetricsLogger,
                          val dseExecutorService: ExecutorService,
                          val gatlingTimingSource: GatlingTimingSource)

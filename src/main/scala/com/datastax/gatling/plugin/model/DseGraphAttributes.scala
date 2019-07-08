@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement, ScriptGraphStatement}
+import com.datastax.dse.driver.api.core.graph.{GraphExecutionInfo, GraphNode, GraphStatement, ScriptGraphStatement}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql.Row
@@ -34,17 +34,17 @@ import com.datastax.oss.driver.api.core.cql.Row
   * @param  graphInternalOptions  Query-specific options not available in the driver public API
   * @param  graphTransformResults Function to use in order to transform a row into a Graph node
   */
-case class DseGraphAttributes(tag: String,
-                              statement: DseStatement[GraphStatement[ScriptGraphStatement]],
-                              cl: Option[ConsistencyLevel] = None,
+case class DseGraphAttributes[G](tag: String,
+                              statement: GraphStatement[G],
+                              cl: Option[Int] = None,
                               graphChecks: List[DseGraphCheck] = List.empty,
-                              genericChecks: List[GenericCheck] = List.empty,
+                              genericChecks: List[GenericCheck[GraphExecutionInfo]] = List.empty,
                               userOrRole: Option[String] = None,
                               readTimeout: Option[Int] = None,
                               idempotent: Option[Boolean] = None,
                               defaultTimestamp: Option[Long] = None,
-                              readCL: Option[ConsistencyLevel] = None,
-                              writeCL: Option[ConsistencyLevel] = None,
+                              readCL: Option[Int] = None,
+                              writeCL: Option[Int] = None,
                               graphName: Option[String] = None,
                               graphLanguage: Option[String] = None,
                               graphSource: Option[String] = None,

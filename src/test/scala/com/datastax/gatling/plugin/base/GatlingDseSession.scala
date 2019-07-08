@@ -1,11 +1,11 @@
 package com.datastax.gatling.plugin.base
 
-import com.datastax.driver.dse.{DseCluster, DseSession}
+import java.net.InetSocketAddress
+
+import com.datastax.dse.driver.api.core.DseSession
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 
 trait GatlingDseSession {
-
-  private var dseCluster: DseCluster = _
 
   private var session: DseSession = _
 
@@ -29,15 +29,14 @@ trait GatlingDseSession {
       cPort = EmbeddedCassandraServerHelper.getNativeTransportPort
     }
 
-    dseCluster =
+    session =
         try {
-          DseCluster.builder().addContactPoint(cassandraHost).withPort(cPort).build()
+          DseSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).build()
         }
         catch {
-          case _: Exception => DseCluster.builder().addContactPoint(cassandraHost).withPort(cPort).build()
+          case _: Exception => DseSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).build()
         }
 
-    session = dseCluster.connect()
     session
   }
 
