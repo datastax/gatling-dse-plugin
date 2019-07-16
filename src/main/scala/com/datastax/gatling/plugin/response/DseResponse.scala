@@ -39,7 +39,7 @@ abstract class DseResponse[E] {
 }
 
 
-class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes) extends DseResponse[GraphExecutionInfo] with LazyLogging {
+class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes[ScriptGraphStatement]) extends DseResponse[GraphExecutionInfo] with LazyLogging {
   private lazy val allGraphNodes: Seq[GraphNode] = collection.JavaConverters.asScalaBuffer(graphResultSet.all())
 
   override def executionInfo(): GraphExecutionInfo = graphResultSet.getExecutionInfo()

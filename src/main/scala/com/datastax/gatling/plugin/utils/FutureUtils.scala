@@ -7,13 +7,10 @@
 package com.datastax.gatling.plugin.utils
 
 
-import java.util.concurrent.{CompletableFuture, CompletionStage}
-
-import com.datastax.oss.driver.shaded.guava.common.util.concurrent.{FutureCallback, Futures}
-import org.asynchttpclient.ListenableFuture
+import java.util.concurrent.{CompletionStage}
 
 import scala.concurrent.java8.FuturesConvertersImpl._
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{Future}
 
 object FutureUtils {
   /**
