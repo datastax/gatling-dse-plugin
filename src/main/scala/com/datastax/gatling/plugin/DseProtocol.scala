@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 import akka.Done
 import akka.actor.ActorSystem
-import com.datastax.driver.dse.DseSession
+import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.request.{CqlRequestActionBuilder, GraphRequestActionBuilder}
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
@@ -132,4 +132,3 @@ object DseProtocolBuilder {
 case class DseProtocolBuilder(session: DseSession) {
   def build = DseProtocol(session)
 }
-

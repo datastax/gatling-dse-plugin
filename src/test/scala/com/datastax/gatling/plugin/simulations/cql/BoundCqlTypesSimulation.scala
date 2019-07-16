@@ -3,10 +3,11 @@ package com.datastax.gatling.plugin.simulations.cql
 import java.nio.ByteBuffer
 import java.sql.Timestamp
 
-import com.datastax.driver.core.utils.UUIDs
-import com.datastax.driver.core.{DataType, ResultSet}
-import com.datastax.gatling.plugin.DsePredef._
+import com.datastax.gatling.plugin.CqlPredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
+import com.datastax.oss.driver.api.core.`type`.{DataType, DataTypes, TupleType}
+import com.datastax.oss.driver.api.core.cql.ResultSet
+import com.datastax.oss.driver.api.core.uuid.Uuids
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -20,16 +21,16 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   createTable
 
   val cqlConfig = cql.session(session)
-  val udtType = session.getCluster.getMetadata.getKeyspace(testKeyspace).getUserType("fullname")
+  val udtType = session.getMetadata.getKeyspace(testKeyspace).get().getUserDefinedType("fullname")
 
-  val insertFullName = udtType.newValue()
+  val insertFullName = udtType.get().newValue()
       .setString("firstname", "John")
       .setString("lastname", "Smith")
 
-  val tupleType = session.getCluster.getMetadata.newTupleType(DataType.text(), DataType.text())
+  val tupleType = DataTypes.tupleOf(DataTypes.TEXT, DataTypes.TEXT)
   val insertTuple = tupleType.newValue("one", "two")
 
-  val uuid = UUIDs.random()
+  val uuid = Uuids.random()
 
   val preparedStatementInsert =
     s"""INSERT INTO $testKeyspace.$table_name (
@@ -58,7 +59,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   val preparedFeed = Iterator.continually(
     Map(
       "uuid_type" -> uuid,
-      "timeuuid_type" -> UUIDs.timeBased(),
+      "timeuuid_type" -> Uuids.timeBased(),
       "int_type" -> 1,
       "text_type" -> "text",
       "float_type" -> 4.50,
@@ -117,6 +118,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
       .exec(insertPreparedCql
           .check(exhausted is true)
           .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .build()
       )
       .pause(100.millis)
 
@@ -127,6 +129,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
           .check(columnValue("name") not "")
           .check(columnValue("null_type") not "test")
           .check(columnValue("boolean_type") is true)
+          .build()
       )
       .pause(100.millis)
 
@@ -134,6 +137,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
       .exec(insertCounterPreparedCql
           .check(exhausted is true)
           .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .build()
       )
       .pause(100.millis)
 
@@ -141,6 +145,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
           .withParams(List("uuid_type"))
           .check(rowCount is 1)
           .check(columnValue("counter_type") is 2)
+          .build()
       )
       .pause(100.millis)
 

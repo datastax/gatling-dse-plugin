@@ -8,10 +8,9 @@ package com.datastax.gatling.plugin.model
 
 import java.nio.ByteBuffer
 
-import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.driver.core.{ConsistencyLevel, PagingState, Statement}
-import com.datastax.gatling.plugin.response.{CqlResponse, DseResponse}
-import io.gatling.core.check.Check
+import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
+import com.datastax.oss.driver.api.core.retry.RetryPolicy
+import com.datastax.oss.driver.api.core.cql.{ExecutionInfo, Statement}
 
 /**
   * CQL Query Attributes to be applied to the current query
@@ -36,19 +35,19 @@ import io.gatling.core.check.Check
   * @param cqlStatements    String version of the CQL statement that is sent
   *
   */
-case class DseCqlAttributes(tag: String,
-                            statement: DseStatement[Statement],
-                            cl: Option[ConsistencyLevel] = None,
-                            cqlChecks: List[Check[CqlResponse]] = List.empty,
-                            genericChecks: List[Check[DseResponse]] = List.empty,
-                            userOrRole: Option[String] = None,
-                            readTimeout: Option[Int] = None,
-                            idempotent: Option[Boolean] = None,
-                            defaultTimestamp: Option[Long] = None,
-                            enableTrace: Option[Boolean] = None,
-                            outGoingPayload: Option[Map[String, ByteBuffer]] = None,
-                            serialCl: Option[ConsistencyLevel] = None,
-                            fetchSize: Option[Int] = None,
-                            retryPolicy: Option[RetryPolicy] = None,
-                            pagingState: Option[PagingState] = None,
-                            cqlStatements: Seq[String] = Seq.empty)
+case class DseCqlAttributes[T](tag: String,
+                               statement: DseCqlStatement[T],
+                               cl: Option[Int] = None,
+                               cqlChecks: List[DseCqlCheck] = List.empty,
+                               genericChecks: List[GenericCheck[ExecutionInfo]] = List.empty,
+                               userOrRole: Option[String] = None,
+                               readTimeout: Option[Int] = None,
+                               idempotent: Option[Boolean] = None,
+                               defaultTimestamp: Option[Long] = None,
+                               enableTrace: Option[Boolean] = None,
+                               outGoingPayload: Option[Map[String, ByteBuffer]] = None,
+                               serialCl: Option[Int] = None,
+                               fetchSize: Option[Int] = None,
+                               retryPolicy: Option[RetryPolicy] = None,
+                               pagingState: Option[ByteBuffer] = None,
+                               cqlStatements: Seq[String] = Seq.empty)

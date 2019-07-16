@@ -1,17 +1,19 @@
 package com.datastax.gatling.plugin.request
 
+import java.nio.ByteBuffer
 import java.util.concurrent.{Executor, TimeUnit}
 
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKitBase
-import com.datastax.driver.core._
-import com.datastax.driver.dse.DseSession
-import com.datastax.driver.dse.graph.{GraphResultSet, RegularGraphStatement, SimpleGraphStatement}
+import com.datastax.dse.driver.api.core.DseSession
+import com.datastax.dse.driver.api.core.graph.{GraphResultSet, GraphStatement, ScriptGraphStatement}
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.datastax.gatling.plugin.DseProtocol
-import com.datastax.gatling.plugin.model.{DseGraphStatement, DseGraphAttributes}
+import com.datastax.gatling.plugin.model.{DseGraphAttributes, DseGraphStatement, GraphFluentStatementFromScalaLambda, GraphStringStatement}
+import com.datastax.oss.driver.api.core.cql.ResultSet
+import com.datastax.oss.protocol.internal.ProtocolConstants.ConsistencyLevel
 import com.google.common.util.concurrent.{Futures, ListenableFuture}
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.Exit
@@ -25,12 +27,12 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system = ActorSystem()
   val gatlingTestConfig = GatlingConfiguration.loadForTest()
   val dseSession = mock[DseSession]
-  val dseGraphStatement = mock[DseGraphStatement]
-  val pagingState = mock[PagingState]
+  val dseGraphStatement = mock[GraphStatement[GraphStringStatement]]
+  val pagingState = mock[ByteBuffer]
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseGraphAttributes): GraphRequestAction = {
+  def getTarget(dseAttributes: DseGraphAttributes[ScriptGraphStatement]): GraphRequestAction = {
     new GraphRequestAction(
       "sample-dse-request",
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),
@@ -64,7 +66,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   }
   
   describe("Graph") {
-    val statementCapture = EasyMock.newCapture[RegularGraphStatement]
+    val statementCapture = EasyMock.newCapture[GraphStatement[GraphStringStatement]]
     it("should enable all the Graph Attributes in DseAttributes") {
       val graphAttributes = DseGraphAttributes("test", dseGraphStatement,
         cl = Some(ConsistencyLevel.ANY),
@@ -82,7 +84,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       )
 
       expecting {
-        dseGraphStatement.buildFromSession(gatlingSession).andReturn(new SimpleGraphStatement("g.V()").success)
+        dseGraphStatement.buildFromSession(gatlingSession).andReturn(new GraphStringStatement("g.V()").success)
         dseSession.executeGraphAsync(capture(statementCapture)) andReturn Futures.immediateFuture(mock[GraphResultSet])
       }
 
@@ -91,7 +93,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       }
 
       val capturedStatement = statementCapture.getValue
-      capturedStatement shouldBe a[SimpleGraphStatement]
+      capturedStatement shouldBe a[GraphStringStatement]
       capturedStatement.getConsistencyLevel shouldBe ConsistencyLevel.ANY
       capturedStatement.getDefaultTimestamp shouldBe 1498167845000L
       capturedStatement.getReadTimeoutMillis shouldBe 12

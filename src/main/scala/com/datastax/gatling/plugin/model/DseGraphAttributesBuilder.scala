@@ -6,10 +6,11 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
-import com.datastax.driver.dse.graph.GraphNode
+import com.datastax.dse.driver.api.core.graph.{GraphExecutionInfo, GraphNode}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.GraphRequestActionBuilder
+import com.datastax.oss.driver.api.core.cql.Row
+import com.datastax.oss.protocol.internal.ProtocolConstants.ConsistencyLevel
 import io.gatling.core.action.builder.ActionBuilder
 
 
@@ -18,13 +19,13 @@ import io.gatling.core.action.builder.ActionBuilder
   *
   * @param attr Addition Attributes
   */
-case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
+case class DseGraphAttributesBuilder[G](attr: DseGraphAttributes[G]) {
   /**
     * Builds to final action to run
     *
     * @return
     */
-  def build(): ActionBuilder = new GraphRequestActionBuilder(attr)
+  def build(): ActionBuilder = new GraphRequestActionBuilder(attr[G])
 
   /**
     * Set Consistency Level
@@ -32,15 +33,15 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     * @param level ConsistencyLevel
     * @return
     */
-  def withConsistencyLevel(level: ConsistencyLevel) = DseGraphAttributesBuilder(attr.copy(cl = Some(level)))
+  def withConsistencyLevel(level: Int) = DseGraphAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
     * Execute a query as another user or another role, provided the current logged in user has PROXY.EXECUTE permission.
     *
     * This permission MUST be granted to the currently logged in user using the CQL statement: `GRANT PROXY.EXECUTE ON
     * ROLE someRole TO alice`.  The user MUST be logged in with
-    * [[com.datastax.driver.dse.auth.DsePlainTextAuthProvider]] or
-    * [[com.datastax.driver.dse.auth.DseGSSAPIAuthProvider]]
+    * [[com.datastax.dse.driver.internal.core.auth.DsePlainTextAuthProvider]] or
+    * [[com.datastax.dse.driver.internal.core.auth.DseGssApiAuthProvider]]
     *
     * @param userOrRole String
     * @return
@@ -139,7 +140,7 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     * @param readCL Consistency Level to use
     * @return
     */
-  def withReadConsistency(readCL: ConsistencyLevel) = DseGraphAttributesBuilder(attr.copy(readCL = Some(readCL)))
+  def withReadConsistency(readCL: Int) = DseGraphAttributesBuilder(attr.copy(readCL = Some(readCL)))
 
   /**
     * Define [[ConsistencyLevel]] to be used for write queries
@@ -147,7 +148,7 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     * @param writeCL Consistency Level to use
     * @return
     */
-  def withWriteConsistency(writeCL: ConsistencyLevel) = DseGraphAttributesBuilder(attr.copy(writeCL = Some(writeCL)))
+  def withWriteConsistency(writeCL: Int) = DseGraphAttributesBuilder(attr.copy(writeCL = Some(writeCL)))
 
 
   /**
@@ -158,7 +159,7 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     * @return
     */
   @deprecated("use withConsistencyLevel() instead, will be removed in future version")
-  def consistencyLevel(level: ConsistencyLevel) = withConsistencyLevel(level)
+  def consistencyLevel(level: Int) = withConsistencyLevel(level)
 
 
   /**
@@ -172,5 +173,5 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
   def executeAs(userOrRole: String) = withUserOrRole(userOrRole: String)
 
   def check(check: DseGraphCheck) = DseGraphAttributesBuilder(attr.copy(graphChecks = check :: attr.graphChecks))
-  def check(check: GenericCheck) = DseGraphAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
+  def check(check: GenericCheck[GraphExecutionInfo]) = DseGraphAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }

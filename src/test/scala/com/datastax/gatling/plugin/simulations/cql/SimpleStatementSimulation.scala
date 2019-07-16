@@ -1,6 +1,6 @@
 package com.datastax.gatling.plugin.simulations.cql
 
-import com.datastax.gatling.plugin.DsePredef._
+import com.datastax.gatling.plugin.CqlPredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
 import io.gatling.core.Predef._
 

@@ -6,12 +6,15 @@
 
 package com.datastax.gatling.plugin.checks
 
-import com.datastax.driver.dse.graph._
+import com.datastax.dse.driver.api.core.graph._
+import org.apache.tinkerpop.gremlin.structure.Property
 import com.datastax.gatling.plugin.response.GraphResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.check._
 import io.gatling.core.session.{Expression, ExpressionSuccessWrapper, Session}
+import org.apache.tinkerpop.gremlin.structure._
+import org.apache.tinkerpop.gremlin.process.traversal.Path
 
 import scala.collection.mutable
 
@@ -51,7 +54,7 @@ private class GraphResponseExtractor[X](val name: String,
   }
 }
 
-object GraphChecks {
+object GraphChecks extends GenericChecks[GraphExecutionInfo] {
   val graphResultSet =
     new GraphResponseExtractor[GraphResultSet](
       "graphResultSet",
@@ -89,13 +92,13 @@ object GraphChecks {
       .toCheckBuilder
 
   def properties(column: String) =
-    new GraphResponseExtractor[Seq[Property]](
+    new GraphResponseExtractor[Seq[Property[String]]](
       "properties",
       r => r.getProperties(column))
       .toCheckBuilder
 
   def vertexProperties(column: String) =
-    new GraphResponseExtractor[Seq[Property]](
+    new GraphResponseExtractor[Seq[Property[String]]](
       "vertexProperties",
       r => r.getVertexProperties(column))
       .toCheckBuilder

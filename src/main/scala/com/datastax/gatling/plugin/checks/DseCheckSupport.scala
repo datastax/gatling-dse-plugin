@@ -9,22 +9,6 @@ package com.datastax.gatling.plugin.checks
 import io.gatling.core.session.ExpressionSuccessWrapper
 
 trait DseCheckSupport {
-
-  // start global checks
-  lazy val exhausted = GenericChecks.exhausted
-  lazy val applied = GenericChecks.applied
-  lazy val rowCount = GenericChecks.rowCount
-
-  // execution info and subsets
-  lazy val executionInfo = GenericChecks.executionInfo
-  lazy val achievedCL = GenericChecks.achievedConsistencyLevel
-  lazy val pagingState = GenericChecks.pagingState
-  lazy val queriedHost = GenericChecks.queriedHost
-  lazy val schemaAgreement = GenericChecks.schemaInAgreement
-  lazy val successfulExecutionIndex = GenericChecks.successfulExecutionIndex
-  lazy val triedHosts = GenericChecks.triedHosts
-  lazy val warnings = GenericChecks.warnings
-
   // start CQL only checks
   lazy val resultSet = CqlChecks.resultSet
   lazy val allRows = CqlChecks.allRows

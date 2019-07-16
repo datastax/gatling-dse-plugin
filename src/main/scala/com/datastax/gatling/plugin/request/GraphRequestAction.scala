@@ -7,11 +7,13 @@
 package com.datastax.gatling.plugin.request
 
 import java.lang.Boolean
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
+import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseGraphAttributes
@@ -19,7 +21,6 @@ import com.datastax.gatling.plugin.response.GraphResponseHandler
 import com.datastax.gatling.plugin.utils._
 import io.gatling.commons.stats.KO
 import io.gatling.core.action.{Action, ExitableAction}
-import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
@@ -42,25 +43,25 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class GraphRequestAction(val name: String,
+class GraphRequestAction[G](val name: String,
                          val next: Action,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val protocol: DseProtocol,
-                         val dseAttributes: DseGraphAttributes,
+                         val dseAttributes: DseGraphAttributes[G],
                          val metricsLogger: MetricsLogger,
                          val dseExecutorService: ExecutorService,
                          val gatlingTimingSource: GatlingTimingSource)
   extends ExitableAction {
 
-  def execute(session: Session): Unit = {
+  def execute(session: DseSession): Unit = {
     dseExecutorService.submit(new Runnable {
       override def run(): Unit = sendQuery(session)
     })
   }
 
 
-  def sendQuery(session: Session): Unit = {
+  def sendQuery(session: DseSession): Unit = {
     val enableCO = Boolean.getBoolean("gatling.dse.plugin.measure_service_time")
     val responseTimeBuilder: ResponseTimeBuilder = if (enableCO) {
       // The throughput checker is useless in CO affected scenarios since throughput is not known in advance
@@ -86,10 +87,11 @@ class GraphRequestAction(val name: String,
     stmt.onSuccess({ gStmt =>
       // global options
       dseAttributes.cl.map(gStmt.setConsistencyLevel)
-      dseAttributes.defaultTimestamp.map(gStmt.setDefaultTimestamp)
-      dseAttributes.userOrRole.map(gStmt.executingAs)
-      dseAttributes.readTimeout.map(gStmt.setReadTimeoutMillis)
-      dseAttributes.idempotent.map(gStmt.setIdempotent)
+      dseAttributes.defaultTimestamp.map(gStmt.setTimestamp)
+      //TODO find equivalent
+      //dseAttributes.userOrRole.map(gStmt.executingAs)
+      dseAttributes.readTimeout.map(timeout => gStmt.setTimeout(Duration.ofMillis(timeout)))
+      dseAttributes.idempotent.map(idempotent => gStmt.setIdempotent(idempotent))
 
       // Graph only Options
       dseAttributes.readCL.map(gStmt.setGraphReadConsistencyLevel)

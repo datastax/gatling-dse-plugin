@@ -2,12 +2,12 @@ package com.datastax.gatling.plugin
 
 import java.nio.ByteBuffer
 
-import com.datastax.driver.core.ColumnDefinitions.Definition
-import com.datastax.driver.core._
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.exceptions.DseCqlStatementException
 import com.datastax.gatling.plugin.model._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
+import com.datastax.oss.driver.api.core.cql.{BoundStatement, ColumnDefinitions, PreparedStatement, SimpleStatement}
+import com.datastax.oss.protocol.internal.ProtocolConstants.DataType
 import io.gatling.commons.validation._
 import io.gatling.core.session.Session
 import io.gatling.core.session.el.ElCompiler
@@ -20,8 +20,6 @@ class DseCqlStatementSpec extends BaseSpec {
 
   val prepared = mock[PreparedStatement]
   val mockColDefinitions = mock[ColumnDefinitions]
-  val mockDefinitions = mock[Definition]
-  val mockDefinitionId = mock[Definition]
   val mockBoundStatement = mock[BoundStatement]
   val mockCqlTypes = mock[CqlPreparedStatementUtil]
 
@@ -46,7 +44,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
     it("should succeed with a passed SimpleStatement", CqlTest) {
 
-      val stmt = new SimpleStatement("select * from keyspace.table where id = 5")
+      val stmt = SimpleStatement.newInstance("select * from keyspace.table where id = 5")
       val result = DseCqlSimpleStatement(stmt).buildFromSession(validGatlingSession)
 
       result shouldBe a[Success[_]]
@@ -77,7 +75,7 @@ class DseCqlStatementSpec extends BaseSpec {
     it("should fail if the expression is wrong and return the 1st error") {
 
       expecting {
-        prepared.getVariables.andStubReturn(mockColDefinitions)
+        prepared.getVariableDefinitions.andStubReturn(mockColDefinitions)
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
@@ -93,16 +91,16 @@ class DseCqlStatementSpec extends BaseSpec {
   describe("DseCqlBoundStatementWithParamList") {
 
     val validParamList = Seq("foo", "bar")
-    val paramsList = List[DataType.Name](DataType.Name.TEXT, DataType.Name.INT)
+    val paramsList = List[Int](DataType.VARCHAR, DataType.INT)
 
     it("correctly bind values to a prepared statement") {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
         mockCqlTypes.getParamsList(prepared).andReturn(paramsList)
-        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.Name.TEXT, "foo", 0)
+        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.VARCHAR, "foo", 0)
             .andReturn(mockBoundStatement)
-        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.Name.INT, "bar", 1)
+        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataType.INT, "bar", 1)
             .andReturn(mockBoundStatement)
       }
 
@@ -121,8 +119,8 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
-        mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataType.Name.INT, "foo")
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.INT))
+        mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataType.INT, "foo")
             .andReturn(mockBoundStatement)
       }
 
@@ -141,8 +139,8 @@ class DseCqlStatementSpec extends BaseSpec {
       val sessionWithStatement: Session = validGatlingSession.set("statementKey", prepared)
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
-        mockCqlTypes.bindParamByName(sessionWithStatement, mockBoundStatement, DataType.Name.INT, "foo")
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.INT))
+        mockCqlTypes.bindParamByName(sessionWithStatement, mockBoundStatement, DataType.INT, "foo")
           .andReturn(mockBoundStatement)
       }
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
@@ -172,11 +170,11 @@ class DseCqlStatementSpec extends BaseSpec {
     it("correctly bind values to a prepared statement") {
 
       expecting {
-        mockBoundStatement.getOutgoingPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
-        mockBoundStatement.getOutgoingPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
+        mockBoundStatement.getCustomPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
+        mockBoundStatement.getCustomPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.Name.INT))
-        mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataType.Name.INT, "foo")
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataType.INT))
+        mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataType.INT, "foo")
             .andReturn(mockBoundStatement)
       }
 
@@ -190,7 +188,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
   describe("DseCqlCustomPayloadStatement") {
 
-    val stmt = new SimpleStatement("select * from keyspace.table where id = 5")
+    val stmt = SimpleStatement.newInstance("select * from keyspace.table where id = 5")
 
     it("should succeed with a passed SimpleStatement", CqlTest) {
 

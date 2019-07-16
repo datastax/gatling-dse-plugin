@@ -6,14 +6,15 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
-import com.datastax.driver.dse.graph.{GraphNode, GraphStatement}
+import com.datastax.dse.driver.api.core.graph.{GraphExecutionInfo, GraphNode, GraphStatement, ScriptGraphStatement}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.Row
 
 /**
   * Graph Query Attributes to be applied to the current query
   *
-  * See [[GraphStatement]] for documentation on each option.
+  * See [[com.datastax.dse.driver.api.core.graph.GraphStatement]] for documentation on each option.
   *
   * @param tag                    Name of Query to include in reports
   * @param statement              Graph Statement to be sent to Cluster
@@ -33,17 +34,17 @@ import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
   * @param  graphInternalOptions  Query-specific options not available in the driver public API
   * @param  graphTransformResults Function to use in order to transform a row into a Graph node
   */
-case class DseGraphAttributes(tag: String,
-                              statement: DseStatement[GraphStatement],
-                              cl: Option[ConsistencyLevel] = None,
+case class DseGraphAttributes[G](tag: String,
+                              statement: GraphStatement[G],
+                              cl: Option[Int] = None,
                               graphChecks: List[DseGraphCheck] = List.empty,
-                              genericChecks: List[GenericCheck] = List.empty,
+                              genericChecks: List[GenericCheck[GraphExecutionInfo]] = List.empty,
                               userOrRole: Option[String] = None,
                               readTimeout: Option[Int] = None,
                               idempotent: Option[Boolean] = None,
                               defaultTimestamp: Option[Long] = None,
-                              readCL: Option[ConsistencyLevel] = None,
-                              writeCL: Option[ConsistencyLevel] = None,
+                              readCL: Option[Int] = None,
+                              writeCL: Option[Int] = None,
                               graphName: Option[String] = None,
                               graphLanguage: Option[String] = None,
                               graphSource: Option[String] = None,

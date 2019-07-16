@@ -10,11 +10,11 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
-import com.datastax.driver.core._
-import com.datastax.driver.dse.graph.{GraphProtocol, GraphResultSet, GraphStatement}
+import com.datastax.dse.driver.api.core.graph.{GraphResultSet, GraphStatement, ScriptGraphStatement}
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.datastax.gatling.plugin.utils.{ResponseTime, ResponseTimeBuilder}
+import com.datastax.oss.driver.api.core.cql.{BatchableStatement, ResultSet, Statement}
 import com.google.common.util.concurrent.FutureCallback
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.stats._
@@ -141,7 +141,7 @@ class GraphResponseHandler(val next: Action,
                            val system: ActorSystem,
                            val statsEngine: StatsEngine,
                            val responseTimeBuilder: ResponseTimeBuilder,
-                           val stmt: GraphStatement,
+                           val stmt: GraphStatement[ScriptGraphStatement],
                            val dseAttributes: DseGraphAttributes,
                            val metricsLogger: MetricsLogger)
     extends DseResponseHandler[GraphResultSet, GraphResponse] {
@@ -150,7 +150,7 @@ class GraphResponseHandler(val next: Action,
   override protected def specificChecks: List[Check[GraphResponse]] = dseAttributes.graphChecks
   override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
   override protected def newResponse(rs: GraphResultSet): GraphResponse = new GraphResponse(rs, dseAttributes)
-  override protected def queriedHost(rs: GraphResultSet): String = rs.getExecutionInfo.getQueriedHost.toString
+  override protected def queriedHost(rs: GraphResultSet): String = rs.getExecutionInfo.getCoordinator.toString
 }
 
 class CqlResponseHandler(val next: Action,
@@ -158,8 +158,8 @@ class CqlResponseHandler(val next: Action,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val responseTimeBuilder: ResponseTimeBuilder,
-                         val stmt: Statement,
-                         val dseAttributes: DseCqlAttributes,
+                         val stmt: Statement[BatchableStatement],
+                         val dseAttributes: DseCqlAttributes[BatchableStatement],
                          val metricsLogger: MetricsLogger)
   extends DseResponseHandler[ResultSet, CqlResponse] {
   override protected def tag: String = dseAttributes.tag
@@ -167,5 +167,5 @@ class CqlResponseHandler(val next: Action,
   override protected def specificChecks: List[Check[CqlResponse]] = dseAttributes.cqlChecks
   override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
   override protected def newResponse(rs: ResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
-  override protected def queriedHost(rs: ResultSet): String = rs.getExecutionInfo.getQueriedHost.toString
+  override protected def queriedHost(rs: ResultSet): String = rs.getExecutionInfo.getCoordinator.toString
 }
