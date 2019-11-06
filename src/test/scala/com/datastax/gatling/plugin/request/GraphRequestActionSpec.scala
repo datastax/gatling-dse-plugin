@@ -4,6 +4,9 @@ import java.util.concurrent.{Executor, TimeUnit}
 
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKitBase
+import ch.qos.logback.classic.{Level, Logger}
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.datastax.driver.core._
 import com.datastax.driver.dse.DseSession
 import com.datastax.driver.dse.graph.{GraphResultSet, RegularGraphStatement, SimpleGraphStatement}
@@ -14,12 +17,13 @@ import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.model.{DseGraphStatement, DseGraphAttributes}
 import com.google.common.util.concurrent.{Futures, ListenableFuture}
 import io.gatling.commons.validation.SuccessWrapper
-import io.gatling.core.action.Exit
+import io.gatling.core.action.{Action, ChainableAction, Exit}
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 import org.easymock.EasyMock
 import org.easymock.EasyMock._
+import org.slf4j.LoggerFactory
 
 class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system = ActorSystem()
@@ -30,10 +34,11 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseGraphAttributes): GraphRequestAction = {
+  def getTarget(dseAttributes: DseGraphAttributes,
+                next: Action = new Exit(system.actorOf(Props[DseRequestActor]), statsEngine)): GraphRequestAction = {
     new GraphRequestAction(
       "sample-dse-request",
-      new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),
+      next,
       system,
       statsEngine,
       DseProtocol(dseSession),
@@ -62,24 +67,27 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   override protected def afterAll(): Unit = {
     shutdown(system)
   }
-  
+
+  private def getTestGraphAttributes(): DseGraphAttributes =
+    DseGraphAttributes("test", dseGraphStatement,
+      cl = Some(ConsistencyLevel.ANY),
+      userOrRole = Some("test_user"),
+      readTimeout = Some(12),
+      defaultTimestamp = Some(1498167845000L),
+      idempotent = Some(true),
+      readCL = Some(ConsistencyLevel.LOCAL_QUORUM),
+      writeCL = Some(ConsistencyLevel.LOCAL_QUORUM),
+      graphName = Some("MyGraph"),
+      graphLanguage = Some("english"),
+      graphSource = Some("mysource"),
+      graphInternalOptions = Some(Seq(("get", "this"))),
+      graphTransformResults = None
+    )
+
   describe("Graph") {
     val statementCapture = EasyMock.newCapture[RegularGraphStatement]
     it("should enable all the Graph Attributes in DseAttributes") {
-      val graphAttributes = DseGraphAttributes("test", dseGraphStatement,
-        cl = Some(ConsistencyLevel.ANY),
-        userOrRole = Some("test_user"),
-        readTimeout = Some(12),
-        defaultTimestamp = Some(1498167845000L),
-        idempotent = Some(true),
-        readCL = Some(ConsistencyLevel.LOCAL_QUORUM),
-        writeCL = Some(ConsistencyLevel.LOCAL_QUORUM),
-        graphName = Some("MyGraph"),
-        graphLanguage = Some("english"),
-        graphSource = Some("mysource"),
-        graphInternalOptions = Some(Seq(("get", "this"))),
-        graphTransformResults = None
-      )
+      val graphAttributes = getTestGraphAttributes()
 
       expecting {
         dseGraphStatement.buildFromSession(gatlingSession).andReturn(new SimpleGraphStatement("g.V()").success)
@@ -103,6 +111,45 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement.getGraphSource shouldBe "mysource"
       capturedStatement.isSystemQuery shouldBe false
       capturedStatement.getGraphInternalOption("get") shouldBe "this"
+    }
+
+    it("should continue the ChainableAction sequence if the graph statement builder throws an exception") {
+      val initialGatlingSession = mock[Session]
+      val failedGatlingSession = mock[Session]
+      val nextChainedAction = mock[ChainableAction]
+      val userExceptionMessage = "this is safe to ignore " +
+        "(it simulates a broken user-supplied lambda for generating a GraphStatement)"
+      val graphAttributes = getTestGraphAttributes()
+
+      val classLogger = LoggerFactory.getLogger(classOf[GraphRequestAction]).asInstanceOf[Logger]
+      val listAppender: ListAppender[ILoggingEvent] = new ListAppender[ILoggingEvent]
+      listAppender.start()
+      classLogger.addAppender(listAppender)
+
+      expecting {
+        dseGraphStatement.buildFromSession(initialGatlingSession).andThrow(
+          new RuntimeException(userExceptionMessage)
+        )
+        initialGatlingSession.startDate.andReturn(42L) // This number has no significance here, we could stub anything
+        initialGatlingSession.markAsFailed.andReturn(failedGatlingSession)
+        nextChainedAction ! failedGatlingSession
+      }
+
+      whenExecuting(dseGraphStatement, initialGatlingSession, failedGatlingSession, nextChainedAction) {
+        intercept[RuntimeException] {
+          getTarget(graphAttributes, nextChainedAction).sendQuery(initialGatlingSession)
+        }
+      }
+
+      assert(listAppender.list.size() == 1)
+
+      val logEntry = listAppender.list.get(0)
+
+      assert(logEntry.getLevel == Level.ERROR)
+      assert(logEntry.getFormattedMessage.contains("Failed to generate GraphStatement"))
+      assert(logEntry.getThrowableProxy != null)
+      assert(logEntry.getThrowableProxy.getMessage().equals(userExceptionMessage))
+      assert(logEntry.getThrowableProxy.getClassName().equals(classOf[RuntimeException].getCanonicalName()))
     }
 
     it("should override the graph name if system") {
