@@ -74,15 +74,8 @@ class GraphRequestAction(val name: String,
 
     // Attempt to generate a graph statement from our parameters, propagating any uncaught exceptions after
     // continuing the chain with a failed session
-    val stmt: Validation[GraphStatement] = try {
+    val stmt: Validation[GraphStatement] =
       dseAttributes.statement.buildFromSession(session)
-    } catch {
-      case e: Throwable => {
-        logger.error("Failed to generate GraphStatement", e)
-        next ! session.markAsFailed
-        throw e
-      }
-    }
 
     stmt.onFailure(err => {
       val responseTime = responseTimeBuilder.build()

@@ -9,6 +9,7 @@ package com.datastax.gatling.plugin.model
 import com.datastax.driver.dse.graph.{GraphStatement, SimpleGraphStatement}
 import com.datastax.dse.graph.api.DseGraph
 import com.datastax.gatling.plugin.exceptions.DseGraphStatementException
+import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.validation._
 import io.gatling.core.session.{Expression, Session}
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
@@ -49,9 +50,17 @@ case class GraphFluentStatement(statement: GraphStatement) extends DseGraphState
   * @param lambda Scala lambda that takes a Gatling User Session (from which it can retrieve parameters)
   *               and returns a fluent Graph Statement
   */
-case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement) extends DseGraphStatement {
+case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement) extends DseGraphStatement with StrictLogging {
   def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
-    lambda(gatlingSession).success
+    Try {
+      lambda(gatlingSession)
+    } match {
+      case TrySuccess(stmt) => stmt.success
+      case TryFailure(ex) => {
+        logger.error("Failed to generate GraphStatement", ex)
+        ex.getMessage.failure
+      }
+    }
   }
 }
 
