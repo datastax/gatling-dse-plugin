@@ -12,12 +12,14 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
+import com.datastax.driver.dse.graph.GraphStatement
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseGraphAttributes
 import com.datastax.gatling.plugin.response.GraphResponseHandler
 import com.datastax.gatling.plugin.utils._
 import io.gatling.commons.stats.KO
+import io.gatling.commons.validation.Validation
 import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
@@ -69,7 +71,8 @@ class GraphRequestAction(val name: String,
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
     }
-    val stmt = dseAttributes.statement.buildFromSession(session)
+
+    val stmt: Validation[GraphStatement] = dseAttributes.statement.buildFromSession(session)
 
     stmt.onFailure(err => {
       val responseTime = responseTimeBuilder.build()
