@@ -113,45 +113,6 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement.getGraphInternalOption("get") shouldBe "this"
     }
 
-    it("should continue the ChainableAction sequence if the graph statement builder throws an exception") {
-      val initialGatlingSession = mock[Session]
-      val failedGatlingSession = mock[Session]
-      val nextChainedAction = mock[ChainableAction]
-      val userExceptionMessage = "this is safe to ignore " +
-        "(it simulates a broken user-supplied lambda for generating a GraphStatement)"
-      val graphAttributes = getTestGraphAttributes()
-
-      val classLogger = LoggerFactory.getLogger(classOf[GraphRequestAction]).asInstanceOf[Logger]
-      val listAppender: ListAppender[ILoggingEvent] = new ListAppender[ILoggingEvent]
-      listAppender.start()
-      classLogger.addAppender(listAppender)
-
-      expecting {
-        dseGraphStatement.buildFromSession(initialGatlingSession).andThrow(
-          new RuntimeException(userExceptionMessage)
-        )
-        initialGatlingSession.startDate.andReturn(42L) // This number has no significance here, we could stub anything
-        initialGatlingSession.markAsFailed.andReturn(failedGatlingSession)
-        nextChainedAction ! failedGatlingSession
-      }
-
-      whenExecuting(dseGraphStatement, initialGatlingSession, failedGatlingSession, nextChainedAction) {
-        intercept[RuntimeException] {
-          getTarget(graphAttributes, nextChainedAction).sendQuery(initialGatlingSession)
-        }
-      }
-
-      assert(listAppender.list.size() == 1)
-
-      val logEntry = listAppender.list.get(0)
-
-      assert(logEntry.getLevel == Level.ERROR)
-      assert(logEntry.getFormattedMessage.contains("Failed to generate GraphStatement"))
-      assert(logEntry.getThrowableProxy != null)
-      assert(logEntry.getThrowableProxy.getMessage().equals(userExceptionMessage))
-      assert(logEntry.getThrowableProxy.getClassName().equals(classOf[RuntimeException].getCanonicalName()))
-    }
-
     it("should override the graph name if system") {
       val graphAttributes = DseGraphAttributes(
         "test",

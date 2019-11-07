@@ -1,14 +1,18 @@
 package com.datastax.gatling.plugin
 
+import ch.qos.logback.classic.{Level, Logger}
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.datastax.driver.dse.DseSession
 import com.datastax.driver.dse.graph.SimpleGraphStatement
 import com.datastax.dse.graph.api.DseGraph
 import com.datastax.gatling.plugin.base.BaseSpec
-import com.datastax.gatling.plugin.model.{GraphBoundStatement, GraphFluentStatement, GraphStringStatement}
+import com.datastax.gatling.plugin.model.{GraphBoundStatement, GraphFluentStatement, GraphFluentStatementFromScalaLambda, GraphStringStatement}
 import io.gatling.commons.validation.{Failure, Success}
 import io.gatling.core.session.Session
 import io.gatling.core.session.el.ElCompiler
 import org.easymock.EasyMock.reset
+import org.slf4j.LoggerFactory
 
 
 class DseGraphStatementSpec extends BaseSpec {
@@ -49,6 +53,36 @@ class DseGraphStatementSpec extends BaseSpec {
     it("should correctly return StringStatement for a valid expression") {
       val result = target.buildFromSession(validGatlingSession)
       result shouldBe a[Success[_]]
+    }
+  }
+
+  describe("FluentStatementFromScalaLambda") {
+
+    val fakeExceptionMessage = "fake testing exception (safe to ignore)"
+    val target = GraphFluentStatementFromScalaLambda((_:Session) => {
+        throw new RuntimeException(fakeExceptionMessage)
+    })
+
+    it("should catch and log a RuntimeException thrown by its encapsulated lambda") {
+
+      val classLogger = LoggerFactory.getLogger(classOf[GraphFluentStatementFromScalaLambda]).asInstanceOf[Logger]
+      val listAppender: ListAppender[ILoggingEvent] = new ListAppender[ILoggingEvent]
+
+      listAppender.start()
+      classLogger.addAppender(listAppender)
+
+      val result = target.buildFromSession(validGatlingSession)
+      result shouldBe a[Failure]
+
+      listAppender.list.size() shouldBe 1
+
+      val logEntry = listAppender.list.get(0)
+
+      logEntry.getLevel shouldBe Level.ERROR
+      logEntry.getFormattedMessage should include ("Failed to generate GraphStatement")
+      logEntry.getThrowableProxy should not be null
+      logEntry.getThrowableProxy.getMessage() shouldBe fakeExceptionMessage
+      logEntry.getThrowableProxy.getClassName() shouldBe classOf[RuntimeException].getCanonicalName()
     }
   }
 
