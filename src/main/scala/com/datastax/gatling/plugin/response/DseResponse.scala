@@ -6,8 +6,8 @@
 
 package com.datastax.gatling.plugin.response
 
-import com.datastax.driver.core._
-import com.datastax.driver.dse.graph._
+import com.datastax.oss.driver.api.core.cql._
+import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.typesafe.scalalogging.LazyLogging
 

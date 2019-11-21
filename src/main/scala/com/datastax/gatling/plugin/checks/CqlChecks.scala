@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.checks
 
-import com.datastax.driver.core.{ResultSet, Row}
+import com.datastax.oss.driver.api.core.cql.{ResultSet, Row}
 import com.datastax.gatling.plugin.response.CqlResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check._

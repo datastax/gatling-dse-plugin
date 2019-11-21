@@ -6,8 +6,8 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.driver.core.{ConsistencyLevel, PagingState}
+import com.datastax.oss.driver.api.core.retry.RetryPolicy
+import com.datastax.oss.driver.api.core.{ConsistencyLevel, PagingState}
 import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
 import io.gatling.core.action.builder.ActionBuilder

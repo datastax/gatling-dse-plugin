@@ -8,7 +8,8 @@ package com.datastax.gatling.plugin.model
 
 import java.nio.ByteBuffer
 
-import com.datastax.driver.core._
+import com.datastax.oss.driver.api.core.cql._
+import com.datastax.oss.driver.api.core.`type`.DataType
 import com.datastax.gatling.plugin.exceptions.DseCqlStatementException
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
 import io.gatling.commons.validation._

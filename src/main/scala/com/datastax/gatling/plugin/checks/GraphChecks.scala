@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.checks
 
-import com.datastax.driver.dse.graph._
+import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.response.GraphResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}

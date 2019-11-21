@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.dse.graph.{GraphStatement, SimpleGraphStatement}
+import com.datastax.dse.driver.api.core.graph.{GraphStatement, SimpleGraphStatement}
 import io.gatling.core.session.{Expression, Session}
 
 /**
