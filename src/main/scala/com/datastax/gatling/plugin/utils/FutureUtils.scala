@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.utils
 
-import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
+import com.datastax.oss.driver.shaded.guava.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 
 import scala.concurrent.{Future, Promise}
 
