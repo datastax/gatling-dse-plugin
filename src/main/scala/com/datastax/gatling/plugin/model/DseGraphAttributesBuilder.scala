@@ -40,8 +40,8 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     *
     * This permission MUST be granted to the currently logged in user using the CQL statement: `GRANT PROXY.EXECUTE ON
     * ROLE someRole TO alice`.  The user MUST be logged in with
-    * [[com.datastax.driver.dse.auth.DsePlainTextAuthProvider]] or
-    * [[com.datastax.driver.dse.auth.DseGSSAPIAuthProvider]]
+    * [[com.datastax.dse.driver.api.core.auth.DsePlainTextAuthProvider]] or
+    * [[com.datastax.dse.driver.api.core.auth.DseGSSAPIAuthProvider]]
     *
     * @param userOrRole String
     * @return
@@ -130,7 +130,7 @@ case class DseGraphAttributesBuilder(attr: DseGraphAttributes) {
     * @param transform Transform Function
     * @return
     */
-  def withTransformResults(transform: com.google.common.base.Function[Row, GraphNode]) = {
+  def withTransformResults(transform: com.datastax.oss.driver.shaded.guava.common.base.Function[Row, GraphNode]) = {
     DseGraphAttributesBuilder(attr.copy(graphTransformResults = Some(transform)))
   }
 

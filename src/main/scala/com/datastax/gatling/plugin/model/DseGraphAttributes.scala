@@ -50,4 +50,4 @@ case class DseGraphAttributes(tag: String,
                               graphSource: Option[String] = None,
                               isSystemQuery: Option[Boolean] = None,
                               graphInternalOptions: Option[Seq[(String, String)]] = None,
-                              graphTransformResults: Option[com.google.common.base.Function[Row, GraphNode]] = None)
+                              graphTransformResults: Option[com.datastax.oss.driver.shaded.guava.common.base.Function[Row, GraphNode]] = None)
