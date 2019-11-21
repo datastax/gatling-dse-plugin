@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{PreparedStatement, SimpleStatement}
+import com.datastax.oss.driver.api.core.cql.{PreparedStatement, SimpleStatement}
 import com.datastax.gatling.plugin._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
 import io.gatling.core.session.Expression

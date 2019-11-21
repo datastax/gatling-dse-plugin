@@ -6,8 +6,9 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
-import com.datastax.driver.dse.graph.{GraphNode, GraphStatement}
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.Row
+import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 
 /**

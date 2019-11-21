@@ -13,8 +13,8 @@ import java.util
 import java.util.Date
 import java.util.concurrent.TimeUnit
 
-import com.datastax.driver.core.DataType.Name._
-import com.datastax.driver.core._
+import com.datastax.oss.driver.api.core.`type`.DataType
+import com.datastax.oss.driver.api.core.cql._
 import com.datastax.driver.dse.geometry._
 import com.datastax.driver.dse.geometry.codecs.PointCodec
 import com.datastax.gatling.plugin.exceptions.CqlTypeException

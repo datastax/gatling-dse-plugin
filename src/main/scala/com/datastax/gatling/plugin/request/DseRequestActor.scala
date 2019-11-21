@@ -8,8 +8,8 @@ package com.datastax.gatling.plugin.request
 
 
 import akka.actor.Actor
-import com.datastax.driver.core.ResultSet
-import com.datastax.driver.dse.graph.GraphResultSet
+import com.datastax.oss.driver.api.core.cql.ResultSet
+import com.datastax.dse.driver.api.core.graph.GraphResultSet
 import com.google.common.util.concurrent.FutureCallback
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.session.Session
