@@ -15,7 +15,6 @@ import com.datastax.dse.driver.api.core.graph.{GraphProtocol, GraphResultSet, Gr
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.datastax.gatling.plugin.utils.{ResponseTime, ResponseTimeBuilder}
-import com.datastax.oss.driver.shaded.guava.common.util.concurrent.FutureCallback
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.stats._
 import io.gatling.commons.validation.Failure
@@ -35,7 +34,13 @@ object DseResponseHandler {
     .mkString(",")
 }
 
-abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLogging with FutureCallback[RS] {
+trait SimpleCallback[RS] {
+  def onFailure(t: Throwable): Unit
+
+  def onSuccess(result: RS): Unit
+}
+
+abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLogging with SimpleCallback[RS] {
   protected def responseTimeBuilder: ResponseTimeBuilder
   protected def system: ActorSystem
   protected def statsEngine: StatsEngine
