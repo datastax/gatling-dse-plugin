@@ -8,9 +8,10 @@ package com.datastax.gatling.plugin.response
 
 import java.nio.ByteBuffer
 
+import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
+import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql._
 import com.datastax.dse.driver.api.core.graph._
-import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.JavaConverters._
@@ -23,7 +24,7 @@ abstract class DseResponse {
   def exhausted(): Boolean
   def queriedHost(): Host = executionInfo().getQueriedHost
   def achievedConsistencyLevel(): ConsistencyLevel = executionInfo().getAchievedConsistencyLevel
-  def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutions
+  def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutionCount
   def pagingState(): ByteBuffer = executionInfo().getPagingState
   def triedHosts(): List[Host] = executionInfo().getTriedHosts.asScala.toList
   def warnings(): List[String] = executionInfo().getWarnings.asScala.toList
@@ -106,12 +107,12 @@ class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttri
   def getDseAttributes: DseGraphAttributes = dseAttributes
 }
 
-class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes) extends DseResponse with LazyLogging {
+class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[_]) extends DseResponse with LazyLogging {
   private lazy val allCqlRows: Seq[Row] = collection.JavaConverters.asScalaBuffer(cqlResultSet.all())
 
   override def executionInfo(): ExecutionInfo = cqlResultSet.getExecutionInfo()
   override def applied(): Boolean = cqlResultSet.wasApplied()
-  override def exhausted(): Boolean = cqlResultSet.isExhausted()
+  override def exhausted(): Boolean = cqlResultSet.isFullyFetched && (cqlResultSet.getAvailableWithoutFetching == 0)
 
   /**
     * Get the number of all rows returned by the query.
@@ -150,5 +151,5 @@ class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes) exte
     allCqlRows.map(row => row.getObject(column))
   }
 
-  def getDseAttributes: DseCqlAttributes = dseAttributes
+  def getDseAttributes: DseCqlAttributes[_] = dseAttributes
 }

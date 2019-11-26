@@ -121,7 +121,7 @@ case class DseCqlStatementBuilder(tag: String) {
         DseCqlCustomPayloadStatement(statement, payloadSessionKey),
         cqlStatements = Seq(statement.getQuery)))
 
-  def executePreparedFromSession(key: String): DseCqlAttributesBuilder[SimpleStatement] =
+  def executePreparedFromSession(key: String): DseCqlAttributesBuilder[BoundStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,

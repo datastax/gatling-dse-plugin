@@ -8,8 +8,9 @@ package com.datastax.gatling.plugin.checks
 
 import java.nio.ByteBuffer
 
-import com.datastax.oss.driver.api.core.cql._
 import com.datastax.gatling.plugin.response.DseResponse
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql._
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.check._
