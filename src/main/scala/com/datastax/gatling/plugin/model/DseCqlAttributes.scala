@@ -37,8 +37,8 @@ import io.gatling.core.check.Check
   * @param cqlStatements    String version of the CQL statement that is sent
   *
   */
-case class DseCqlAttributes(tag: String,
-                            statement: DseStatement[Statement],
+case class DseCqlAttributes[T <: Statement[_]](tag: String,
+                            statement: DseStatement[T],
                             cl: Option[ConsistencyLevel] = None,
                             cqlChecks: List[Check[CqlResponse]] = List.empty,
                             genericChecks: List[Check[DseResponse]] = List.empty,

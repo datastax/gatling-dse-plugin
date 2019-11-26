@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.oss.driver.api.core.cql.{PreparedStatement, SimpleStatement}
+import com.datastax.oss.driver.api.core.cql.{BatchStatement, BoundStatement, PreparedStatement, SimpleStatement, SimpleStatementBuilder}
 import com.datastax.gatling.plugin._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
 import io.gatling.core.session.Expression
@@ -29,7 +29,7 @@ case class DseCqlStatementBuilder(tag: String) {
     * @return
     */
   @deprecated("Replaced by executeStatement(String)")
-  def executeCql(query: String): DseCqlAttributesBuilder =
+  def executeCql(query: String): DseCqlAttributesBuilder[SimpleStatement] =
     executeStatement(query)
 
   /**
@@ -38,8 +38,8 @@ case class DseCqlStatementBuilder(tag: String) {
     * @param query Simple string query
     * @return
     */
-  def executeStatement(query: String): DseCqlAttributesBuilder =
-    executeStatement(new SimpleStatement(query))
+  def executeStatement(query: String): DseCqlAttributesBuilder[SimpleStatement] =
+    executeStatement(new SimpleStatementBuilder(query).build)
 
   /**
     * Execute a Simple Statement
@@ -47,7 +47,7 @@ case class DseCqlStatementBuilder(tag: String) {
     * @param statement SimpleStatement
     * @return
     */
-  def executeStatement(statement: SimpleStatement): DseCqlAttributesBuilder =
+  def executeStatement(statement: SimpleStatement): DseCqlAttributesBuilder[SimpleStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
@@ -90,7 +90,7 @@ case class DseCqlStatementBuilder(tag: String) {
     *
     * @param preparedStatement CQL Prepared statement with named parameters
     */
-  def executeNamed(preparedStatement: PreparedStatement): DseCqlAttributesBuilder =
+  def executeNamed(preparedStatement: PreparedStatement): DseCqlAttributesBuilder[BoundStatement] =
     DsePreparedCqlStatementBuilder(tag, preparedStatement).withSessionParams()
 
   /**
@@ -98,11 +98,12 @@ case class DseCqlStatementBuilder(tag: String) {
     *
     * @param preparedStatements Array of prepared statements
     */
-  def executePreparedBatch(preparedStatements: Array[PreparedStatement]) = DseCqlAttributesBuilder(
-    DseCqlAttributes(
-      tag,
-      DseCqlBoundBatchStatement(CqlPreparedStatementUtil, preparedStatements),
-      cqlStatements = preparedStatements.map(_.getQueryString)
+  def executePreparedBatch(preparedStatements: Array[PreparedStatement]) =
+    DseCqlAttributesBuilder(
+      DseCqlAttributes(
+        tag,
+        DseCqlBoundBatchStatement(CqlPreparedStatementUtil, preparedStatements),
+        cqlStatements = preparedStatements.map(_.getQueryString)
     )
   )
 
@@ -113,14 +114,14 @@ case class DseCqlStatementBuilder(tag: String) {
     * @param payloadSessionKey Session key of the payload from session/feed
     * @return
     */
-  def executeCustomPayload(statement: SimpleStatement, payloadSessionKey: String): DseCqlAttributesBuilder =
+  def executeCustomPayload(statement: SimpleStatement, payloadSessionKey: String): DseCqlAttributesBuilder[SimpleStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
         DseCqlCustomPayloadStatement(statement, payloadSessionKey),
         cqlStatements = Seq(statement.getQueryString)))
 
-  def executePreparedFromSession(key: String): DseCqlAttributesBuilder =
+  def executePreparedFromSession(key: String): DseCqlAttributesBuilder[SimpleStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
@@ -140,7 +141,7 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
     *
     * @return
     */
-  def withSessionParams(): DseCqlAttributesBuilder =
+  def withSessionParams(): DseCqlAttributesBuilder[BoundStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
@@ -153,7 +154,7 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
     * @param params Gatling Session variables
     * @return
     */
-  def withParams(params: Expression[AnyRef]*): DseCqlAttributesBuilder =
+  def withParams(params: Expression[AnyRef]*): DseCqlAttributesBuilder[BoundStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
