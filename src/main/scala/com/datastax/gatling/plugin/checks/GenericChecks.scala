@@ -6,6 +6,8 @@
 
 package com.datastax.gatling.plugin.checks
 
+import java.nio.ByteBuffer
+
 import com.datastax.oss.driver.api.core.cql._
 import com.datastax.gatling.plugin.response.DseResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
@@ -79,7 +81,7 @@ object GenericChecks {
       .toCheckBuilder
 
   val pagingState =
-    new GenericResponseExtractor[PagingState](
+    new GenericResponseExtractor[ByteBuffer](
       "pagingState",
       r => r.pagingState())
       .toCheckBuilder

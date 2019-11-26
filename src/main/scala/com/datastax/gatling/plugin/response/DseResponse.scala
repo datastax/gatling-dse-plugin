@@ -6,6 +6,8 @@
 
 package com.datastax.gatling.plugin.response
 
+import java.nio.ByteBuffer
+
 import com.datastax.oss.driver.api.core.cql._
 import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
@@ -22,7 +24,7 @@ abstract class DseResponse {
   def queriedHost(): Host = executionInfo().getQueriedHost
   def achievedConsistencyLevel(): ConsistencyLevel = executionInfo().getAchievedConsistencyLevel
   def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutions
-  def pagingState(): PagingState = executionInfo().getPagingState
+  def pagingState(): ByteBuffer = executionInfo().getPagingState
   def triedHosts(): List[Host] = executionInfo().getTriedHosts.asScala.toList
   def warnings(): List[String] = executionInfo().getWarnings.asScala.toList
   def successFullExecutionIndex(): Int = executionInfo().getSuccessfulExecutionIndex
