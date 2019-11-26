@@ -57,17 +57,17 @@ private abstract class ColumnValueExtractor[X] extends CriterionExtractor[CqlRes
 
 private class SingleColumnValueExtractor(val criterion: String, val occurrence: Int) extends ColumnValueExtractor[Any] with FindArity {
   def extract(response: CqlResponse): Validation[Option[Any]] =
-    response.getCqlResultColumnValues(criterion).lift(occurrence).success
+    response.getColumnValSeq(criterion).lift(occurrence).success
 }
 
 private class MultipleColumnValueExtractor(val criterion: String) extends ColumnValueExtractor[Seq[Any]] with FindAllArity {
   def extract(response: CqlResponse): Validation[Option[Seq[Any]]] =
-    response.getCqlResultColumnValues(criterion).liftSeqOption.success
+    response.getColumnValSeq(criterion).liftSeqOption.success
 }
 
 private class CountColumnValueExtractor(val criterion: String) extends ColumnValueExtractor[Int] with CountArity {
   def extract(response: CqlResponse): Validation[Option[Int]] =
-    response.getCqlResultColumnValues(criterion).liftSeqOption.map(_.size).success
+    response.getColumnValSeq(criterion).liftSeqOption.map(_.size).success
 }
 
 object CqlChecks {
@@ -80,7 +80,7 @@ object CqlChecks {
   val allRows =
     new CqlResponseExtractor[Seq[Row]](
       "allRows",
-      r => r.getAllRows)
+      r => r.getAllRowsSeq)
       .toCheckBuilder
 
   val oneRow =

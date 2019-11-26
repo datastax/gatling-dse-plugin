@@ -12,6 +12,8 @@ import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.check._
 import io.gatling.core.session.{Expression, ExpressionSuccessWrapper, Session}
+import org.apache.tinkerpop.gremlin.process.traversal.Path
+import org.apache.tinkerpop.gremlin.structure.{Edge, Property, Vertex, VertexProperty}
 
 import scala.collection.mutable
 
@@ -89,13 +91,13 @@ object GraphChecks {
       .toCheckBuilder
 
   def properties(column: String) =
-    new GraphResponseExtractor[Seq[Property]](
+    new GraphResponseExtractor[Seq[Property[_]]](
       "properties",
       r => r.getProperties(column))
       .toCheckBuilder
 
   def vertexProperties(column: String) =
-    new GraphResponseExtractor[Seq[Property]](
+    new GraphResponseExtractor[Seq[VertexProperty[_]]](
       "vertexProperties",
       r => r.getVertexProperties(column))
       .toCheckBuilder
