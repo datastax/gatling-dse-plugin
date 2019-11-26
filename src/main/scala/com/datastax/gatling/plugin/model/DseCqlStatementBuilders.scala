@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.oss.driver.api.core.cql.{BatchStatement, BoundStatement, PreparedStatement, SimpleStatement, SimpleStatementBuilder}
+import com.datastax.oss.driver.api.core.cql.{BoundStatement, PreparedStatement, SimpleStatement, SimpleStatementBuilder}
 import com.datastax.gatling.plugin._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
 import io.gatling.core.session.Expression
@@ -52,7 +52,7 @@ case class DseCqlStatementBuilder(tag: String) {
       DseCqlAttributes(
         tag,
         DseCqlSimpleStatement(statement),
-        cqlStatements = Seq(statement.getQueryString))
+        cqlStatements = Seq(statement.getQuery))
     )
 
   /**
@@ -103,7 +103,7 @@ case class DseCqlStatementBuilder(tag: String) {
       DseCqlAttributes(
         tag,
         DseCqlBoundBatchStatement(CqlPreparedStatementUtil, preparedStatements),
-        cqlStatements = preparedStatements.map(_.getQueryString)
+        cqlStatements = preparedStatements.map(_.getQuery)
     )
   )
 
@@ -119,7 +119,7 @@ case class DseCqlStatementBuilder(tag: String) {
       DseCqlAttributes(
         tag,
         DseCqlCustomPayloadStatement(statement, payloadSessionKey),
-        cqlStatements = Seq(statement.getQueryString)))
+        cqlStatements = Seq(statement.getQuery)))
 
   def executePreparedFromSession(key: String): DseCqlAttributesBuilder[SimpleStatement] =
     DseCqlAttributesBuilder(
@@ -146,7 +146,7 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
       DseCqlAttributes(
         tag,
         DseCqlBoundStatementNamed(CqlPreparedStatementUtil, prepared),
-        cqlStatements = Seq(prepared.getQueryString)))
+        cqlStatements = Seq(prepared.getQuery)))
 
   /**
     * Bind Gatling Session Values to CQL Prepared Statement
@@ -159,7 +159,7 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
       DseCqlAttributes(
         tag,
         DseCqlBoundStatementWithPassedParams(CqlPreparedStatementUtil, prepared, params: _*),
-        cqlStatements = Seq(prepared.getQueryString))
+        cqlStatements = Seq(prepared.getQuery))
     )
 
   /**
@@ -173,6 +173,6 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
       DseCqlAttributes(
         tag,
         DseCqlBoundStatementWithParamList(CqlPreparedStatementUtil, prepared, sessionKeys),
-        cqlStatements = Seq(prepared.getQueryString))
+        cqlStatements = Seq(prepared.getQuery))
     )
 }
