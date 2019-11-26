@@ -9,36 +9,35 @@ package com.datastax.gatling.plugin.response
 import java.nio.ByteBuffer
 
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
-import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql._
 import com.datastax.dse.driver.api.core.graph._
+import com.datastax.oss.driver.api.core.metadata.Node
 import com.typesafe.scalalogging.LazyLogging
+import org.apache.tinkerpop.gremlin.process.traversal.Path
+import org.apache.tinkerpop.gremlin.structure.{Edge, Property, Vertex, VertexProperty}
 
 import scala.collection.JavaConverters._
-import scala.util.Try
 
 abstract class DseResponse {
   def executionInfo(): ExecutionInfo
   def rowCount(): Int
   def applied(): Boolean
-  def exhausted(): Boolean
-  def queriedHost(): Host = executionInfo().getQueriedHost
-  def achievedConsistencyLevel(): ConsistencyLevel = executionInfo().getAchievedConsistencyLevel
+  def exhausted(): Option[Boolean]
+  def coordinator(): Node = executionInfo().getCoordinator
   def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutionCount
   def pagingState(): ByteBuffer = executionInfo().getPagingState
-  def triedHosts(): List[Host] = executionInfo().getTriedHosts.asScala.toList
   def warnings(): List[String] = executionInfo().getWarnings.asScala.toList
   def successFullExecutionIndex(): Int = executionInfo().getSuccessfulExecutionIndex
   def schemaInAgreement(): Boolean = executionInfo().isSchemaInAgreement
 }
 
-
 class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes) extends DseResponse with LazyLogging {
-  private lazy val allGraphNodes: Seq[GraphNode] = collection.JavaConverters.asScalaBuffer(graphResultSet.all())
+  private lazy val allGraphNodes: Seq[GraphNode] = iterableAsScalaIterable(graphResultSet.all()).toSeq
 
-  override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo()
+  override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo().asInstanceOf[ExecutionInfo]
+
   override def applied(): Boolean = false // graph doesn't support LWTs so always return false
-  override def exhausted(): Boolean = graphResultSet.isExhausted()
+  override def exhausted(): Option[Boolean] = Option.empty
 
   /**
     * Get the number of all rows returned by the query.
@@ -46,73 +45,44 @@ class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttri
     */
   override def rowCount(): Int = allGraphNodes.size
 
-  def getGraphResultSet: GraphResultSet = {
-    graphResultSet
-  }
+  def getGraphResultSet: GraphResultSet = graphResultSet
 
   def getAllNodes: Seq[GraphNode] = allGraphNodes
 
-  def getOneNode: GraphNode = {
-    graphResultSet.one()
+  def getOneNode: GraphNode = graphResultSet.one()
+
+  def getGraphResultColumnValues(column: String): Iterable[GraphNode] =
+    allGraphNodes.map(node => node.getByKey(column))
+      .filter(_ != null)
+
+  def buildFilterAndMapFn[T](filterFn: GraphNode => Boolean, mapFn: GraphNode => T): String => Seq[T] =
+  { arg =>
+    iterableAsScalaIterable[GraphNode](graphResultSet).toSeq
+      .map(graphNode => graphNode.getByKey(arg))
+      .filter(filterFn)
+      .map(mapFn)
   }
 
+  def getEdges: String => Seq[Edge] = buildFilterAndMapFn(_.isEdge, _.asEdge)
 
-  def getGraphResultColumnValues(column: String): Seq[Any] = {
-    if (allGraphNodes.isEmpty) return Seq.empty
+  def getVertexes: String => Seq[Vertex] = buildFilterAndMapFn(_.isVertex, _.asVertex)
 
-    allGraphNodes.map(node => if (node.get(column) != null) node.get(column))
-  }
+  def getPaths: String => Seq[Path] = buildFilterAndMapFn(_.isPath, _.asPath)
 
+  def getProperties: String => Seq[Property[_]] = buildFilterAndMapFn(_.isProperty, _.asProperty)
 
-  def getEdges(name: String): Seq[Edge] = {
-    val columnValues = collection.mutable.Buffer[Edge]()
-    graphResultSet.forEach { n =>
-      Try(
-        if (n.get(name).isEdge) {
-          columnValues.append(n.get(name).asEdge())
-        }
-      )
-    }
-    columnValues
-  }
-
-
-  def getVertexes(name: String): Seq[Vertex] = {
-    val columnValues = collection.mutable.Buffer[Vertex]()
-    graphResultSet.forEach { n => Try(if (n.get(name).isVertex) columnValues.append(n.get(name).asVertex())) }
-    columnValues
-  }
-
-
-  def getPaths(name: String): Seq[Path] = {
-    val columnValues = collection.mutable.Buffer[Path]()
-    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asPath())) }
-    columnValues
-  }
-
-
-  def getProperties(name: String): Seq[Property] = {
-    val columnValues = collection.mutable.Buffer[Property]()
-    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asProperty())) }
-    columnValues
-  }
-
-
-  def getVertexProperties(name: String): Seq[VertexProperty] = {
-    val columnValues = collection.mutable.Buffer[VertexProperty]()
-    graphResultSet.forEach { n => Try(columnValues.append(n.get(name).asVertexProperty())) }
-    columnValues
-  }
+  def getVertexProperties: String => Seq[VertexProperty[_]] = buildFilterAndMapFn(_.isVertexProperty, _.asVertexProperty)
 
   def getDseAttributes: DseGraphAttributes = dseAttributes
 }
 
 class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[_]) extends DseResponse with LazyLogging {
-  private lazy val allCqlRows: Seq[Row] = collection.JavaConverters.asScalaBuffer(cqlResultSet.all())
+  private lazy val allCqlRows: Seq[Row] = iterableAsScalaIterable(cqlResultSet.all()).toSeq
 
   override def executionInfo(): ExecutionInfo = cqlResultSet.getExecutionInfo()
   override def applied(): Boolean = cqlResultSet.wasApplied()
-  override def exhausted(): Boolean = cqlResultSet.isFullyFetched && (cqlResultSet.getAvailableWithoutFetching == 0)
+  override def exhausted(): Option[Boolean] =
+    Option(cqlResultSet.isFullyFetched && (cqlResultSet.getAvailableWithoutFetching == 0))
 
   /**
     * Get the number of all rows returned by the query.
@@ -125,31 +95,18 @@ class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[_]) e
     *
     * @return
     */
-  def getCqlResultSet: ResultSet = {
-    cqlResultSet
-  }
-
+  def getCqlResultSet: ResultSet = cqlResultSet
 
   /**
     * Get all the rows in a Seq[Row] format
     *
     * @return
     */
-  def getAllRows: Seq[Row] = allCqlRows
+  def getAllRowsSeq: Seq[Row] = allCqlRows
 
+  def getOneRow: Row = cqlResultSet.one()
 
-  def getOneRow: Row = {
-    cqlResultSet.one()
-  }
-
-
-  def getCqlResultColumnValues(column: String): Seq[Any] = {
-    if (allCqlRows.isEmpty || !allCqlRows.head.getColumnDefinitions.contains(column)) {
-      return Seq.empty
-    }
-
-    allCqlRows.map(row => row.getObject(column))
-  }
+  def getColumnValSeq(column: String): Seq[Any] = allCqlRows.map(_.getObject(column))
 
   def getDseAttributes: DseCqlAttributes[_] = dseAttributes
 }

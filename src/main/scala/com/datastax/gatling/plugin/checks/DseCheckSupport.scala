@@ -17,13 +17,11 @@ trait DseCheckSupport {
 
   // execution info and subsets
   lazy val executionInfo = GenericChecks.executionInfo
-  lazy val achievedCL = GenericChecks.achievedConsistencyLevel
   lazy val pagingState = GenericChecks.pagingState
-  lazy val queriedHost = GenericChecks.queriedHost
   lazy val schemaAgreement = GenericChecks.schemaInAgreement
   lazy val successfulExecutionIndex = GenericChecks.successfulExecutionIndex
-  lazy val triedHosts = GenericChecks.triedHosts
   lazy val warnings = GenericChecks.warnings
+  lazy val coordinator = GenericChecks.coordinator
 
   // start CQL only checks
   lazy val resultSet = CqlChecks.resultSet

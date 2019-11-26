@@ -11,6 +11,7 @@ import java.nio.ByteBuffer
 import com.datastax.gatling.plugin.response.DseResponse
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql._
+import com.datastax.oss.driver.api.core.metadata.Node
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.check._
@@ -63,18 +64,6 @@ object GenericChecks {
       r => r.executionInfo())
       .toCheckBuilder
 
-  val queriedHost =
-    new GenericResponseExtractor[Host](
-      "queriedHost",
-      r => r.queriedHost())
-      .toCheckBuilder
-
-  val achievedConsistencyLevel =
-    new GenericResponseExtractor[ConsistencyLevel](
-      "achievedConsistencyLevel",
-      r => r.achievedConsistencyLevel())
-      .toCheckBuilder
-
   val speculativeExecutionsExtractor =
     new GenericResponseExtractor[Int](
       "speculativeExecutions",
@@ -85,12 +74,6 @@ object GenericChecks {
     new GenericResponseExtractor[ByteBuffer](
       "pagingState",
       r => r.pagingState())
-      .toCheckBuilder
-
-  val triedHosts =
-    new GenericResponseExtractor[List[Host]](
-      "triedHost",
-      r => r.triedHosts())
       .toCheckBuilder
 
   val warnings =
@@ -124,9 +107,15 @@ object GenericChecks {
       .toCheckBuilder
 
   val exhausted =
-    new GenericResponseExtractor[Boolean](
+    new GenericResponseExtractor[Option[Boolean]](
       "exhausted",
       r => r.exhausted())
+      .toCheckBuilder
+
+  val coordinator =
+    new GenericResponseExtractor[Node](
+      "queriedHost",
+      r => r.coordinator())
       .toCheckBuilder
 }
 
