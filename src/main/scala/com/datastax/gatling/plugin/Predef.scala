@@ -36,7 +36,7 @@ trait DsePredefBase extends DseCheckSupport {
 
   implicit def protocolBuilder2DseProtocol(builder: DseProtocolBuilder): DseProtocol = builder.build
 
-  implicit def cqlRequestAttributes2ActionBuilder(builder: DseCqlAttributesBuilder): ActionBuilder = builder.build()
+  implicit def cqlRequestAttributes2ActionBuilder(builder: DseCqlAttributesBuilder[_]): ActionBuilder = builder.build()
 
   implicit def graphRequestAttributes2ActionBuilder(builder: DseGraphAttributesBuilder): ActionBuilder = builder.build()
 }

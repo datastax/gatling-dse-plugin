@@ -18,7 +18,7 @@ import io.gatling.core.action.builder.ActionBuilder
   *
   * @param attr Addition Attributes
   */
-case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
+case class DseCqlAttributesBuilder[T](attr: DseCqlAttributes[T]) {
   /**
     * Builds to final action to run
     *
