@@ -18,7 +18,7 @@ import scala.collection.JavaConverters._
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
 
-trait DseCqlStatement[T] extends DseStatement[T] {
+trait DseCqlStatement[T <: Statement[_]] extends DseStatement[T] {
   def buildFromSession(session: Session): Validation[T]
 }
 

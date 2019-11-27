@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.oss.driver.api.core.cql.{BoundStatement, PreparedStatement, SimpleStatement, SimpleStatementBuilder}
+import com.datastax.oss.driver.api.core.cql.{BatchStatement, BoundStatement, PreparedStatement, SimpleStatement, SimpleStatementBuilder}
 import com.datastax.gatling.plugin._
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
 import io.gatling.core.session.Expression
@@ -78,7 +78,7 @@ case class DseCqlStatementBuilder(tag: String) {
     * @param preparedStatement CQL Prepared Statement w/ anon ?'s
     * @return
     */
-  def executeStatement(preparedStatement: PreparedStatement) =
+  def executeStatement(preparedStatement: PreparedStatement): DsePreparedCqlStatementBuilder =
     DsePreparedCqlStatementBuilder(tag, preparedStatement)
 
   /**
@@ -98,7 +98,7 @@ case class DseCqlStatementBuilder(tag: String) {
     *
     * @param preparedStatements Array of prepared statements
     */
-  def executePreparedBatch(preparedStatements: Array[PreparedStatement]) =
+  def executePreparedBatch(preparedStatements: Array[PreparedStatement]): DseCqlAttributesBuilder[BatchStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
@@ -168,7 +168,7 @@ case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStateme
     * @param sessionKeys Gatling Session Keys
     * @return
     */
-  def withParams(sessionKeys: List[String]) =
+  def withParams(sessionKeys: List[String]): DseCqlAttributesBuilder[BoundStatement] =
     DseCqlAttributesBuilder(
       DseCqlAttributes(
         tag,
