@@ -10,7 +10,7 @@ package com.datastax.gatling.plugin.request
 import akka.actor.Actor
 import com.datastax.oss.driver.api.core.cql.ResultSet
 import com.datastax.dse.driver.api.core.graph.GraphResultSet
-import com.datastax.gatling.plugin.response.SimpleCallback
+import com.datastax.gatling.plugin.response.DseResponseCallback
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.session.Session
 
@@ -20,7 +20,7 @@ import scala.util.{Failure, Success, Try}
 case class SendCqlQuery(dseRequestAction: CqlRequestAction, session: Session)
 case class SendGraphQuery(dseRequestAction: GraphRequestAction, session: Session)
 
-case class RecordResult[T](t: Try[T], callback: SimpleCallback[T])
+case class RecordResult[T](t: Try[T], callback: DseResponseCallback[T])
 
 class DseRequestActor extends Actor with StrictLogging {
   override def receive: Actor.Receive = {

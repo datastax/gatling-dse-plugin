@@ -23,18 +23,18 @@ abstract class DseResponse {
   def rowCount(): Int
   def applied(): Boolean
   def exhausted(): Option[Boolean]
-  def coordinator(): Node = executionInfo().getCoordinator
-  def speculativeExecutions(): Int = executionInfo().getSpeculativeExecutionCount
-  def pagingState(): ByteBuffer = executionInfo().getPagingState
-  def warnings(): List[String] = executionInfo().getWarnings.asScala.toList
-  def successFullExecutionIndex(): Int = executionInfo().getSuccessfulExecutionIndex
-  def schemaInAgreement(): Boolean = executionInfo().isSchemaInAgreement
+  def coordinator(): Node = executionInfo.getCoordinator
+  def speculativeExecutions(): Int = executionInfo.getSpeculativeExecutionCount
+  def pagingState(): ByteBuffer = executionInfo.getPagingState
+  def warnings(): List[String] = executionInfo.getWarnings.asScala.toList
+  def successFullExecutionIndex(): Int = executionInfo.getSuccessfulExecutionIndex
+  def schemaInAgreement(): Boolean = executionInfo.isSchemaInAgreement
 }
 
-class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes) extends DseResponse with LazyLogging {
+class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes[_]) extends DseResponse with LazyLogging {
   private lazy val allGraphNodes: Seq[GraphNode] = iterableAsScalaIterable(graphResultSet.all()).toSeq
 
-  override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo().asInstanceOf[ExecutionInfo]
+  override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo.asInstanceOf[ExecutionInfo]
 
   override def applied(): Boolean = false // graph doesn't support LWTs so always return false
   override def exhausted(): Option[Boolean] = Option.empty
@@ -69,18 +69,20 @@ class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttri
 
   def getPaths: String => Seq[Path] = buildFilterAndMapFn(_.isPath, _.asPath)
 
-  def getProperties: String => Seq[Property[_]] = buildFilterAndMapFn(_.isProperty, _.asProperty)
+  def getProperties: String => Seq[Property[_]] =
+    buildFilterAndMapFn(_.isProperty, _.asProperty.asInstanceOf[Property[_]])
 
-  def getVertexProperties: String => Seq[VertexProperty[_]] = buildFilterAndMapFn(_.isVertexProperty, _.asVertexProperty)
+  def getVertexProperties: String => Seq[VertexProperty[_]] =
+    buildFilterAndMapFn(_.isVertexProperty, _.asVertexProperty.asInstanceOf[VertexProperty[_]])
 
-  def getDseAttributes: DseGraphAttributes = dseAttributes
+  def getDseAttributes: DseGraphAttributes[_] = dseAttributes
 }
 
 class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[_]) extends DseResponse with LazyLogging {
   private lazy val allCqlRows: Seq[Row] = iterableAsScalaIterable(cqlResultSet.all()).toSeq
 
-  override def executionInfo(): ExecutionInfo = cqlResultSet.getExecutionInfo()
-  override def applied(): Boolean = cqlResultSet.wasApplied()
+  override def executionInfo(): ExecutionInfo = cqlResultSet.getExecutionInfo
+  override def applied(): Boolean = cqlResultSet.wasApplied
   override def exhausted(): Option[Boolean] =
     Option(cqlResultSet.isFullyFetched && (cqlResultSet.getAvailableWithoutFetching == 0))
 
@@ -88,7 +90,7 @@ class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[_]) e
     * Get the number of all rows returned by the query.
     * Note: Calling this function fetches <b>all</b> rows from the result set!
     */
-  def rowCount: Int = allCqlRows.size
+  def rowCount(): Int = allCqlRows.size
 
   /**
     * Get CQL ResultSet
@@ -104,7 +106,7 @@ class CqlResponse(cqlResultSet: ResultSet, dseAttributes: DseCqlAttributes[_]) e
     */
   def getAllRowsSeq: Seq[Row] = allCqlRows
 
-  def getOneRow: Row = cqlResultSet.one()
+  def getOneRow: Row = cqlResultSet.one
 
   def getColumnValSeq(column: String): Seq[Any] = allCqlRows.map(_.getObject(column))
 
