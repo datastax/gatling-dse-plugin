@@ -34,8 +34,8 @@ import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
   * @param  graphInternalOptions  Query-specific options not available in the driver public API
   * @param  graphTransformResults Function to use in order to transform a row into a Graph node
   */
-case class DseGraphAttributes(tag: String,
-                              statement: DseStatement[GraphStatement],
+case class DseGraphAttributes[T <: GraphStatement[_]](tag: String,
+                              statement: DseStatement[T],
                               cl: Option[ConsistencyLevel] = None,
                               graphChecks: List[DseGraphCheck] = List.empty,
                               genericChecks: List[GenericCheck] = List.empty,

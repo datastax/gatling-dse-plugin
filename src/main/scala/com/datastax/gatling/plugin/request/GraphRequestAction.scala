@@ -47,7 +47,7 @@ class GraphRequestAction(val name: String,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val protocol: DseProtocol,
-                         val dseAttributes: DseGraphAttributes,
+                         val dseAttributes: DseGraphAttributes[_],
                          val metricsLogger: MetricsLogger,
                          val dseExecutorService: ExecutorService,
                          val gatlingTimingSource: GatlingTimingSource)
