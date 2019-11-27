@@ -11,10 +11,11 @@ import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
 import com.datastax.oss.driver.api.core.cql._
-import com.datastax.dse.driver.api.core.graph.{GraphProtocol, GraphResultSet, GraphStatement}
+import com.datastax.dse.driver.api.core.graph.{GraphResultSet, GraphStatement}
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.datastax.gatling.plugin.utils.{ResponseTime, ResponseTimeBuilder}
+import com.datastax.oss.driver.api.core.metadata.Node
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.commons.stats._
 import io.gatling.commons.validation.Failure
@@ -34,26 +35,26 @@ object DseResponseHandler {
     .mkString(",")
 }
 
-trait SimpleCallback[RS] {
+trait DseResponseCallback[RS] {
   def onFailure(t: Throwable): Unit
 
   def onSuccess(result: RS): Unit
 }
 
-abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLogging with SimpleCallback[RS] {
+abstract class DseResponseHandler[S, RS, R <: DseResponse] extends StrictLogging with DseResponseCallback[RS] {
   protected def responseTimeBuilder: ResponseTimeBuilder
   protected def system: ActorSystem
   protected def statsEngine: StatsEngine
   protected def metricsLogger: MetricsLogger
   protected def next: Action
   protected def session: Session
-  protected def stmt: Any
+  protected def stmt: S
   protected def tag: String
   protected def queries: Seq[String]
-  protected def specificChecks: List[Check[Response]]
+  protected def specificChecks: List[Check[R]]
   protected def genericChecks: List[Check[DseResponse]]
-  protected def newResponse(rs: RS): Response
-  protected def queriedHost(rs: RS): String
+  protected def newResponse(rs: RS): R
+  protected def coordinator(rs: RS): Node
 
   private def writeGatlingLog(status: Status, respTimings: ResponseTimings, message: Option[String], extraInfo: List[Any]): Unit =
     statsEngine.logResponse(session, tag, respTimings, status, None, message, extraInfo)
@@ -75,8 +76,8 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
       List(responseTime.latencyIn(MICROSECONDS), "CHK", logUuid)
     )
 
-    logger.warn("[{}] {} - Check: {}, Query: {}, Host: {}",
-      logUuid, tagString, checkRes._2.get.message, DseResponseHandler.sanitizeAndJoin(queries), queriedHost(resultSet)
+    logger.warn("[{}] {} - Check: {}, Query: {}, Coordinator: {}",
+      logUuid, tagString, checkRes._2.get.message, DseResponseHandler.sanitizeAndJoin(queries), coordinator(resultSet).toString
     )
   }
 
@@ -93,13 +94,9 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
     )
 
     stmt match {
-      case Some(gs: GraphStatement) =>
-        val unwrap = Try(
-          DseResponseHandler.sanitize(gs.unwrap(GraphProtocol.GRAPHSON_2_0).toString)
-        ).getOrElse(DseResponseHandler.sanitize(gs.unwrap(GraphProtocol.GRAPHSON_1_0).toString))
-
+      case Some(gs: GraphStatement[_]) =>
         logger.warn("[{}] {} - Execute: {} - Attrs: {}",
-          logUuid, tagString, unwrap, session.attributes.mkString(","), t
+          logUuid, tagString, gs, session.attributes.mkString(","), t
         )
       case _ =>
         logger.warn("[{}] {} - Execute: {}, Query: {}",
@@ -141,36 +138,36 @@ abstract class DseResponseHandler[RS, Response <: DseResponse] extends StrictLog
   }
 }
 
-class GraphResponseHandler(val next: Action,
+class GraphResponseHandler[T <: GraphStatement[_]](val next: Action,
                            val session: Session,
                            val system: ActorSystem,
                            val statsEngine: StatsEngine,
                            val responseTimeBuilder: ResponseTimeBuilder,
-                           val stmt: GraphStatement,
-                           val dseAttributes: DseGraphAttributes,
+                           val stmt: T,
+                           val dseAttributes: DseGraphAttributes[T],
                            val metricsLogger: MetricsLogger)
-    extends DseResponseHandler[GraphResultSet, GraphResponse] {
+    extends DseResponseHandler[T, GraphResultSet, GraphResponse] {
   override protected def tag: String = dseAttributes.tag
   override protected def queries: Seq[String] = Seq.empty
   override protected def specificChecks: List[Check[GraphResponse]] = dseAttributes.graphChecks
   override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
   override protected def newResponse(rs: GraphResultSet): GraphResponse = new GraphResponse(rs, dseAttributes)
-  override protected def queriedHost(rs: GraphResultSet): String = rs.getExecutionInfo.getQueriedHost.toString
+  override protected def coordinator(rs: GraphResultSet): Node = rs.getExecutionInfo.getCoordinator
 }
 
-class CqlResponseHandler(val next: Action,
+class CqlResponseHandler[T <: Statement[_]](val next: Action,
                          val session: Session,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val responseTimeBuilder: ResponseTimeBuilder,
-                         val stmt: Statement,
-                         val dseAttributes: DseCqlAttributes,
+                         val stmt: T,
+                         val dseAttributes: DseCqlAttributes[T],
                          val metricsLogger: MetricsLogger)
-  extends DseResponseHandler[ResultSet, CqlResponse] {
+  extends DseResponseHandler[T, ResultSet, CqlResponse] {
   override protected def tag: String = dseAttributes.tag
   override protected def queries: Seq[String] = Seq.empty
   override protected def specificChecks: List[Check[CqlResponse]] = dseAttributes.cqlChecks
   override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
   override protected def newResponse(rs: ResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
-  override protected def queriedHost(rs: ResultSet): String = rs.getExecutionInfo.getQueriedHost.toString
+  override protected def coordinator(rs: ResultSet): Node = rs.getExecutionInfo.getCoordinator
 }
