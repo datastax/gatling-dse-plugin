@@ -13,12 +13,12 @@ import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.util.NameGen
 
-class GraphRequestActionBuilder(dseAttributes: DseGraphAttributes[_]) extends ActionBuilder with
+class GraphRequestActionBuilder[T](dseAttributes: DseGraphAttributes[T]) extends ActionBuilder with
   NameGen {
 
   def build(ctx: ScenarioContext, next: Action): Action = {
     val dseComponents = ctx.protocolComponentsRegistry.components(DseProtocol.DseProtocolKey)
-    new GraphRequestAction(
+    new GraphRequestAction[T](
       dseAttributes.tag,
       next,
       ctx.system,

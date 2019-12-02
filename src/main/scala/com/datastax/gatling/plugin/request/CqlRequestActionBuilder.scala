@@ -13,12 +13,12 @@ import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.util.NameGen
 
-class CqlRequestActionBuilder(val dseAttributes: DseCqlAttributes[_]) extends ActionBuilder with
+class CqlRequestActionBuilder[T](val dseAttributes: DseCqlAttributes[T]) extends ActionBuilder with
   NameGen {
 
   def build(ctx: ScenarioContext, next: Action): Action = {
     val dseComponents = ctx.protocolComponentsRegistry.components(DseProtocol.DseProtocolKey)
-    new CqlRequestAction(
+    new CqlRequestAction[T](
       dseAttributes.tag,
       next,
       ctx.system,

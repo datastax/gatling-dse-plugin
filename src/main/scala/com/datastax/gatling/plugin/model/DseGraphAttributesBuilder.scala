@@ -26,7 +26,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[_]](attr: DseGraphAttri
     *
     * @return
     */
-  def build(): ActionBuilder = new GraphRequestActionBuilder(attr)
+  def build(): GraphRequestActionBuilder[T] = new GraphRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level

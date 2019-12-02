@@ -17,8 +17,8 @@ import io.gatling.core.session.Session
 import scala.concurrent.ExecutionException
 import scala.util.{Failure, Success, Try}
 
-case class SendCqlQuery(dseRequestAction: CqlRequestAction, session: Session)
-case class SendGraphQuery(dseRequestAction: GraphRequestAction, session: Session)
+case class SendCqlQuery(dseRequestAction: CqlRequestAction[_], session: Session)
+case class SendGraphQuery(dseRequestAction: GraphRequestAction[_], session: Session)
 
 case class RecordResult[T](t: Try[T], callback: DseResponseCallback[T])
 
