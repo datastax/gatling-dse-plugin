@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
+import com.datastax.dse.driver.api.core.graph.GraphStatement
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseGraphAttributes
@@ -22,6 +23,7 @@ import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
+import scala.compat.java8.FutureConverters
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 /**
@@ -42,12 +44,12 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class GraphRequestAction(val name: String,
+class GraphRequestAction[T <: GraphStatement[_]](val name: String,
                          val next: Action,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val protocol: DseProtocol,
-                         val dseAttributes: DseGraphAttributes[_],
+                         val dseAttributes: DseGraphAttributes[T],
                          val metricsLogger: MetricsLogger,
                          val dseExecutorService: ExecutorService,
                          val gatlingTimingSource: GatlingTimingSource)
@@ -92,8 +94,8 @@ class GraphRequestAction(val name: String,
       dseAttributes.idempotent.map(gStmt.setIdempotent)
 
       // Graph only Options
-      dseAttributes.readCL.map(gStmt.setGraphReadConsistencyLevel)
-      dseAttributes.writeCL.map(gStmt.setGraphWriteConsistencyLevel)
+      dseAttributes.readCL.map(gStmt.setReadConsistencyLevel)
+      dseAttributes.writeCL.map(gStmt.setWriteConsistencyLevel)
       dseAttributes.graphLanguage.map(gStmt.setGraphLanguage)
       dseAttributes.graphName.map(gStmt.setGraphName)
       dseAttributes.graphSource.map(gStmt.setGraphSource)
@@ -109,10 +111,12 @@ class GraphRequestAction(val name: String,
         gStmt.setSystemQuery()
       }
 
-      val responseHandler = new GraphResponseHandler(next, session, system, statsEngine, responseTimeBuilder, gStmt, dseAttributes, metricsLogger)
+      val responseHandler =
+        new GraphResponseHandler(
+          next, session, system, statsEngine, responseTimeBuilder, gStmt, dseAttributes, metricsLogger)
       implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
-      FutureUtils
-        .toScalaFuture(protocol.session.executeGraphAsync(gStmt))
+      FutureConverters
+        .toScala(protocol.session.executeAsync(gStmt))
         .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
     })
   }

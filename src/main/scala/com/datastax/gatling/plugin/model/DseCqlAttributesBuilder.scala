@@ -26,7 +26,7 @@ case class DseCqlAttributesBuilder[T <: Statement[_]](attr: DseCqlAttributes[T])
     *
     * @return
     */
-  def build(): CqlRequestActionBuilder = new CqlRequestActionBuilder(attr)
+  def build(): CqlRequestActionBuilder[T] = new CqlRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level

@@ -17,6 +17,7 @@ import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseCqlAttributes
 import com.datastax.gatling.plugin.response.CqlResponseHandler
 import com.datastax.gatling.plugin.utils._
+import com.datastax.oss.driver.api.core.cql.Statement
 import io.gatling.commons.stats.KO
 import io.gatling.commons.validation.safely
 import io.gatling.core.action.{Action, ExitableAction}
@@ -24,6 +25,7 @@ import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
 import scala.collection.JavaConverters._
+import scala.compat.java8.FutureConverters
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 /**
@@ -44,12 +46,12 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class CqlRequestAction(val name: String,
+class CqlRequestAction[T <: Statement[_]](val name: String,
                        val next: Action,
                        val system: ActorSystem,
                        val statsEngine: StatsEngine,
                        val protocol: DseProtocol,
-                       val dseAttributes: DseCqlAttributes[_],
+                       val dseAttributes: DseCqlAttributes[T],
                        val metricsLogger: MetricsLogger,
                        val dseExecutorService: ExecutorService,
                        val gatlingTimingSource: GatlingTimingSource)
@@ -96,8 +98,8 @@ class CqlRequestAction(val name: String,
 
       val responseHandler = new CqlResponseHandler(next, session, system, statsEngine, responseTimeBuilder, stmt, dseAttributes, metricsLogger)
       implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
-      FutureUtils
-        .toScalaFuture(protocol.session.executeAsync(stmt))
+      FutureConverters
+        .toScala(protocol.session.executeAsync(stmt))
         .onComplete(t => DseRequestActor.recordResult(RecordResult(t, responseHandler)))
     })
   }
