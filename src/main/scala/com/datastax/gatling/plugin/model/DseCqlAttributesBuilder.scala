@@ -8,11 +8,11 @@ package com.datastax.gatling.plugin.model
 
 import java.nio.ByteBuffer
 
-import com.datastax.oss.driver.api.core.retry.RetryPolicy
 import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.Statement
+import com.datastax.oss.driver.api.core.retry.RetryPolicy
 import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
-import com.datastax.oss.driver.api.core.cql.Statement
 
 
 /**
