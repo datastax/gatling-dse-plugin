@@ -12,7 +12,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
-import com.datastax.dse.driver.api.core.graph.GraphStatement
+import com.datastax.dse.driver.api.core.graph.{GraphStatement, GraphStatementBuilderBase}
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseGraphAttributes
@@ -44,7 +44,7 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class GraphRequestAction[T <: GraphStatement[_]](val name: String,
+class GraphRequestAction[T <: GraphStatement[T]](val name: String,
                          val next: Action,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
@@ -61,37 +61,38 @@ class GraphRequestAction[T <: GraphStatement[_]](val name: String,
     })
   }
 
-  private def updateStatement(stmt:T):T = {
+  private def buildStatement(builder:GraphStatementBuilderBase[_,T]):T = {
 
     // global options
-    dseAttributes.cl.map(gStmt.setConsistencyLevel)
-    dseAttributes.defaultTimestamp.map(gStmt.setDefaultTimestamp)
-    dseAttributes.userOrRole.map(gStmt.executingAs)
-    dseAttributes.readTimeout.map(gStmt.setReadTimeoutMillis)
-    dseAttributes.idempotent.map(gStmt.setIdempotent)
+    dseAttributes.cl.map(builder.setConsistencyLevel)
+    dseAttributes.defaultTimestamp.map(builder.setDefaultTimestamp)
+    dseAttributes.userOrRole.map(builder.executingAs)
+    dseAttributes.readTimeout.map(builder.setReadTimeoutMillis)
+    dseAttributes.idempotent.map(builder.setIdempotent)
 
     // Graph only Options
-    dseAttributes.readCL.map(gStmt.setReadConsistencyLevel)
-    dseAttributes.writeCL.map(gStmt.setWriteConsistencyLevel)
-    dseAttributes.graphLanguage.map(gStmt.setGraphLanguage)
-    dseAttributes.graphName.map(gStmt.setGraphName)
-    dseAttributes.graphSource.map(gStmt.setGraphSource)
-    dseAttributes.graphTransformResults.map(gStmt.setTransformResultFunction)
+    dseAttributes.readCL.map(builder.setReadConsistencyLevel)
+    dseAttributes.writeCL.map(builder.setWriteConsistencyLevel)
+    dseAttributes.graphLanguage.map(builder.setGraphLanguage)
+    dseAttributes.graphName.map(builder.setGraphName)
+    dseAttributes.graphSource.map(builder.setGraphSource)
+    dseAttributes.graphTransformResults.map(builder.setTransformResultFunction)
 
     if (dseAttributes.graphInternalOptions.isDefined) {
       dseAttributes.graphInternalOptions.get.foreach { t =>
-        gStmt.setGraphInternalOption(t._1, t._2)
+        builder.setGraphInternalOption(t._1, t._2)
       }
     }
 
     if (dseAttributes.isSystemQuery.isDefined && dseAttributes.isSystemQuery.get) {
-      gStmt.setSystemQuery()
+      builder.setSystemQuery()
     }
-    stmt
+    builder.build
   }
 
-  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(stmt:T): Unit = {
+  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:GraphStatementBuilderBase[_,T]): Unit = {
 
+    val stmt:T = buildStatement(builder)
     val responseHandler =
       new GraphResponseHandler(
         next,
@@ -99,7 +100,7 @@ class GraphRequestAction[T <: GraphStatement[_]](val name: String,
         system,
         statsEngine,
         responseTimeBuilder,
-        updateStatement(stmt),
+        stmt,
         dseAttributes,
         metricsLogger)
     implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)

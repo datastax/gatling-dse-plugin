@@ -11,7 +11,6 @@ import com.datastax.oss.driver.api.core.cql.Row
 import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.GraphRequestActionBuilder
-import io.gatling.core.action.builder.ActionBuilder
 
 import com.datastax.oss.driver.shaded.guava.common.base.Function
 
@@ -20,7 +19,7 @@ import com.datastax.oss.driver.shaded.guava.common.base.Function
   *
   * @param attr Addition Attributes
   */
-case class DseGraphAttributesBuilder[T <: GraphStatement[_]](attr: DseGraphAttributes[T]) {
+case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttributes[T]) {
   /**
     * Builds to final action to run
     *

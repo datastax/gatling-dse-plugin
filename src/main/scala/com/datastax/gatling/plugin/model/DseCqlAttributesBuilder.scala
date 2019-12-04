@@ -20,7 +20,7 @@ import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
   *
   * @param attr Addition Attributes
   */
-case class DseCqlAttributesBuilder[T <: Statement[_]](attr: DseCqlAttributes[T]) {
+case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T]) {
   /**
     * Builds to final action to run
     *

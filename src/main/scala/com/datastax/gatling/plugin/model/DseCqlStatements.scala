@@ -17,7 +17,6 @@ import io.gatling.core.session._
 import scala.collection.JavaConverters._
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
-
 trait DseCqlStatement[T <: Statement[T]] extends DseStatement[T] {
   def buildFromSession(session: Session): Validation[T]
 }

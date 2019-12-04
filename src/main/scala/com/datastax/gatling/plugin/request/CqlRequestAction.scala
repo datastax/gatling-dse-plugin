@@ -81,7 +81,7 @@ class CqlRequestAction[T <: Statement[T]](val name: String,
     if (dseAttributes.enableTrace.isDefined && dseAttributes.enableTrace.get) {
       builder.enableTracing
     }
-    builder.build()
+    builder.build
   }
 
   private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:StatementBuilder[_,T]): Unit = {
