@@ -94,7 +94,14 @@ class GraphRequestAction[T <: GraphStatement[_]](val name: String,
 
     val responseHandler =
       new GraphResponseHandler(
-        next, session, system, statsEngine, responseTimeBuilder, updateStatement(stmt), dseAttributes, metricsLogger)
+        next,
+        session,
+        system,
+        statsEngine,
+        responseTimeBuilder,
+        updateStatement(stmt),
+        dseAttributes,
+        metricsLogger)
     implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)
     FutureConverters
       .toScala(protocol.session.executeAsync(stmt))

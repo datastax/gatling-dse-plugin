@@ -17,7 +17,7 @@ import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseCqlAttributes
 import com.datastax.gatling.plugin.response.CqlResponseHandler
 import com.datastax.gatling.plugin.utils._
-import com.datastax.oss.driver.api.core.cql.Statement
+import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
 import io.gatling.commons.stats.KO
 import io.gatling.commons.validation.safely
 import io.gatling.core.action.{Action, ExitableAction}
@@ -46,7 +46,7 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class CqlRequestAction[T <: Statement[_]](val name: String,
+class CqlRequestAction[T <: Statement[T]](val name: String,
                        val next: Action,
                        val system: ActorSystem,
                        val statsEngine: StatsEngine,
@@ -63,36 +63,38 @@ class CqlRequestAction[T <: Statement[_]](val name: String,
     })
   }
 
-  private def updateStatement(stmt:T):T = {
+  private def buildStatement(builder:StatementBuilder[_,T]):T = {
+
     // global options
-    dseAttributes.cl.map(stmt.setConsistencyLevel)
-    dseAttributes.userOrRole.map(stmt.executingAs)
-    dseAttributes.readTimeout.map(stmt.setReadTimeoutMillis)
-    dseAttributes.idempotent.map(stmt.setIdempotent)
-    dseAttributes.defaultTimestamp.map(stmt.setDefaultTimestamp)
+    dseAttributes.cl.map(builder.setConsistencyLevel)
+    dseAttributes.userOrRole.map(builder.executingAs)
+    dseAttributes.readTimeout.map(builder.setReadTimeoutMillis)
+    dseAttributes.idempotent.map(builder.setIdempotent)
+    dseAttributes.defaultTimestamp.map(builder.setDefaultTimestamp)
 
     // CQL Only Options
-    dseAttributes.outGoingPayload.map(x => stmt.setOutgoingPayload(x.asJava))
-    dseAttributes.serialCl.map(stmt.setSerialConsistencyLevel)
-    dseAttributes.retryPolicy.map(stmt.setRetryPolicy)
-    dseAttributes.fetchSize.map(stmt.setFetchSize)
-    dseAttributes.pagingState.map(stmt.setPagingState)
+    dseAttributes.outGoingPayload.map(x => builder.setOutgoingPayload(x.asJava))
+    dseAttributes.serialCl.map(builder.setSerialConsistencyLevel)
+    dseAttributes.retryPolicy.map(builder.setRetryPolicy)
+    dseAttributes.fetchSize.map(builder.setFetchSize)
+    dseAttributes.pagingState.map(builder.setPagingState)
     if (dseAttributes.enableTrace.isDefined && dseAttributes.enableTrace.get) {
-      stmt.enableTracing
+      builder.enableTracing
     }
-    stmt
+    builder.build()
   }
 
-  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(stmt:T): Unit = {
+  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:StatementBuilder[_,T]): Unit = {
 
+    val stmt:T = buildStatement(builder)
     val responseHandler =
-      new CqlResponseHandler(
+      new CqlResponseHandler[T](
         next,
         session,
         system,
         statsEngine,
         responseTimeBuilder,
-        updateStatement(stmt),
+        stmt,
         dseAttributes,
         metricsLogger)
     implicit val sameThreadExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutorService(dseExecutorService)

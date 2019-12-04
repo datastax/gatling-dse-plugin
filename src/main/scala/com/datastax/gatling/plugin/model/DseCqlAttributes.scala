@@ -9,7 +9,7 @@ package com.datastax.gatling.plugin.model
 import java.nio.ByteBuffer
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
-import com.datastax.oss.driver.api.core.cql.Statement
+import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
 import com.datastax.oss.driver.api.core.retry.RetryPolicy
 import com.datastax.gatling.plugin.response.{CqlResponse, DseResponse}
 import io.gatling.core.check.Check
@@ -38,7 +38,7 @@ import io.gatling.core.check.Check
   *
   */
 case class DseCqlAttributes[T <: Statement[_]](tag: String,
-                            statement: DseStatement[T],
+                            statement: DseStatement[StatementBuilder[_,T]],
                             cl: Option[ConsistencyLevel] = None,
                             cqlChecks: List[Check[CqlResponse]] = List.empty,
                             genericChecks: List[Check[DseResponse]] = List.empty,
