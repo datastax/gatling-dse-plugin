@@ -17,9 +17,7 @@ import io.gatling.core.session._
 import scala.collection.JavaConverters._
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
-trait DseCqlStatement[T <: Statement[T]] extends DseStatement[T] {
-  def buildFromSession(session: Session): Validation[T]
-}
+trait DseCqlStatement[T <: Statement[T]] extends DseStatement[StatementBuilder[_,T]]
 
 /**
   * Simple CQL Statement from the java driver
@@ -27,7 +25,7 @@ trait DseCqlStatement[T <: Statement[T]] extends DseStatement[T] {
   * @param statement the statement to execute
   */
 case class DseCqlSimpleStatement(statement: SimpleStatement)
-  extends DseCqlStatement[StatementBuilder[_,SimpleStatement]] {
+  extends DseCqlStatement[SimpleStatement] {
 
   def buildFromSession(gatlingSession: Session): Validation[StatementBuilder[_,SimpleStatement]] = {
     SimpleStatement.builder(statement).success
@@ -40,7 +38,7 @@ case class DseCqlSimpleStatement(statement: SimpleStatement)
   * @param preparedStatement the prepared statement on which to bind parameters
   */
 case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil, preparedStatement: PreparedStatement)
-  extends DseCqlStatement[StatementBuilder[_,BoundStatement]] {
+  extends DseCqlStatement[BoundStatement] {
 
   def buildFromSession(gatlingSession: Session): Validation[StatementBuilder[_,BoundStatement]] = {
     val template:BoundStatement = bindParams(
@@ -81,7 +79,7 @@ case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil, prepare
 case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUtil,
                                                 preparedStatement: PreparedStatement,
                                                 params: Expression[AnyRef]*)
-  extends DseCqlStatement[StatementBuilder[_,BoundStatement]] {
+  extends DseCqlStatement[BoundStatement] {
 
   def buildFromSession(gatlingSession: Session): Validation[StatementBuilder[_,BoundStatement]] = {
     val parsedParams: Seq[Validation[AnyRef]] = params.map(param => param(gatlingSession))
@@ -107,7 +105,7 @@ case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUt
 case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
                                              preparedStatement: PreparedStatement,
                                              sessionKeys: Seq[String])
-  extends DseCqlStatement[StatementBuilder[_,BoundStatement]] {
+  extends DseCqlStatement[BoundStatement] {
 
   /**
     * Apply the Gatling session params to the Prepared statement
@@ -152,7 +150,7 @@ case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
   * @param statements CQL Prepared Statements
   */
 case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil, statements: Seq[PreparedStatement])
-  extends DseCqlStatement[StatementBuilder[_,BatchStatement]] {
+  extends DseCqlStatement[BatchStatement] {
 
   def buildFromSession(gatlingSession: Session): Validation[StatementBuilder[_,BatchStatement]] = {
     val builder:BatchStatementBuilder = BatchStatement.builder(DefaultBatchType.LOGGED)
@@ -191,7 +189,7 @@ case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil, stateme
   * @param payloadRef session variable for custom payload
   */
 case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: String)
-  extends DseCqlStatement[StatementBuilder[_,SimpleStatement]] {
+  extends DseCqlStatement[SimpleStatement] {
 
   def buildFromSession(gatlingSession: Session): Validation[StatementBuilder[_,SimpleStatement]] = {
     if (!gatlingSession.contains(payloadRef)) {
@@ -215,7 +213,7 @@ case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: 
   * @param sessionKey the session key which is associated to a PreparedStatement
   */
 case class DseCqlBoundStatementNamedFromSession(cqlTypes: CqlPreparedStatementUtil, sessionKey: String)
-  extends DseCqlStatement[StatementBuilder[_,BoundStatement]] {
+  extends DseCqlStatement[BoundStatement] {
 
   def buildFromSession(gatlingSession: Session): Validation[StatementBuilder[_,BoundStatement]] = {
     if (!gatlingSession.contains(sessionKey)) {

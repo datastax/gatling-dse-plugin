@@ -35,7 +35,7 @@ import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
   * @param  graphTransformResults Function to use in order to transform a row into a Graph node
   */
 case class DseGraphAttributes[T <: GraphStatement[T]](tag: String,
-                              statement: DseStatement[GraphStatementBuilderBase[_,T]],
+                              statement: DseGraphStatement[T],
                               cl: Option[ConsistencyLevel] = None,
                               graphChecks: List[DseGraphCheck] = List.empty,
                               genericChecks: List[GenericCheck] = List.empty,
