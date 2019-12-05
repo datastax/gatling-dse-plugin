@@ -28,12 +28,16 @@ trait CqlPreparedStatementUtil {
   protected val hourMinSecRegEx: Regex = """(\d+):(\d+):(\d+)""".r
   protected val hourMinSecNanoRegEx: Regex = """(\d+):(\d+):(\d+).(\d+{1,9})""".r
 
-  def bindParamByOrder(gatlingSession: Session,
-                       boundStatement: BoundStatement, paramType: Int,
-                       paramName: String, key: Int): BoundStatement
+  def bindParamByOrder[T <: Bindable[T]](gatlingSession: Session,
+                                         bindable: T,
+                                         paramType: Int,
+                                         paramName: String,
+                                         key: Int): T
 
-  def bindParamByName(gatlingSession: Session, boundStatement: BoundStatement, paramType: Int,
-                      paramName: String): BoundStatement
+  def bindParamByName[T <: Bindable[T]](gatlingSession: Session,
+                                        bindable: T,
+                                        paramType: Int,
+                                        paramName: String): T
 
   def getParamsMap(preparedStatement: PreparedStatement): Map[String, Int]
 
@@ -50,86 +54,83 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * Bind CQL Prepared statement params by key order
     *
     * @param gatlingSession Gatling Session
-    * @param boundStatement CQL BoundStatement
+    * @param bindable CQL Bindable impl
     * @param paramType      Type of param ie String, int, boolean
     * @param paramName      Gatling Session Attribute Name
     * @param key            Key/Order of param
     */
-  def bindParamByOrder(gatlingSession: Session, boundStatement: BoundStatement, paramType: Int,
-                       paramName: String, key: Int): BoundStatement = {
+  def bindParamByOrder[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: Int,
+                          paramName: String, key: Int): T = {
 
     if (!gatlingSession.attributes.contains(paramName)) {
-      if (boundStatement.isSet(paramName)) {
-        boundStatement.unset(paramName)
-      }
-      return boundStatement
+      return if (bindable.isSet(paramName)) {
+        bindable.unset(paramName)
+      } else { bindable }
     }
 
     val stringClz = classOf[String]
 
     gatlingSession.attributes.get(paramName) match {
       case Some(null) =>
-        boundStatement.setToNull(paramName)
-        boundStatement
+        bindable.setToNull(paramName)
       case Some(None) =>
-        if (boundStatement.isSet(paramName)) {
-          boundStatement.unset(paramName)
-        }
-        boundStatement
+        if (bindable.isSet(paramName)) {
+          bindable.unset(paramName)
+        } else { bindable }
       case _ =>
         paramType match {
           case (VARCHAR | ASCII) =>
-            boundStatement.setString(key, asString(gatlingSession, paramName))
+            bindable.setString(key, asString(gatlingSession, paramName))
           case INT =>
-            boundStatement.setInt(key, asInteger(gatlingSession, paramName))
+            bindable.setInt(key, asInteger(gatlingSession, paramName))
           case BOOLEAN =>
-            boundStatement.setBoolean(key, asBoolean(gatlingSession, paramName))
+            bindable.setBoolean(key, asBoolean(gatlingSession, paramName))
           case (UUID | TIMEUUID) =>
-            boundStatement.setUuid(key, asUuid(gatlingSession, paramName))
+            bindable.setUuid(key, asUuid(gatlingSession, paramName))
           case FLOAT =>
-            boundStatement.setFloat(key, asFloat(gatlingSession, paramName))
+            bindable.setFloat(key, asFloat(gatlingSession, paramName))
           case DOUBLE =>
-            boundStatement.setDouble(key, asDouble(gatlingSession, paramName))
+            bindable.setDouble(key, asDouble(gatlingSession, paramName))
           case DECIMAL =>
-            boundStatement.setBigDecimal(key, asDecimal(gatlingSession, paramName))
+            bindable.setBigDecimal(key, asDecimal(gatlingSession, paramName))
           case INET =>
-            boundStatement.setInetAddress(key, asInet(gatlingSession, paramName))
+            bindable.setInetAddress(key, asInet(gatlingSession, paramName))
           case TIMESTAMP =>
-            boundStatement.setInstant(key, asInstant(gatlingSession, paramName))
+            bindable.setInstant(key, asInstant(gatlingSession, paramName))
           case COUNTER =>
-            boundStatement.setLong(key, asCounter(gatlingSession, paramName))
+            bindable.setLong(key, asCounter(gatlingSession, paramName))
           case BIGINT =>
-            boundStatement.setLong(key, asBigInt(gatlingSession, paramName))
+            bindable.setLong(key, asBigInt(gatlingSession, paramName))
           case BLOB =>
-            boundStatement.setByteBuffer(key, asByte(gatlingSession, paramName))
+            bindable.setByteBuffer(key, asByte(gatlingSession, paramName))
           case VARINT =>
-            boundStatement.setBigInteger(key, asVarInt(gatlingSession, paramName))
+            bindable.setBigInteger(key, asVarInt(gatlingSession, paramName))
           case LIST =>
-            boundStatement.setList(key, asList(gatlingSession, paramName, stringClz), stringClz)
+            bindable.setList(key, asList(gatlingSession, paramName, stringClz), stringClz)
           case SET =>
-            boundStatement.setSet(key, asSet(gatlingSession, paramName, stringClz), stringClz)
+            bindable.setSet(key, asSet(gatlingSession, paramName, stringClz), stringClz)
           case MAP =>
-            boundStatement.setMap(key, asMap(gatlingSession, paramName, stringClz, stringClz), stringClz, stringClz)
+            bindable.setMap(key, asMap(gatlingSession, paramName, stringClz, stringClz), stringClz, stringClz)
           case UDT =>
-            boundStatement.setUdtValue(key, asUdt(gatlingSession, paramName))
+            bindable.setUdtValue(key, asUdt(gatlingSession, paramName))
           case TUPLE =>
-            boundStatement.setTupleValue(key, asTuple(gatlingSession, paramName))
+            bindable.setTupleValue(key, asTuple(gatlingSession, paramName))
           case DATE =>
-            boundStatement.setLocalDate(key, asLocalDate(gatlingSession, paramName))
+            bindable.setLocalDate(key, asLocalDate(gatlingSession, paramName))
           case SMALLINT =>
-            boundStatement.setShort(key, asSmallInt(gatlingSession, paramName))
+            bindable.setShort(key, asSmallInt(gatlingSession, paramName))
           case TINYINT =>
-            boundStatement.setByte(key, asTinyInt(gatlingSession, paramName))
+            bindable.setByte(key, asTinyInt(gatlingSession, paramName))
           case TIME =>
-            boundStatement.setLocalTime(key, asTime(gatlingSession, paramName))
+            bindable.setLocalTime(key, asTime(gatlingSession, paramName))
           case CUSTOM =>
             gatlingSession.attributes.get(paramName) match {
               case Some(p: Point) =>
-                boundStatement.set(key, asPoint(gatlingSession, paramName), classOf[Point])
+                bindable.set(key, asPoint(gatlingSession, paramName), classOf[Point])
               case Some(p: LineString) =>
-                boundStatement.set(key, asLineString(gatlingSession, paramName), classOf[LineString])
+                bindable.set(key, asLineString(gatlingSession, paramName), classOf[LineString])
               case Some(p: Polygon) =>
-                boundStatement.set(key, asPolygon(gatlingSession, paramName), classOf[Polygon])
+                bindable.set(key, asPolygon(gatlingSession, paramName), classOf[Polygon])
               case _ =>
                 throw new UnsupportedOperationException(s"$paramName on unknown CUSTOM type")
             }
@@ -143,85 +144,84 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * Bind CQL Prepared statement params by anem
     *
     * @param gatlingSession Gatling Session
-    * @param boundStatement CQL BoundStatement
+    * @param bindable CQL Bindable impl
     * @param paramType      Type of param ie String, int, boolean
     * @param paramName      Gatling Session Attribute Value
     */
-  def bindParamByName(gatlingSession: Session, boundStatement: BoundStatement, paramType: Int,
-                      paramName: String): BoundStatement = {
+  def bindParamByName[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: Int,
+                         paramName: String): T = {
 
     if (!gatlingSession.attributes.contains(paramName)) {
-      if (boundStatement.isSet(paramName)) {
-        boundStatement.unset(paramName)
-      }
-      return boundStatement
+      return if (bindable.isSet(paramName)) {
+        bindable.unset(paramName)
+      } else { bindable }
     }
 
     val stringClz = classOf[String]
 
     gatlingSession.attributes.get(paramName) match {
       case Some(null) =>
-        boundStatement.setToNull(paramName)
-        boundStatement
+        bindable.setToNull(paramName)
+        bindable
       case Some(None) =>
-        if (boundStatement.isSet(paramName)) {
-          boundStatement.unset(paramName)
+        if (bindable.isSet(paramName)) {
+          bindable.unset(paramName)
         }
-        boundStatement
+        bindable
       case _ =>
         paramType match {
           case (VARCHAR | ASCII) =>
-            boundStatement.setString(paramName, asString(gatlingSession, paramName))
+            bindable.setString(paramName, asString(gatlingSession, paramName))
           case INT =>
-            boundStatement.setInt(paramName, asInteger(gatlingSession, paramName))
+            bindable.setInt(paramName, asInteger(gatlingSession, paramName))
           case BOOLEAN =>
-            boundStatement.setBoolean(paramName, asBoolean(gatlingSession, paramName))
+            bindable.setBoolean(paramName, asBoolean(gatlingSession, paramName))
           case (UUID | TIMEUUID) =>
-            boundStatement.setUuid(paramName, asUuid(gatlingSession, paramName))
+            bindable.setUuid(paramName, asUuid(gatlingSession, paramName))
           case FLOAT =>
-            boundStatement.setFloat(paramName, asFloat(gatlingSession, paramName))
+            bindable.setFloat(paramName, asFloat(gatlingSession, paramName))
           case DOUBLE =>
-            boundStatement.setDouble(paramName, asDouble(gatlingSession, paramName))
+            bindable.setDouble(paramName, asDouble(gatlingSession, paramName))
           case DECIMAL =>
-            boundStatement.setBigDecimal(paramName, asDecimal(gatlingSession, paramName))
+            bindable.setBigDecimal(paramName, asDecimal(gatlingSession, paramName))
           case INET =>
-            boundStatement.setInetAddress(paramName, asInet(gatlingSession, paramName))
+            bindable.setInetAddress(paramName, asInet(gatlingSession, paramName))
           case TIMESTAMP =>
-            boundStatement.setInstant(paramName, asInstant(gatlingSession, paramName))
+            bindable.setInstant(paramName, asInstant(gatlingSession, paramName))
           case BIGINT =>
-            boundStatement.setLong(paramName, asBigInt(gatlingSession, paramName))
+            bindable.setLong(paramName, asBigInt(gatlingSession, paramName))
           case COUNTER =>
-            boundStatement.setLong(paramName, asCounter(gatlingSession, paramName))
+            bindable.setLong(paramName, asCounter(gatlingSession, paramName))
           case BLOB =>
-            boundStatement.setByteBuffer(paramName, asByte(gatlingSession, paramName))
+            bindable.setByteBuffer(paramName, asByte(gatlingSession, paramName))
           case VARINT =>
-            boundStatement.setBigInteger(paramName, asVarInt(gatlingSession, paramName))
+            bindable.setBigInteger(paramName, asVarInt(gatlingSession, paramName))
           case LIST =>
-            boundStatement.setList(paramName, asList(gatlingSession, paramName, stringClz), stringClz)
+            bindable.setList(paramName, asList(gatlingSession, paramName, stringClz), stringClz)
           case SET =>
-            boundStatement.setSet(paramName, asSet(gatlingSession, paramName, stringClz), stringClz)
+            bindable.setSet(paramName, asSet(gatlingSession, paramName, stringClz), stringClz)
           case MAP =>
-            boundStatement.setMap(paramName, asMap(gatlingSession, paramName, stringClz, stringClz), stringClz, stringClz)
+            bindable.setMap(paramName, asMap(gatlingSession, paramName, stringClz, stringClz), stringClz, stringClz)
           case UDT =>
-            boundStatement.setUdtValue(paramName, asUdt(gatlingSession, paramName))
+            bindable.setUdtValue(paramName, asUdt(gatlingSession, paramName))
           case TUPLE =>
-            boundStatement.setTupleValue(paramName, asTuple(gatlingSession, paramName))
+            bindable.setTupleValue(paramName, asTuple(gatlingSession, paramName))
           case DATE =>
-            boundStatement.setLocalDate(paramName, asLocalDate(gatlingSession, paramName))
+            bindable.setLocalDate(paramName, asLocalDate(gatlingSession, paramName))
           case SMALLINT =>
-            boundStatement.setShort(paramName, asSmallInt(gatlingSession, paramName))
+            bindable.setShort(paramName, asSmallInt(gatlingSession, paramName))
           case TINYINT =>
-            boundStatement.setByte(paramName, asTinyInt(gatlingSession, paramName))
+            bindable.setByte(paramName, asTinyInt(gatlingSession, paramName))
           case TIME =>
-            boundStatement.setLocalTime(paramName, asTime(gatlingSession, paramName))
+            bindable.setLocalTime(paramName, asTime(gatlingSession, paramName))
           case CUSTOM =>
             gatlingSession.attributes.get(paramName) match {
               case Some(p: Point) =>
-                boundStatement.set(paramName, asPoint(gatlingSession, paramName), classOf[Point])
+                bindable.set(paramName, asPoint(gatlingSession, paramName), classOf[Point])
               case Some(p: LineString) =>
-                boundStatement.set(paramName, asLineString(gatlingSession, paramName), classOf[LineString])
+                bindable.set(paramName, asLineString(gatlingSession, paramName), classOf[LineString])
               case Some(p: Polygon) =>
-                boundStatement.set(paramName, asPolygon(gatlingSession, paramName), classOf[Polygon])
+                bindable.set(paramName, asPolygon(gatlingSession, paramName), classOf[Polygon])
               case _ =>
                 throw new UnsupportedOperationException(s"$paramName on unknown CUSTOM type")
             }
