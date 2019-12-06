@@ -163,11 +163,11 @@ class CqlResponseHandler[T <: Statement[_]](val next: Action,
                          val stmt: T,
                          val dseAttributes: DseCqlAttributes[T],
                          val metricsLogger: MetricsLogger)
-  extends DseResponseHandler[T, ResultSet, CqlResponse] {
+  extends DseResponseHandler[T, AsyncResultSet, CqlResponse] {
   override protected def tag: String = dseAttributes.tag
   override protected def queries: Seq[String] = Seq.empty
   override protected def specificChecks: List[Check[CqlResponse]] = dseAttributes.cqlChecks
   override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
-  override protected def newResponse(rs: ResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
-  override protected def coordinator(rs: ResultSet): Node = rs.getExecutionInfo.getCoordinator
+  override protected def newResponse(rs: AsyncResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
+  override protected def coordinator(rs: AsyncResultSet): Node = rs.getExecutionInfo.getCoordinator
 }

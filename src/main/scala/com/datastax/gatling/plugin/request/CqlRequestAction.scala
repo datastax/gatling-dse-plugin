@@ -24,7 +24,6 @@ import io.gatling.core.action.{Action, ExitableAction}
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
-import scala.collection.JavaConverters._
 import scala.compat.java8.FutureConverters
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
@@ -66,21 +65,27 @@ class CqlRequestAction[T <: Statement[T]](val name: String,
   private def buildStatement(builder:StatementBuilder[_,T]):T = {
 
     // global options
-    dseAttributes.cl.map(builder.setConsistencyLevel)
-    dseAttributes.userOrRole.map(builder.executingAs)
-    dseAttributes.readTimeout.map(builder.setReadTimeoutMillis)
-    dseAttributes.idempotent.map(builder.setIdempotent)
-    dseAttributes.defaultTimestamp.map(builder.setDefaultTimestamp)
+    dseAttributes.cl.foreach(builder.setConsistencyLevel)
+    dseAttributes.idempotent.foreach((v) => builder.setIdempotence(v))
+    dseAttributes.node.foreach(builder.setNode)
 
     // CQL Only Options
-    dseAttributes.outGoingPayload.map(x => builder.setOutgoingPayload(x.asJava))
-    dseAttributes.serialCl.map(builder.setSerialConsistencyLevel)
-    dseAttributes.retryPolicy.map(builder.setRetryPolicy)
-    dseAttributes.fetchSize.map(builder.setFetchSize)
-    dseAttributes.pagingState.map(builder.setPagingState)
-    if (dseAttributes.enableTrace.isDefined && dseAttributes.enableTrace.get) {
-      builder.enableTracing
+    dseAttributes.customPayload.foreach {
+      _.foreach {
+        _ match {
+          case (k, v) => builder.addCustomPayload(k, v)
+        }
+      }
     }
+    dseAttributes.enableTrace.foreach(builder.setTracing)
+    dseAttributes.pageSize.foreach(builder.setPageSize)
+    dseAttributes.pagingState.foreach(builder.setPagingState)
+    dseAttributes.queryTimestamp.foreach(builder.setQueryTimestamp)
+    dseAttributes.routingKey.foreach(builder.setRoutingKey)
+    dseAttributes.routingKeyspace.foreach(builder.setRoutingKeyspace)
+    dseAttributes.routingToken.foreach(builder.setRoutingToken)
+    dseAttributes.serialCl.foreach(builder.setSerialConsistencyLevel)
+    dseAttributes.timeout.foreach(builder.setTimeout)
     builder.build
   }
 

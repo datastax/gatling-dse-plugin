@@ -8,6 +8,7 @@ package com.datastax.gatling.plugin.checks
 
 import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.response.GraphResponse
+import com.datastax.gatling.plugin.utils.ResultSetUtils
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.check._
@@ -63,42 +64,42 @@ object GraphChecks {
   val allNodes =
     new GraphResponseExtractor[Seq[GraphNode]](
       "allNodes",
-      r => r.getAllNodes)
+      r => ResultSetUtils.graphResultSetToSeq(r.getGraphResultSet))
       .toCheckBuilder
 
   val oneNode =
     new GraphResponseExtractor[GraphNode](
       "oneNode",
-      r => r.getOneNode)
+      r => ResultSetUtils.graphResultSetToSeq(r.getGraphResultSet).head)
       .toCheckBuilder
 
-  def edges(column: String) =
+  def edges(column: String):GraphCheckBuilder[Seq[Edge]] =
     new GraphResponseExtractor[Seq[Edge]](
       "edges",
-      r => r.getEdges(column))
+      r => ResultSetUtils.getEdges(r.getGraphResultSet,column))
       .toCheckBuilder
 
-  def vertexes(column: String) =
+  def vertexes(column: String):GraphCheckBuilder[Seq[Vertex]] =
     new GraphResponseExtractor[Seq[Vertex]](
       "vertices",
-      r => r.getVertexes(column))
+      r => ResultSetUtils.getVertexes(r.getGraphResultSet, column))
       .toCheckBuilder
 
-  def paths(column: String) =
+  def paths(column: String):GraphCheckBuilder[Seq[Path]] =
     new GraphResponseExtractor[Seq[Path]](
       "paths",
-      r => r.getPaths(column))
+      r => ResultSetUtils.getPaths(r.getGraphResultSet, column))
       .toCheckBuilder
 
-  def properties(column: String) =
+  def properties(column: String):GraphCheckBuilder[Seq[Property[_]]] =
     new GraphResponseExtractor[Seq[Property[_]]](
       "properties",
-      r => r.getProperties(column))
+      r => ResultSetUtils.getProperties(r.getGraphResultSet, column))
       .toCheckBuilder
 
-  def vertexProperties(column: String) =
+  def vertexProperties(column: String):GraphCheckBuilder[Seq[VertexProperty[_]]] =
     new GraphResponseExtractor[Seq[VertexProperty[_]]](
       "vertexProperties",
-      r => r.getVertexProperties(column))
+      r => ResultSetUtils.getVertexProperties(r.getGraphResultSet, column))
       .toCheckBuilder
 }

@@ -94,27 +94,9 @@ object GenericChecks {
       r => r.schemaInAgreement())
       .toCheckBuilder
 
-  val rowCount =
-    new GenericResponseExtractor[Int](
-      "rowCount",
-      r => r.rowCount())
-      .toCheckBuilder
-
-  val applied =
-    new GenericResponseExtractor[Boolean](
-      "applied",
-      r => r.applied())
-      .toCheckBuilder
-
-  val exhausted =
-    new GenericResponseExtractor[Option[Boolean]](
-      "exhausted",
-      r => r.exhausted())
-      .toCheckBuilder
-
   val coordinator =
     new GenericResponseExtractor[Node](
-      "queriedHost",
+      "coordinator",
       r => r.coordinator())
       .toCheckBuilder
 }

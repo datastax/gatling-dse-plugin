@@ -10,11 +10,6 @@ import io.gatling.core.session.ExpressionSuccessWrapper
 
 trait DseCheckSupport {
 
-  // start global checks
-  lazy val exhausted = GenericChecks.exhausted
-  lazy val applied = GenericChecks.applied
-  lazy val rowCount = GenericChecks.rowCount
-
   // execution info and subsets
   lazy val executionInfo = GenericChecks.executionInfo
   lazy val pagingState = GenericChecks.pagingState
@@ -42,11 +37,5 @@ trait DseCheckSupport {
   def properties(columnName: String) = GraphChecks.paths(columnName)
 
   def vertexProperties(columnName: String) = GraphChecks.vertexProperties(columnName)
-
-  /**
-    * Get a column by name returned by the CQL statement.
-    * Note that this statement implicitly fetches <b>all</b> rows from the result set!
-    */
-  def columnValue(columnName: String) = CqlChecks.columnValue(columnName.expressionSuccess)
 }
 
