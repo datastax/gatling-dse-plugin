@@ -64,7 +64,7 @@ class GraphRequestAction[T <: GraphStatement[T]](val name: String,
   private def buildStatement(builder:GraphStatementBuilderBase[_,T]):T = {
 
     // global options
-    dseAttributes.cl.map(builder.setConsistencyLevel)
+    dseAttributes.cl.foreach(builder.setConsistencyLevel)
     dseAttributes.idempotent.foreach(builder.setIdempotence(_))
     dseAttributes.node.foreach(builder.setNode)
 

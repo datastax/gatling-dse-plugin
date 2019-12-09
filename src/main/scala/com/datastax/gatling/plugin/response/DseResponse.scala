@@ -26,11 +26,11 @@ abstract class DseResponse {
   def schemaInAgreement(): Boolean = executionInfo.isSchemaInAgreement
 }
 
-class GraphResponse(graphResultSet: GraphResultSet, dseAttributes: DseGraphAttributes[_]) extends DseResponse with LazyLogging {
+class GraphResponse(graphResultSet: AsyncGraphResultSet, dseAttributes: DseGraphAttributes[_]) extends DseResponse with LazyLogging {
 
   override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo.asInstanceOf[ExecutionInfo]
 
-  def getGraphResultSet: GraphResultSet = graphResultSet
+  def getGraphResultSet: AsyncGraphResultSet = graphResultSet
 
   def getDseAttributes: DseGraphAttributes[_] = dseAttributes
 }

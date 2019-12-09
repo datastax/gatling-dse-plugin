@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
 import com.datastax.oss.driver.api.core.cql._
-import com.datastax.dse.driver.api.core.graph.{GraphResultSet, GraphStatement}
+import com.datastax.dse.driver.api.core.graph.{AsyncGraphResultSet, GraphResultSet, GraphStatement}
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.datastax.gatling.plugin.utils.{ResponseTime, ResponseTimeBuilder}
@@ -146,13 +146,13 @@ class GraphResponseHandler[T <: GraphStatement[_]](val next: Action,
                            val stmt: T,
                            val dseAttributes: DseGraphAttributes[T],
                            val metricsLogger: MetricsLogger)
-  extends DseResponseHandler[T, GraphResultSet, GraphResponse] {
+  extends DseResponseHandler[T, AsyncGraphResultSet, GraphResponse] {
   override protected def tag: String = dseAttributes.tag
   override protected def queries: Seq[String] = Seq.empty
   override protected def specificChecks: List[Check[GraphResponse]] = dseAttributes.graphChecks
   override protected def genericChecks: List[Check[DseResponse]] = dseAttributes.genericChecks
-  override protected def newResponse(rs: GraphResultSet): GraphResponse = new GraphResponse(rs, dseAttributes)
-  override protected def coordinator(rs: GraphResultSet): Node = rs.getExecutionInfo.getCoordinator
+  override protected def newResponse(rs: AsyncGraphResultSet): GraphResponse = new GraphResponse(rs, dseAttributes)
+  override protected def coordinator(rs: AsyncGraphResultSet): Node = rs.getExecutionInfo.getCoordinator
 }
 
 class CqlResponseHandler[T <: Statement[_]](val next: Action,
