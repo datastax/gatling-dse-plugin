@@ -65,28 +65,18 @@ class GraphRequestAction[T <: GraphStatement[T]](val name: String,
 
     // global options
     dseAttributes.cl.map(builder.setConsistencyLevel)
-    dseAttributes.defaultTimestamp.map(builder.setDefaultTimestamp)
-    dseAttributes.userOrRole.map(builder.executingAs)
-    dseAttributes.readTimeout.map(builder.setReadTimeoutMillis)
-    dseAttributes.idempotent.map(builder.setIdempotent)
+    dseAttributes.idempotent.foreach(builder.setIdempotence(_))
+    dseAttributes.node.foreach(builder.setNode)
 
     // Graph only Options
-    dseAttributes.readCL.map(builder.setReadConsistencyLevel)
-    dseAttributes.writeCL.map(builder.setWriteConsistencyLevel)
-    dseAttributes.graphLanguage.map(builder.setGraphLanguage)
-    dseAttributes.graphName.map(builder.setGraphName)
-    dseAttributes.graphSource.map(builder.setGraphSource)
-    dseAttributes.graphTransformResults.map(builder.setTransformResultFunction)
+    dseAttributes.graphName.foreach(builder.setGraphName)
+    dseAttributes.readCL.foreach(builder.setReadConsistencyLevel)
+    dseAttributes.subProtocol.foreach(builder.setSubProtocol)
+    dseAttributes.timeout.foreach(builder.setTimeout)
+    dseAttributes.timestamp.foreach(builder.setTimestamp)
+    dseAttributes.traversalSource.foreach(builder.setTraversalSource)
+    dseAttributes.writeCL.foreach(builder.setWriteConsistencyLevel)
 
-    if (dseAttributes.graphInternalOptions.isDefined) {
-      dseAttributes.graphInternalOptions.get.foreach { t =>
-        builder.setGraphInternalOption(t._1, t._2)
-      }
-    }
-
-    if (dseAttributes.isSystemQuery.isDefined && dseAttributes.isSystemQuery.get) {
-      builder.setSystemQuery()
-    }
     builder.build
   }
 
@@ -94,7 +84,7 @@ class GraphRequestAction[T <: GraphStatement[T]](val name: String,
 
     val stmt:T = buildStatement(builder)
     val responseHandler =
-      new GraphResponseHandler(
+      new GraphResponseHandler[T](
         next,
         session,
         system,

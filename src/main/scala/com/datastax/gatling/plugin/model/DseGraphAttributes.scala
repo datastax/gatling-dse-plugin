@@ -6,10 +6,13 @@
 
 package com.datastax.gatling.plugin.model
 
+import java.time.Duration
+
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql.Row
 import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement, GraphStatementBuilderBase}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
+import com.datastax.oss.driver.api.core.metadata.Node
 
 /**
   * Graph Query Attributes to be applied to the current query
@@ -34,20 +37,20 @@ import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
   * @param  graphInternalOptions  Query-specific options not available in the driver public API
   * @param  graphTransformResults Function to use in order to transform a row into a Graph node
   */
-case class DseGraphAttributes[T <: GraphStatement[T]](tag: String,
-                              statement: DseGraphStatement[T],
-                              cl: Option[ConsistencyLevel] = None,
-                              graphChecks: List[DseGraphCheck] = List.empty,
-                              genericChecks: List[GenericCheck] = List.empty,
-                              userOrRole: Option[String] = None,
-                              readTimeout: Option[Int] = None,
-                              idempotent: Option[Boolean] = None,
-                              defaultTimestamp: Option[Long] = None,
-                              readCL: Option[ConsistencyLevel] = None,
-                              writeCL: Option[ConsistencyLevel] = None,
-                              graphName: Option[String] = None,
-                              graphLanguage: Option[String] = None,
-                              graphSource: Option[String] = None,
-                              isSystemQuery: Option[Boolean] = None,
-                              graphInternalOptions: Option[Seq[(String, String)]] = None,
-                              graphTransformResults: Option[com.datastax.oss.driver.shaded.guava.common.base.Function[Row, GraphNode]] = None)
+case class DseGraphAttributes[T <: GraphStatement[T]]
+  (tag: String,
+   statement: DseGraphStatement[T],
+   graphChecks: List[DseGraphCheck] = List.empty,
+   genericChecks: List[GenericCheck] = List.empty,
+   /* General attributes */
+   cl: Option[ConsistencyLevel] = None,
+   idempotent: Option[Boolean] = None,
+   node: Option[Node] = None,
+   /* Graph-specific attributes */
+   graphName: Option[String] = None,
+   readCL: Option[ConsistencyLevel] = None,
+   subProtocol: Option[String] = None,
+   timeout: Option[Duration] = None,
+   timestamp: Option[Long] = None,
+   traversalSource: Option[String] = None,
+   writeCL: Option[ConsistencyLevel] = None)

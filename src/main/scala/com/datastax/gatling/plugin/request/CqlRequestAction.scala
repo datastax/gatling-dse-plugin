@@ -66,7 +66,7 @@ class CqlRequestAction[T <: Statement[T]](val name: String,
 
     // global options
     dseAttributes.cl.foreach(builder.setConsistencyLevel)
-    dseAttributes.idempotent.foreach((v) => builder.setIdempotence(v))
+    dseAttributes.idempotent.foreach(builder.setIdempotence(_))
     dseAttributes.node.foreach(builder.setNode)
 
     // CQL Only Options

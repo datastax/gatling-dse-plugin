@@ -146,7 +146,7 @@ class GraphResponseHandler[T <: GraphStatement[_]](val next: Action,
                            val stmt: T,
                            val dseAttributes: DseGraphAttributes[T],
                            val metricsLogger: MetricsLogger)
-    extends DseResponseHandler[T, GraphResultSet, GraphResponse] {
+  extends DseResponseHandler[T, GraphResultSet, GraphResponse] {
   override protected def tag: String = dseAttributes.tag
   override protected def queries: Seq[String] = Seq.empty
   override protected def specificChecks: List[Check[GraphResponse]] = dseAttributes.graphChecks

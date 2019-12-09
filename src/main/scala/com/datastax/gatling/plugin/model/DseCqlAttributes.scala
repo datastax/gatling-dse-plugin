@@ -46,9 +46,11 @@ case class DseCqlAttributes[T <: Statement[T]]
    cqlChecks: List[Check[CqlResponse]] = List.empty,
    genericChecks: List[Check[DseResponse]] = List.empty,
    cqlStatements: Seq[String] = Seq.empty,
+    /* General attributes */
    cl: Option[ConsistencyLevel] = None,
    idempotent: Option[Boolean] = None,
    node: Option[Node] = None,
+   /* CQL-specific attributes */
    customPayload: Option[Map[String, ByteBuffer]] = None,
    enableTrace: Option[Boolean] = None,
    pageSize: Option[Int] = None,
@@ -59,4 +61,3 @@ case class DseCqlAttributes[T <: Statement[T]]
    routingToken: Option[Token] = None,
    serialCl: Option[ConsistencyLevel] = None,
    timeout: Option[Duration] = None)
-

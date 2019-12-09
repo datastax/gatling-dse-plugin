@@ -13,8 +13,6 @@ import com.datastax.oss.driver.api.core.cql._
 import com.datastax.dse.driver.api.core.graph._
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.tinkerpop.gremlin.process.traversal.Path
-import org.apache.tinkerpop.gremlin.structure.{Edge, Property, Vertex, VertexProperty}
 
 import scala.collection.JavaConverters._
 
