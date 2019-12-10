@@ -10,7 +10,7 @@ import java.time.Duration
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql.Row
-import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement}
+import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement, GraphStatementBuilderBase}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.GraphRequestActionBuilder
 import com.datastax.oss.driver.api.core.metadata.Node
@@ -21,13 +21,13 @@ import com.datastax.oss.driver.shaded.guava.common.base.Function
   *
   * @param attr Addition Attributes
   */
-case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttributes[T]) {
+case class DseGraphAttributesBuilder[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B,T]](attr: DseGraphAttributes[T, B]) {
   /**
     * Builds to final action to run
     *
     * @return
     */
-  def build(): GraphRequestActionBuilder[T] = new GraphRequestActionBuilder(attr)
+  def build(): GraphRequestActionBuilder[T, B] = new GraphRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level
@@ -35,7 +35,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param level ConsistencyLevel
     * @return
     */
-  def withConsistencyLevel(level: ConsistencyLevel):DseGraphAttributesBuilder[T] =
+  def withConsistencyLevel(level: ConsistencyLevel):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
@@ -43,7 +43,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     *
     * @return
     */
-  def withIdempotency():DseGraphAttributesBuilder[T] =
+  def withIdempotency():DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(idempotent = Some(true)))
 
   /**
@@ -52,7 +52,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param name Graph name
     * @return
     */
-  def withName(name: String):DseGraphAttributesBuilder[T] =
+  def withName(name: String):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(graphName = Some(name)))
 
   /**
@@ -60,7 +60,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param node Node
     * @return
     */
-  def withNode(node: Node):DseGraphAttributesBuilder[T] =
+  def withNode(node: Node):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(node = Some(node)))
 
   /**
@@ -69,7 +69,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param readCL Consistency Level to use
     * @return
     */
-  def withReadConsistency(readCL: ConsistencyLevel):DseGraphAttributesBuilder[T] =
+  def withReadConsistency(readCL: ConsistencyLevel):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(readCL = Some(readCL)))
 
   /**
@@ -78,7 +78,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param subProtocol the sub-protocol to use
     * @return
     */
-  def withSubProtocol(subProtocol: String):DseGraphAttributesBuilder[T] =
+  def withSubProtocol(subProtocol: String):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(subProtocol = Some(subProtocol)))
 
   /**
@@ -87,7 +87,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param timeout the timeout to use
     * @return
     */
-  def withTimeout(timeout: Duration):DseGraphAttributesBuilder[T] =
+  def withTimeout(timeout: Duration):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(timeout = Some(timeout)))
 
   /**
@@ -96,7 +96,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param timestamp the timestamp to use
     * @return
     */
-  def withTimestamp(timestamp: Long):DseGraphAttributesBuilder[T] =
+  def withTimestamp(timestamp: Long):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(timestamp = Some(timestamp)))
 
   /**
@@ -105,7 +105,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param traversalSource the traversal source to use
     * @return
     */
-  def withTraversalSource(traversalSource: String):DseGraphAttributesBuilder[T] =
+  def withTraversalSource(traversalSource: String):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(traversalSource = Some(traversalSource)))
 
   /**
@@ -114,7 +114,7 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @param writeCL Consistency Level to use
     * @return
     */
-  def withWriteConsistency(writeCL: ConsistencyLevel):DseGraphAttributesBuilder[T] =
+  def withWriteConsistency(writeCL: ConsistencyLevel):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(writeCL = Some(writeCL)))
 
   /**
@@ -125,10 +125,10 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T]](attr: DseGraphAttri
     * @return
     */
   @deprecated("use withConsistencyLevel() instead, will be removed in future version")
-  def consistencyLevel(level: ConsistencyLevel):DseGraphAttributesBuilder[T] = withConsistencyLevel(level)
+  def consistencyLevel(level: ConsistencyLevel):DseGraphAttributesBuilder[T, B] = withConsistencyLevel(level)
 
-  def check(check: DseGraphCheck):DseGraphAttributesBuilder[T] =
+  def check(check: DseGraphCheck):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(graphChecks = check :: attr.graphChecks))
-  def check(check: GenericCheck):DseGraphAttributesBuilder[T] =
+  def check(check: GenericCheck):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }

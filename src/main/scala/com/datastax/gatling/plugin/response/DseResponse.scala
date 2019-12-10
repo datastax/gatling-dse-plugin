@@ -26,20 +26,20 @@ abstract class DseResponse {
   def schemaInAgreement(): Boolean = executionInfo.isSchemaInAgreement
 }
 
-class GraphResponse(graphResultSet: AsyncGraphResultSet, dseAttributes: DseGraphAttributes[_]) extends DseResponse with LazyLogging {
+class GraphResponse(graphResultSet: AsyncGraphResultSet, dseAttributes: DseGraphAttributes[_, _]) extends DseResponse with LazyLogging {
 
   override def executionInfo(): ExecutionInfo = graphResultSet.getExecutionInfo.asInstanceOf[ExecutionInfo]
 
   def getGraphResultSet: AsyncGraphResultSet = graphResultSet
 
-  def getDseAttributes: DseGraphAttributes[_] = dseAttributes
+  def getDseAttributes: DseGraphAttributes[_, _] = dseAttributes
 }
 
-class CqlResponse(cqlResultSet: AsyncResultSet, dseAttributes: DseCqlAttributes[_]) extends DseResponse with LazyLogging {
+class CqlResponse(cqlResultSet: AsyncResultSet, dseAttributes: DseCqlAttributes[_,_]) extends DseResponse with LazyLogging {
 
   override def executionInfo(): ExecutionInfo = cqlResultSet.getExecutionInfo
 
   def getCqlResultSet: AsyncResultSet = cqlResultSet
 
-  def getDseAttributes: DseCqlAttributes[_] = dseAttributes
+  def getDseAttributes: DseCqlAttributes[_,_] = dseAttributes
 }

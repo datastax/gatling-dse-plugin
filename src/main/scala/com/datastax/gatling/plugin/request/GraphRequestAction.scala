@@ -44,12 +44,12 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class GraphRequestAction[T <: GraphStatement[T]](val name: String,
+class GraphRequestAction[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B,T]](val name: String,
                          val next: Action,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val protocol: DseProtocol,
-                         val dseAttributes: DseGraphAttributes[T],
+                         val dseAttributes: DseGraphAttributes[T, B],
                          val metricsLogger: MetricsLogger,
                          val dseExecutorService: ExecutorService,
                          val gatlingTimingSource: GatlingTimingSource)
@@ -61,7 +61,7 @@ class GraphRequestAction[T <: GraphStatement[T]](val name: String,
     })
   }
 
-  private def buildStatement(builder:GraphStatementBuilderBase[_,T]):T = {
+  private def buildStatement(builder:B):T = {
 
     // global options
     dseAttributes.cl.foreach(builder.setConsistencyLevel)
@@ -80,11 +80,11 @@ class GraphRequestAction[T <: GraphStatement[T]](val name: String,
     builder.build
   }
 
-  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:GraphStatementBuilderBase[_,T]): Unit = {
+  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:B): Unit = {
 
     val stmt:T = buildStatement(builder)
     val responseHandler =
-      new GraphResponseHandler[T](
+      new GraphResponseHandler[T, B](
         next,
         session,
         system,

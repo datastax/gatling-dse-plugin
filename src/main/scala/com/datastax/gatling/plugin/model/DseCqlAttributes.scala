@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 import java.time.Duration
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
-import com.datastax.oss.driver.api.core.cql.Statement
+import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
 import com.datastax.gatling.plugin.response.{CqlResponse, DseResponse}
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.datastax.oss.driver.api.core.metadata.token.Token
@@ -40,9 +40,9 @@ import io.gatling.core.check.Check
   * @param cqlStatements    String version of the CQL statement that is sent
   *
   */
-case class DseCqlAttributes[T <: Statement[T]]
+case class DseCqlAttributes[T <: Statement[T], B <: StatementBuilder[B,T]]
   (tag: String,
-   statement: DseCqlStatement[T],
+   statement: DseCqlStatement[T, B],
    cqlChecks: List[Check[CqlResponse]] = List.empty,
    genericChecks: List[Check[DseResponse]] = List.empty,
    cqlStatements: Seq[String] = Seq.empty,

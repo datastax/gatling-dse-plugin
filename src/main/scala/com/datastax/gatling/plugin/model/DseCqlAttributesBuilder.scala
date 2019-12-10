@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 import java.time.Duration
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
-import com.datastax.oss.driver.api.core.cql.Statement
+import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
 import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
 import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
 import com.datastax.oss.driver.api.core.metadata.Node
@@ -22,13 +22,13 @@ import com.datastax.oss.driver.api.core.metadata.token.Token
   *
   * @param attr Addition Attributes
   */
-case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T]) {
+case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]](attr: DseCqlAttributes[T, B]) {
   /**
     * Builds to final action to run
     *
     * @return
     */
-  def build(): CqlRequestActionBuilder[T] = new CqlRequestActionBuilder(attr)
+  def build(): CqlRequestActionBuilder[T, B] = new CqlRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level
@@ -36,7 +36,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param level ConsistencyLevel
     * @return
     */
-  def withConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T] =
+  def withConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
@@ -44,7 +44,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     *
     * @return
     */
-  def withIdempotency():DseCqlAttributesBuilder[T] =
+  def withIdempotency():DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(idempotent = Some(true)))
 
   /**
@@ -52,7 +52,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param node Node
     * @return
     */
-  def withNode(node: Node):DseCqlAttributesBuilder[T] =
+  def withNode(node: Node):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(node = Some(node)))
 
   /**
@@ -60,7 +60,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     *
     * @return
     */
-  def withTracingEnabled():DseCqlAttributesBuilder[T] =
+  def withTracingEnabled():DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(enableTrace = Some(true)))
 
   /**
@@ -69,7 +69,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param pageSize CQL page size
     * @return
     */
-  def withPageSize(pageSize: Int):DseCqlAttributesBuilder[T] =
+  def withPageSize(pageSize: Int):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(pageSize = Some(pageSize)))
 
   /**
@@ -78,7 +78,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param pagingState CQL Paging state
     * @return
     */
-  def withPagingState(pagingState: ByteBuffer):DseCqlAttributesBuilder[T] =
+  def withPagingState(pagingState: ByteBuffer):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(pagingState = Some(pagingState)))
 
   /**
@@ -87,7 +87,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param queryTimestamp CQL query timestamp
     * @return
     */
-  def withQueryTimestamp(queryTimestamp: Long):DseCqlAttributesBuilder[T] =
+  def withQueryTimestamp(queryTimestamp: Long):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(queryTimestamp = Some(queryTimestamp)))
 
   /**
@@ -96,7 +96,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param routingKey the routing key to use
     * @return
     */
-  def withRoutingKey(routingKey: ByteBuffer):DseCqlAttributesBuilder[T] =
+  def withRoutingKey(routingKey: ByteBuffer):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(routingKey = Some(routingKey)))
 
   /**
@@ -105,7 +105,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param routingKeyspace the routing keyspace to set
     * @return
     */
-  def withRoutingKeyspace(routingKeyspace: String):DseCqlAttributesBuilder[T] =
+  def withRoutingKeyspace(routingKeyspace: String):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(routingKeyspace = Some(routingKeyspace)))
 
   /**
@@ -114,7 +114,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param routingToken the routing token to set
     * @return
     */
-  def withRoutingToken(routingToken: Token):DseCqlAttributesBuilder[T] =
+  def withRoutingToken(routingToken: Token):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(routingToken = Some(routingToken)))
 
   /**
@@ -123,7 +123,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param level ConsistencyLevel
     * @return
     */
-  def withSerialConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T] =
+  def withSerialConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(serialCl = Some(level)))
 
   /**
@@ -132,7 +132,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @param timeout the timeout to set
     * @return
     */
-  def withTimeout(timeout: Duration):DseCqlAttributesBuilder[T] =
+  def withTimeout(timeout: Duration):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(timeout = Some(timeout)))
 
   /**
@@ -142,7 +142,7 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @return
     */
   @deprecated("Replaced by withSerialConsistencyLevel")
-  def serialConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T] =
+  def serialConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
     withSerialConsistencyLevel(level)
 
   /**
@@ -153,12 +153,12 @@ case class DseCqlAttributesBuilder[T <: Statement[T]](attr: DseCqlAttributes[T])
     * @return
     */
   @deprecated("Replaced by withConsistencyLevel")
-  def consistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T] =
+  def consistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
     withConsistencyLevel(level)
 
-  def check(check: DseCqlCheck):DseCqlAttributesBuilder[T] =
+  def check(check: DseCqlCheck):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(cqlChecks = check :: attr.cqlChecks))
 
-  def check(check: GenericCheck):DseCqlAttributesBuilder[T] =
+  def check(check: GenericCheck):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }

@@ -9,8 +9,7 @@ package com.datastax.gatling.plugin.model
 import java.time.Duration
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
-import com.datastax.oss.driver.api.core.cql.Row
-import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement, GraphStatementBuilderBase}
+import com.datastax.dse.driver.api.core.graph.{GraphStatement, GraphStatementBuilderBase}
 import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
 import com.datastax.oss.driver.api.core.metadata.Node
 
@@ -24,22 +23,19 @@ import com.datastax.oss.driver.api.core.metadata.Node
   * @param cl                     Consistency Level to be used
   * @param graphChecks            Data-level checks to be run after response is returned
   * @param genericChecks          Low-level checks to be run after response is returned
-  * @param userOrRole             User or role to be used when proxy auth is enabled
-  * @param readTimeout            Read timeout to be used
   * @param idempotent             Set request to be idempotent i.e. whether it can be applied multiple times
-  * @param defaultTimestamp       Set default timestamp on request, overriding current system time
-  * @param  readCL                Consistency level to use for the read part of the query
-  * @param  writeCL               Consistency level to use for the write part of the query
-  * @param  graphName             Name of the graph to use if different from the one used when connecting
-  * @param  graphLanguage         Language used in the query
-  * @param  graphSource           Graph source to use if different from the one used when connecting
-  * @param  isSystemQuery         Whether the query is a system one and should be used without any graph name
-  * @param  graphInternalOptions  Query-specific options not available in the driver public API
-  * @param  graphTransformResults Function to use in order to transform a row into a Graph node
+  * @param node                   Set the node that should handle this query
+  * @param graphName              Name of the graph to use if different from the one used when connecting
+  * @param readCL                 Consistency level to use for the read part of the query
+  * @param subProtocol            Name of the graph protocol to use for encoding/decoding
+  * @param timeout                Timeout to use for this request
+  * @param timestamp              Timestamp to use for this request
+  * @param traversalSource        The traversal source for this request
+  * @param writeCL                Consistency level to use for the write part of the query
   */
-case class DseGraphAttributes[T <: GraphStatement[T]]
+case class DseGraphAttributes[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B,T]]
   (tag: String,
-   statement: DseGraphStatement[T],
+   statement: DseGraphStatement[T, B],
    graphChecks: List[DseGraphCheck] = List.empty,
    genericChecks: List[GenericCheck] = List.empty,
    /* General attributes */

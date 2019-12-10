@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
 import com.datastax.oss.driver.api.core.cql._
-import com.datastax.dse.driver.api.core.graph.{AsyncGraphResultSet, GraphResultSet, GraphStatement}
+import com.datastax.dse.driver.api.core.graph.{AsyncGraphResultSet, GraphResultSet, GraphStatement, GraphStatementBuilderBase}
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseGraphAttributes}
 import com.datastax.gatling.plugin.utils.{ResponseTime, ResponseTimeBuilder}
@@ -138,13 +138,13 @@ abstract class DseResponseHandler[S, RS, R <: DseResponse] extends StrictLogging
   }
 }
 
-class GraphResponseHandler[T <: GraphStatement[_]](val next: Action,
+class GraphResponseHandler[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B,T]](val next: Action,
                            val session: Session,
                            val system: ActorSystem,
                            val statsEngine: StatsEngine,
                            val responseTimeBuilder: ResponseTimeBuilder,
                            val stmt: T,
-                           val dseAttributes: DseGraphAttributes[T],
+                           val dseAttributes: DseGraphAttributes[T, B],
                            val metricsLogger: MetricsLogger)
   extends DseResponseHandler[T, AsyncGraphResultSet, GraphResponse] {
   override protected def tag: String = dseAttributes.tag
@@ -155,13 +155,13 @@ class GraphResponseHandler[T <: GraphStatement[_]](val next: Action,
   override protected def coordinator(rs: AsyncGraphResultSet): Node = rs.getExecutionInfo.getCoordinator
 }
 
-class CqlResponseHandler[T <: Statement[_]](val next: Action,
+class CqlResponseHandler[T <: Statement[T], B <: StatementBuilder[B,T]](val next: Action,
                          val session: Session,
                          val system: ActorSystem,
                          val statsEngine: StatsEngine,
                          val responseTimeBuilder: ResponseTimeBuilder,
                          val stmt: T,
-                         val dseAttributes: DseCqlAttributes[T],
+                         val dseAttributes: DseCqlAttributes[T, B],
                          val metricsLogger: MetricsLogger)
   extends DseResponseHandler[T, AsyncResultSet, CqlResponse] {
   override protected def tag: String = dseAttributes.tag

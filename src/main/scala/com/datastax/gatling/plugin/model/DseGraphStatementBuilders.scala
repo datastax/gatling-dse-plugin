@@ -6,7 +6,11 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.dse.driver.api.core.graph.{FluentGraphStatement, ScriptGraphStatement, ScriptGraphStatementBuilder}
+import com.datastax.dse.driver.api.core.graph.{
+  FluentGraphStatement => FluentS,
+  FluentGraphStatementBuilder => FluentB,
+  ScriptGraphStatement => ScriptS,
+  ScriptGraphStatementBuilder => ScriptB}
 import io.gatling.core.session.{Expression, Session}
 
 /**
@@ -22,7 +26,7 @@ case class DseGraphStatementBuilder(tag: String) {
     * @param strStatement Graph Query String
     * @return
     */
-  def executeGraph(strStatement: Expression[String]): DseGraphAttributesBuilder[ScriptGraphStatement] = {
+  def executeGraph(strStatement: Expression[String]): DseGraphAttributesBuilder[ScriptS, ScriptB] = {
     DseGraphAttributesBuilder(
       DseGraphAttributes(
         tag,
@@ -36,8 +40,8 @@ case class DseGraphStatementBuilder(tag: String) {
     * @param gStatement Simple Graph Statement
     * @return
     */
-  @deprecated("Replaced by executeGraph(ScriptGraphStatement)")
-  def executeGraphStatement(gStatement: ScriptGraphStatement): DseGraphParametrizedStatementBuilder =
+  @deprecated("Replaced by executeGraph(ScriptS)")
+  def executeGraphStatement(gStatement: ScriptS): DseGraphParametrizedStatementBuilder =
     executeGraph(gStatement)
 
   /**
@@ -47,8 +51,8 @@ case class DseGraphStatementBuilder(tag: String) {
     * @param gStatement Simple Graph Statement
     * @return
     */
-  def executeGraph(gStatement: ScriptGraphStatement):DseGraphParametrizedStatementBuilder = {
-    DseGraphParametrizedStatementBuilder(tag, new ScriptGraphStatementBuilder(gStatement))
+  def executeGraph(gStatement: ScriptS):DseGraphParametrizedStatementBuilder = {
+    DseGraphParametrizedStatementBuilder(tag, new ScriptB(gStatement))
   }
 
   /**
@@ -57,7 +61,7 @@ case class DseGraphStatementBuilder(tag: String) {
     * @param gStatement Graph Statement from a Fluent API builder
     * @return
     */
-  def executeGraphFluent(gStatement: FluentGraphStatement): DseGraphAttributesBuilder[FluentGraphStatement] = {
+  def executeGraphFluent(gStatement: FluentS): DseGraphAttributesBuilder[FluentS, FluentB] = {
     DseGraphAttributesBuilder(
       DseGraphAttributes(
         tag,
@@ -77,7 +81,7 @@ case class DseGraphStatementBuilder(tag: String) {
     * @param gLambda The lambda
     * @return
     */
-  def executeGraphFluent(gLambda: Session => FluentGraphStatement): DseGraphAttributesBuilder[FluentGraphStatement] = {
+  def executeGraphFluent(gLambda: Session => FluentS): DseGraphAttributesBuilder[FluentS, FluentB] = {
     DseGraphAttributesBuilder(
       DseGraphAttributes(
         tag,
@@ -91,7 +95,7 @@ case class DseGraphStatementBuilder(tag: String) {
     * @return
     */
   @deprecated("Replaced by executeGraphFluent{session => session(feederKey)}")
-  def executeGraphFeederTraversal(feederKey: String): DseGraphAttributesBuilder[FluentGraphStatement] = {
+  def executeGraphFeederTraversal(feederKey: String): DseGraphAttributesBuilder[FluentS, FluentB] = {
     DseGraphAttributesBuilder(
       DseGraphAttributes(
         tag,
@@ -105,7 +109,7 @@ case class DseGraphStatementBuilder(tag: String) {
   * @param tag        Query tag
   * @param builder Simple Graph Staetment
   */
-case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGraphStatementBuilder) {
+case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptB) {
 
   /**
     * Included for compatibility
@@ -114,7 +118,7 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @return
     */
   @deprecated("Replaced by withParams")
-  def withSetParams(paramNames: Array[String]): DseGraphAttributesBuilder[ScriptGraphStatement] =
+  def withSetParams(paramNames: Array[String]): DseGraphAttributesBuilder[ScriptS, ScriptB] =
     withParams(paramNames.toList)
 
   /**
@@ -123,7 +127,7 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @param paramNames List of strings to use
     * @return
     */
-  def withParams(paramNames: String*): DseGraphAttributesBuilder[ScriptGraphStatement] =
+  def withParams(paramNames: String*): DseGraphAttributesBuilder[ScriptS, ScriptB] =
     withParams(paramNames.toList)
 
   /**
@@ -132,7 +136,7 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @param paramNames List of strings to use
     * @return
     */
-  def withParams(paramNames: List[String]): DseGraphAttributesBuilder[ScriptGraphStatement] =
+  def withParams(paramNames: List[String]): DseGraphAttributesBuilder[ScriptS, ScriptB] =
     DseGraphAttributesBuilder(
       DseGraphAttributes(
         tag,
@@ -148,7 +152,7 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @return
     */
   @deprecated("Replaced with withParams")
-  def withSetParams(paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptGraphStatement] =
+  def withSetParams(paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptS, ScriptB] =
     withParams(paramNamesAndOverrides)
 
 
@@ -160,7 +164,7 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @return
     */
   @deprecated("Replaced with withParams")
-  def withParamOverrides(paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptGraphStatement] =
+  def withParamOverrides(paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptS, ScriptB] =
     withParams(paramNamesAndOverrides)
 
   /**
@@ -170,7 +174,7 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @param paramNamesAndOverrides a Map of Session parameter names to their GraphStatement parameter names
     * @return
     */
-  def withParams(paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptGraphStatement] = {
+  def withParams(paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptS, ScriptB] = {
     DseGraphAttributesBuilder(
       DseGraphAttributes(
         tag,
@@ -186,7 +190,8 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @return
     */
   @deprecated("Replaced by withRepeatedParams")
-  def withRepeatedSetParams(batchSize: Int, paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptGraphStatement] =
+  def withRepeatedSetParams(batchSize: Int,
+                            paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptS, ScriptB] =
     withRepeatedParams(batchSize, paramNamesAndOverrides)
 
   /**
@@ -197,7 +202,7 @@ case class DseGraphParametrizedStatementBuilder(tag: String, builder: ScriptGrap
     * @param paramNamesAndOverrides a Map of Session parameter names to their GraphStatement parameter names
     * @return
     */
-  def withRepeatedParams(batchSize: Int, paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptGraphStatement] = {
+  def withRepeatedParams(batchSize: Int, paramNamesAndOverrides: Map[String, String]): DseGraphAttributesBuilder[ScriptS, ScriptB] = {
     def repeatParameters(params: Map[String, String]): Map[String, String] = batchSize match {
       // Gatling has a weird behavior when feeding multiple values
       // Feeding 1 value gives non-suffixed variables whereas feeding more gives suffixed variables starting by the

@@ -45,12 +45,12 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to
   * other Gatling data writers, like the console reporter.
   */
-class CqlRequestAction[T <: Statement[T]](val name: String,
+class CqlRequestAction[T <: Statement[T], B <: StatementBuilder[B,T]](val name: String,
                        val next: Action,
                        val system: ActorSystem,
                        val statsEngine: StatsEngine,
                        val protocol: DseProtocol,
-                       val dseAttributes: DseCqlAttributes[T],
+                       val dseAttributes: DseCqlAttributes[T, B],
                        val metricsLogger: MetricsLogger,
                        val dseExecutorService: ExecutorService,
                        val gatlingTimingSource: GatlingTimingSource)
@@ -62,7 +62,7 @@ class CqlRequestAction[T <: Statement[T]](val name: String,
     })
   }
 
-  private def buildStatement(builder:StatementBuilder[_,T]):T = {
+  private def buildStatement(builder:B):T = {
 
     // global options
     dseAttributes.cl.foreach(builder.setConsistencyLevel)
@@ -89,11 +89,11 @@ class CqlRequestAction[T <: Statement[T]](val name: String,
     builder.build
   }
 
-  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:StatementBuilder[_,T]): Unit = {
+  private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:B): Unit = {
 
     val stmt:T = buildStatement(builder)
     val responseHandler =
-      new CqlResponseHandler[T](
+      new CqlResponseHandler[T, B](
         next,
         session,
         system,
