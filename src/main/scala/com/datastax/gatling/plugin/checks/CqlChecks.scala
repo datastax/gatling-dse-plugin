@@ -60,14 +60,14 @@ object CqlChecks {
       .toCheckBuilder
 
   val allRows =
-    new CqlResponseExtractor[Seq[Row]](
+    new CqlResponseExtractor[Iterator[Row]](
       "allRows",
-      r => ResultSetUtils.asyncResultSetToSeq(r.getCqlResultSet))
+      r => ResultSetUtils.asyncResultSetToIterator(r.getCqlResultSet))
       .toCheckBuilder
 
   val oneRow =
     new CqlResponseExtractor[Row](
       "oneRow",
-      r => ResultSetUtils.asyncResultSetToSeq(r.getCqlResultSet).head)
+      r => ResultSetUtils.asyncResultSetToIterator(r.getCqlResultSet).next)
       .toCheckBuilder
 }

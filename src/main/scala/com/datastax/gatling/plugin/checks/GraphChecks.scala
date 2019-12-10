@@ -62,43 +62,43 @@ object GraphChecks {
       .toCheckBuilder
 
   val allNodes =
-    new GraphResponseExtractor[Seq[GraphNode]](
+    new GraphResponseExtractor[Iterator[GraphNode]](
       "allNodes",
-      r => ResultSetUtils.asyncGraphResultSetToSeq(r.getGraphResultSet))
+      r => ResultSetUtils.asyncGraphResultSetToIterator(r.getGraphResultSet))
       .toCheckBuilder
 
   val oneNode =
     new GraphResponseExtractor[GraphNode](
       "oneNode",
-      r => ResultSetUtils.asyncGraphResultSetToSeq(r.getGraphResultSet).head)
+      r => ResultSetUtils.asyncGraphResultSetToIterator(r.getGraphResultSet).next)
       .toCheckBuilder
 
-  def edges(column: String):GraphCheckBuilder[Seq[Edge]] =
-    new GraphResponseExtractor[Seq[Edge]](
+  def edges(column: String):GraphCheckBuilder[Iterator[Edge]] =
+    new GraphResponseExtractor[Iterator[Edge]](
       "edges",
       r => GraphResultSetUtils.edges(r.getGraphResultSet,column))
       .toCheckBuilder
 
-  def vertexes(column: String):GraphCheckBuilder[Seq[Vertex]] =
-    new GraphResponseExtractor[Seq[Vertex]](
+  def vertexes(column: String):GraphCheckBuilder[Iterator[Vertex]] =
+    new GraphResponseExtractor[Iterator[Vertex]](
       "vertices",
       r => GraphResultSetUtils.vertexes(r.getGraphResultSet, column))
       .toCheckBuilder
 
-  def paths(column: String):GraphCheckBuilder[Seq[Path]] =
-    new GraphResponseExtractor[Seq[Path]](
+  def paths(column: String):GraphCheckBuilder[Iterator[Path]] =
+    new GraphResponseExtractor[Iterator[Path]](
       "paths",
       r => GraphResultSetUtils.paths(r.getGraphResultSet, column))
       .toCheckBuilder
 
-  def properties(column: String):GraphCheckBuilder[Seq[Property[_]]] =
-    new GraphResponseExtractor[Seq[Property[_]]](
+  def properties(column: String):GraphCheckBuilder[Iterator[Property[_]]] =
+    new GraphResponseExtractor[Iterator[Property[_]]](
       "properties",
       r => GraphResultSetUtils.properties(r.getGraphResultSet, column))
       .toCheckBuilder
 
-  def vertexProperties(column: String):GraphCheckBuilder[Seq[VertexProperty[_]]] =
-    new GraphResponseExtractor[Seq[VertexProperty[_]]](
+  def vertexProperties(column: String):GraphCheckBuilder[Iterator[VertexProperty[_]]] =
+    new GraphResponseExtractor[Iterator[VertexProperty[_]]](
       "vertexProperties",
       r => GraphResultSetUtils.vertexProperties(r.getGraphResultSet, column))
       .toCheckBuilder
