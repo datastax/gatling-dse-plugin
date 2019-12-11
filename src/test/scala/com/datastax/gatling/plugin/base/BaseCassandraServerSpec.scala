@@ -2,7 +2,7 @@ package com.datastax.gatling.plugin.base
 
 import java.nio.file.Files
 
-import com.datastax.driver.dse.DseSession
+import com.datastax.dse.driver.api.core.DseSession
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 
 /**
