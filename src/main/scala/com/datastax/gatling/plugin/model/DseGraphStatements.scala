@@ -107,7 +107,7 @@ case class GraphBoundStatement(builder: ScriptB, sessionKeys: Map[String, String
       sessionKeys foreach {
         _ match {
           case (k, v) => builder.setQueryParam(v, gatlingSession(k).as[Object])
-          case _ => throw new RuntimeException()
+          case _ => throw new RuntimeException(s"Observed ${_} instead of expected key-value pair")
         }
       }
       builder
