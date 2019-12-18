@@ -8,16 +8,12 @@ package com.datastax.gatling.plugin.checks
 
 import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.response.GraphResponse
-import com.datastax.gatling.plugin.utils.{GraphResultSetUtils, ResultSetUtils}
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.check._
 import io.gatling.core.session.{Expression, ExpressionSuccessWrapper, Session}
-import org.apache.tinkerpop.gremlin.process.traversal.Path
-import org.apache.tinkerpop.gremlin.structure.{Edge, Property, Vertex, VertexProperty}
 
 import scala.collection.mutable
-
 
 /**
   * This class serves as model for the Graph-specific checks.
@@ -55,51 +51,9 @@ private class GraphResponseExtractor[X](val name: String,
 }
 
 object GraphChecks {
-  val graphResultSet =
+  val resultSet:GraphCheckBuilder[AsyncGraphResultSet] =
     new GraphResponseExtractor[AsyncGraphResultSet](
-      "graphResultSet",
-      r => r.getGraphResultSet)
-      .toCheckBuilder
-
-  val allNodes =
-    new GraphResponseExtractor[Iterator[GraphNode]](
-      "allNodes",
-      r => ResultSetUtils.asyncGraphResultSetToIterator(r.getGraphResultSet))
-      .toCheckBuilder
-
-  val oneNode =
-    new GraphResponseExtractor[GraphNode](
-      "oneNode",
-      r => ResultSetUtils.asyncGraphResultSetToIterator(r.getGraphResultSet).next)
-      .toCheckBuilder
-
-  def edges(column: String):GraphCheckBuilder[Iterator[Edge]] =
-    new GraphResponseExtractor[Iterator[Edge]](
-      "edges",
-      r => GraphResultSetUtils.edges(r.getGraphResultSet,column))
-      .toCheckBuilder
-
-  def vertexes(column: String):GraphCheckBuilder[Iterator[Vertex]] =
-    new GraphResponseExtractor[Iterator[Vertex]](
-      "vertices",
-      r => GraphResultSetUtils.vertexes(r.getGraphResultSet, column))
-      .toCheckBuilder
-
-  def paths(column: String):GraphCheckBuilder[Iterator[Path]] =
-    new GraphResponseExtractor[Iterator[Path]](
-      "paths",
-      r => GraphResultSetUtils.paths(r.getGraphResultSet, column))
-      .toCheckBuilder
-
-  def properties(column: String):GraphCheckBuilder[Iterator[Property[_]]] =
-    new GraphResponseExtractor[Iterator[Property[_]]](
-      "properties",
-      r => GraphResultSetUtils.properties(r.getGraphResultSet, column))
-      .toCheckBuilder
-
-  def vertexProperties(column: String):GraphCheckBuilder[Iterator[VertexProperty[_]]] =
-    new GraphResponseExtractor[Iterator[VertexProperty[_]]](
-      "vertexProperties",
-      r => GraphResultSetUtils.vertexProperties(r.getGraphResultSet, column))
-      .toCheckBuilder
+    "graphResultSet",
+    r => r.resultSet)
+    .toCheckBuilder
 }

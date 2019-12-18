@@ -9,12 +9,10 @@ package com.datastax.gatling.plugin.model
 import java.time.Duration
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
-import com.datastax.oss.driver.api.core.cql.Row
-import com.datastax.dse.driver.api.core.graph.{GraphNode, GraphStatement, GraphStatementBuilderBase}
-import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
+import com.datastax.dse.driver.api.core.graph.{GraphStatement, GraphStatementBuilderBase}
+import com.datastax.gatling.plugin.checks.DseGraphCheck
 import com.datastax.gatling.plugin.request.GraphRequestActionBuilder
 import com.datastax.oss.driver.api.core.metadata.Node
-import com.datastax.oss.driver.shaded.guava.common.base.Function
 
 /**
   * Request Builder for Graph Requests
@@ -129,6 +127,4 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T], B <: GraphStatement
 
   def check(check: DseGraphCheck):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(graphChecks = check :: attr.graphChecks))
-  def check(check: GenericCheck):DseGraphAttributesBuilder[T, B] =
-    DseGraphAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }
