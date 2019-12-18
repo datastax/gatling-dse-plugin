@@ -10,7 +10,7 @@ import java.time.Duration
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.dse.driver.api.core.graph.{GraphStatement, GraphStatementBuilderBase}
-import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
+import com.datastax.gatling.plugin.checks.DseGraphCheck
 import com.datastax.oss.driver.api.core.metadata.Node
 
 /**
@@ -22,7 +22,6 @@ import com.datastax.oss.driver.api.core.metadata.Node
   * @param statement              Graph Statement to be sent to Cluster
   * @param cl                     Consistency Level to be used
   * @param graphChecks            Data-level checks to be run after response is returned
-  * @param genericChecks          Low-level checks to be run after response is returned
   * @param idempotent             Set request to be idempotent i.e. whether it can be applied multiple times
   * @param node                   Set the node that should handle this query
   * @param graphName              Name of the graph to use if different from the one used when connecting
@@ -37,7 +36,6 @@ case class DseGraphAttributes[T <: GraphStatement[T], B <: GraphStatementBuilder
   (tag: String,
    statement: DseGraphStatement[T, B],
    graphChecks: List[DseGraphCheck] = List.empty,
-   genericChecks: List[GenericCheck] = List.empty,
    /* General attributes */
    cl: Option[ConsistencyLevel] = None,
    idempotent: Option[Boolean] = None,

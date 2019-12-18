@@ -9,12 +9,11 @@ package com.datastax.gatling.plugin.model
 import java.nio.ByteBuffer
 import java.time.Duration
 
+import com.datastax.gatling.plugin.checks.DseCqlCheck
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
-import com.datastax.gatling.plugin.response.{CqlResponse, DseResponse}
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.datastax.oss.driver.api.core.metadata.token.Token
-import io.gatling.core.check.Check
 
 /**
   * CQL Query Attributes to be applied to the current query
@@ -25,7 +24,6 @@ import io.gatling.core.check.Check
   * @param statement        CQL Statement to be sent to Cluster
   * @param cl               Consistency Level to be used
   * @param cqlChecks        Data-level checks to be run after response is returned
-  * @param genericChecks    Low-level checks to be run after response is returned
   * @param idempotent       Set request to be idempotent i.e. whether it can be applied multiple times
   * @param node             Set the node that should handle this query
   * @param customPayload    Custom payload for this request
@@ -43,8 +41,7 @@ import io.gatling.core.check.Check
 case class DseCqlAttributes[T <: Statement[T], B <: StatementBuilder[B,T]]
   (tag: String,
    statement: DseCqlStatement[T, B],
-   cqlChecks: List[Check[CqlResponse]] = List.empty,
-   genericChecks: List[Check[DseResponse]] = List.empty,
+   cqlChecks: List[DseCqlCheck] = List.empty,
    cqlStatements: Seq[String] = Seq.empty,
     /* General attributes */
    cl: Option[ConsistencyLevel] = None,

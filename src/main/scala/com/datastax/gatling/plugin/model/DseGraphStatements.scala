@@ -104,10 +104,10 @@ case class GraphBoundStatement(builder: ScriptB, sessionKeys: Map[String, String
 
   def buildFromSession(gatlingSession: Session): Validation[ScriptB] = {
     Try {
-      sessionKeys foreach {
-        _ match {
+      sessionKeys foreach { k =>
+        k match {
           case (k, v) => builder.setQueryParam(v, gatlingSession(k).as[Object])
-          case _ => throw new RuntimeException(s"Observed ${_} instead of expected key-value pair")
+          case _ => throw new RuntimeException(s"Observed ${k} instead of expected key-value pair")
         }
       }
       builder

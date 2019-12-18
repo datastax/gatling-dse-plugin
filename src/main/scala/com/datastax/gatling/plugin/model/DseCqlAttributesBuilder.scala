@@ -11,7 +11,7 @@ import java.time.Duration
 
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
-import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
+import com.datastax.gatling.plugin.checks.DseCqlCheck
 import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.datastax.oss.driver.api.core.metadata.token.Token
@@ -158,7 +158,4 @@ case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]
 
   def check(check: DseCqlCheck):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(cqlChecks = check :: attr.cqlChecks))
-
-  def check(check: GenericCheck):DseCqlAttributesBuilder[T, B] =
-    DseCqlAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
 }
