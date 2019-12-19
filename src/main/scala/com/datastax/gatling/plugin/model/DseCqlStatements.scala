@@ -138,16 +138,13 @@ case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
                            sessionKeys: Seq[String]): BoundS = {
     val params = cqlTypes.getParamsList(preparedStatement)
     val completedBuilder =
-      sessionKeys.foldLeft((0,new BoundB(template))) {
-        (acc, gatlingSessionKey) =>
-          acc match {
-            case (cnt, builder) =>
-              (cnt + 1, cqlTypes.bindParamByOrder(gatlingSession, builder, params(cnt), gatlingSessionKey, cnt))
+      sessionKeys.zip(Iterable.range(0,sessionKeys.size)).foldLeft(new BoundB(template)) {
+        (builder, kv) =>
+          kv match {
+            case (sessionKey, cnt) => cqlTypes.bindParamByOrder(gatlingSession, builder, params(cnt), sessionKey, cnt)
           }
-      }
-    completedBuilder match {
-      case (_, builder) => builder.build()
-    }
+        }
+    completedBuilder.build()
   }
 }
 
@@ -178,7 +175,6 @@ case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil, stateme
     val queryParams: Map[String, Int] = cqlTypes.getParamsMap(statement)
     val completedBuilder =
       queryParams.foldLeft(new BoundB(statement.bind())) {
-
         (builder, kv) =>
           kv match {
             case (gatlingSessionKey, valType) =>
