@@ -14,7 +14,7 @@ libraryDependencies += "io.gatling.highcharts"        % "gatling-charts-highchar
 libraryDependencies += "org.fusesource"               %  "sigar"                    % "1.6.4"        % Test
 libraryDependencies += "org.scalatest"                %% "scalatest"                % "3.0.5"        % Test
 libraryDependencies += "org.easymock"                 %  "easymock"                 % "3.5"          % Test
-libraryDependencies += "org.cassandraunit"            %  "cassandra-unit"           % "3.3.0.2"      % Test
+libraryDependencies += "org.cassandraunit"            %  "cassandra-unit"           % "4.2.2.0-SNAPSHOT"      % Test
 libraryDependencies += "org.pegdown"                  %  "pegdown"                  % "1.6.0"        % Test
 libraryDependencies += "com.typesafe.akka"            %% "akka-testkit"             % "2.5.11"       % Test
 
