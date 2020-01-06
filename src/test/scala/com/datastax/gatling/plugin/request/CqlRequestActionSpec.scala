@@ -44,7 +44,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseCqlAttributes[SimpleS,SimpleB]): CqlRequestAction[SimpleS,SimpleB = {
+  def getTarget(dseAttributes: DseCqlAttributes[SimpleS,SimpleB]): CqlRequestAction[SimpleS,SimpleB] = {
     new CqlRequestAction(
       "sample-dse-request",
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),

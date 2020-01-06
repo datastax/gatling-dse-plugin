@@ -3,12 +3,16 @@ package com.datastax.gatling.plugin.utils
 import java.math.BigInteger
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import java.time.{Instant, LocalDate}
+import java.util.Optional
 
-import com.datastax.driver.core.utils.UUIDs
-import com.datastax.driver.core.{DataType, _}
-import com.datastax.driver.dse.geometry._
+import com.datastax.dse.driver.api.core.data.geometry._
 import com.datastax.gatling.plugin.base.BaseCassandraServerSpec
 import com.datastax.gatling.plugin.exceptions.CqlTypeException
+import com.datastax.oss.driver.api.core.`type`.{DataTypes, UserDefinedType}
+import com.datastax.oss.driver.api.core.cql.BoundStatement
+import com.datastax.oss.driver.api.core.data.{TupleValue, UdtValue}
+import com.datastax.oss.driver.api.core.uuid.Uuids
 import com.github.nscala_time.time.Imports.DateTime
 import io.gatling.core.session.Session
 
@@ -44,7 +48,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     "inetStr" -> "127.0.0.1",
     "inet" -> InetAddress.getByName("127.0.0.1"),
 
-    "localDate" -> LocalDate.fromMillisSinceEpoch(1483299340813L),
+    "localDate" -> LocalDate.from(Instant.ofEpochMilli(1483299340813L)),
     "stringDate" -> "2016-10-05",
 
     "set" -> Set(1),
@@ -68,12 +72,13 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     "javaNumber" -> 12.asInstanceOf[Number],
 
     "javaDate" -> new java.util.Date(),
+    "javaInstant" -> Instant.now(),
     "isoDateString" -> "2008-03-01T13:00:00Z",
     "dateString" -> "2016-10-05",
 
-    "uuid" -> UUIDs.random(),
+    "uuid" -> Uuids.random(),
     "uuidString" -> "252a3806-b8be-42d3-929d-4cbb380a433e",
-    "timeUuid" -> UUIDs.timeBased(),
+    "timeUuid" -> Uuids.timeBased(),
 
     "byte" -> 12.toByte,
     "short" -> 12.toShort,
@@ -88,9 +93,9 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
     "null_type" -> null,
     
-    "point_type" -> new Point(1.0, 1.0),
-    "linestring_type" -> new LineString(new Point(1.0, 1.0), new Point(2.0, 2.0)),
-    "polygon_type" -> new Polygon(new Point(1.0, 1.0), new Point(2.0, 2.0), new Point(3.0, 3.0), new Point(4.0, 4.0))
+    "point_type" -> Point.fromCoordinates(1.0, 1.0),
+    "linestring_type" -> LineString.fromPoints(Point.fromCoordinates(1.0, 1.0), Point.fromCoordinates(2.0, 2.0)),
+    "polygon_type" -> Polygon.fromPoints(Point.fromCoordinates(1.0, 1.0), Point.fromCoordinates(2.0, 2.0), Point.fromCoordinates(3.0, 3.0), Point.fromCoordinates(4.0, 4.0))
   )
 
   val defaultGatlingSession: Session = gatlingSession.setAll(defaultSessionVars)
@@ -108,7 +113,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val preparedStatement = dseSession.prepare(s"SELECT * FROM $keyspace.$table where id = ?")
         val paramList = CqlPreparedStatementUtil.getParamsList(preparedStatement)
 
-        paramList should contain(DataType.Name.INT)
+        paramList should contain(DataTypes.INT)
       }
 
     }
@@ -120,7 +125,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val preparedStatement = dseSession.prepare(s"SELECT * FROM $keyspace.$table where id = :id")
         val paramsMap = CqlPreparedStatementUtil.getParamsMap(preparedStatement)
 
-        paramsMap("id") shouldBe DataType.Name.INT
+        paramsMap("id") shouldBe DataTypes.INT
       }
 
     }
@@ -387,28 +392,28 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     describe("asDate") {
 
       it("should accept a date string") {
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "stringDate") shouldBe a[LocalDate]
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "stringDate").getDay.equals(5)
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "stringDate") shouldBe a[LocalDate]
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "stringDate").getDayOfMonth.equals(5)
       }
 
       it("should accept a long") {
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "long") shouldBe a[LocalDate]
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "long").getDay.equals(1)
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "long") shouldBe a[LocalDate]
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "long").getDayOfMonth.equals(1)
       }
 
       it("should accept an int") {
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "int") shouldBe a[LocalDate]
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "int").getDay.equals(13)
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "int") shouldBe a[LocalDate]
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "int").getDayOfMonth.equals(13)
       }
 
       it("should accept an native localDate") {
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "localDate") shouldBe a[LocalDate]
-        CqlPreparedStatementUtil.asDate(defaultGatlingSession, "localDate").getDay.equals(1)
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "localDate") shouldBe a[LocalDate]
+        CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "localDate").getDayOfMonth.equals(1)
       }
 
       it("should not accept a float and produce a CqlTypeException") {
         intercept[CqlTypeException] {
-          CqlPreparedStatementUtil.asDate(defaultGatlingSession, "float") shouldBe a[LocalDate]
+          CqlPreparedStatementUtil.asLocalDate(defaultGatlingSession, "float") shouldBe a[LocalDate]
         }
       }
 
@@ -418,83 +423,78 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     describe("asSet") {
 
       it("should accept a scala set") {
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "set") shouldBe a[java.util.Set[_]]
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "set") shouldBe
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "set", classOf[Int]) shouldBe a[java.util.Set[_]]
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "set", classOf[Int]) shouldBe
             defaultSessionVars("set").asInstanceOf[Set[Int]].asJava
       }
 
       it("should accept a java set") {
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "setJava") shouldBe a[java.util.Set[_]]
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "setJava") shouldBe
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "setJava", classOf[Int]) shouldBe a[java.util.Set[_]]
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "setJava", classOf[Int]) shouldBe
             defaultSessionVars("set").asInstanceOf[Set[Int]].asJava
       }
 
       it("should accept a scala seq of ints") {
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seq") shouldBe a[java.util.Set[_]]
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seq") shouldBe
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seq", classOf[Int]) shouldBe a[java.util.Set[_]]
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seq", classOf[Int]) shouldBe
             defaultSessionVars("set").asInstanceOf[Set[Int]].asJava
       }
 
       it("should accept a scala seq of strings") {
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seqString") shouldBe a[java.util.Set[_]]
-        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seqString") shouldBe
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seqString", classOf[String]) shouldBe a[java.util.Set[_]]
+        CqlPreparedStatementUtil.asSet(defaultGatlingSession, "seqString", classOf[String]) shouldBe
             defaultSessionVars("setString").asInstanceOf[Set[String]].asJava
       }
 
       it("should not accept a float and produce a CqlTypeException") {
         intercept[CqlTypeException] {
-          CqlPreparedStatementUtil.asSet(defaultGatlingSession, "float") shouldBe a[java.util.Set[_]]
+          CqlPreparedStatementUtil.asSet(defaultGatlingSession, "float", classOf[Float]) shouldBe a[java.util.Set[_]]
         }
       }
-
     }
-
 
     describe("asList") {
 
       it("should accept a scala set") {
-        CqlPreparedStatementUtil.asList(defaultGatlingSession, "list") shouldBe a[java.util.List[_]]
-        CqlPreparedStatementUtil.asList(defaultGatlingSession, "list") shouldBe
+        CqlPreparedStatementUtil.asList(defaultGatlingSession, "list", classOf[Int]) shouldBe a[java.util.List[_]]
+        CqlPreparedStatementUtil.asList(defaultGatlingSession, "list", classOf[Int]) shouldBe
             defaultSessionVars("list").asInstanceOf[List[Int]].asJava
       }
 
       it("should accept a java set") {
-        CqlPreparedStatementUtil.asList(defaultGatlingSession, "listJava") shouldBe a[java.util.List[_]]
+        CqlPreparedStatementUtil.asList(defaultGatlingSession, "listJava", classOf[Int]) shouldBe a[java.util.List[_]]
       }
 
       it("should accept a scala seq") {
-        CqlPreparedStatementUtil.asList(defaultGatlingSession, "seq") shouldBe a[java.util.List[_]]
-        CqlPreparedStatementUtil.asList(defaultGatlingSession, "seq") shouldBe
+        CqlPreparedStatementUtil.asList(defaultGatlingSession, "seq", classOf[Int]) shouldBe a[java.util.List[_]]
+        CqlPreparedStatementUtil.asList(defaultGatlingSession, "seq", classOf[Int]) shouldBe
             defaultSessionVars("list").asInstanceOf[List[Int]].asJava
       }
 
       it("should not accept a float and produce a CqlTypeException") {
         intercept[CqlTypeException] {
-          CqlPreparedStatementUtil.asList(defaultGatlingSession, "float") shouldBe a[java.util.List[_]]
+          CqlPreparedStatementUtil.asList(defaultGatlingSession, "float", classOf[Float]) shouldBe a[java.util.List[_]]
         }
       }
-
     }
-
 
     describe("asMap") {
 
-      it("should accept a scala set") {
-        CqlPreparedStatementUtil.asMap(defaultGatlingSession, "map") shouldBe a[java.util.Map[_, _]]
-        CqlPreparedStatementUtil.asMap(defaultGatlingSession, "map") shouldBe
+      it("should accept a scala map") {
+        CqlPreparedStatementUtil.asMap(defaultGatlingSession, "map", classOf[Int], classOf[Int]) shouldBe a[java.util.Map[_,_]]
+        CqlPreparedStatementUtil.asMap(defaultGatlingSession, "map", classOf[Int], classOf[Int]) shouldBe
             defaultSessionVars("map").asInstanceOf[Map[Int, Int]].asJava
       }
 
-      it("should accept a java set") {
-        CqlPreparedStatementUtil.asMap(defaultGatlingSession, "mapJava") shouldBe a[java.util.Map[_, _]]
+      it("should accept a java map") {
+        CqlPreparedStatementUtil.asMap(defaultGatlingSession, "mapJava", classOf[Int], classOf[Int]) shouldBe a[java.util.Map[_,_]]
       }
 
       it("should not accept a float and produce a CqlTypeException") {
         intercept[CqlTypeException] {
-          CqlPreparedStatementUtil.asMap(defaultGatlingSession, "float").get(1) shouldBe 1
+          CqlPreparedStatementUtil.asMap(defaultGatlingSession, "float", classOf[Int], classOf[Int]).get(1) shouldBe 1
         }
       }
-
     }
 
     describe("asInet") {
@@ -707,32 +707,32 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     describe("asTimestamp") {
 
       it("should accept an epoch long") {
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "epoch") shouldBe a[java.util.Date]
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "epoch") shouldBe
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "epoch") shouldBe a[Instant]
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "epoch") shouldBe
             new java.util.Date(defaultSessionVars("epoch").asInstanceOf[Long])
       }
 
-      it("should accept a java Date") {
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "javaDate") shouldBe a[java.util.Date]
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "javaDate") shouldBe
-            defaultSessionVars("javaDate").asInstanceOf[java.util.Date]
+      it("should accept a java Instant") {
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "javaInstant") shouldBe a[Instant]
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "javaInstant") shouldBe
+            defaultSessionVars("javaInstant").asInstanceOf[Instant]
       }
 
       it("should accept a date string") {
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "dateString") shouldBe a[java.util.Date]
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "dateString") shouldBe
-            DateTime.parse(defaultSessionVars("dateString").asInstanceOf[String]).toDate
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "dateString") shouldBe a[Instant]
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "dateString") shouldBe
+            DateTime.parse(defaultSessionVars("dateString").asInstanceOf[String]).toInstant
       }
 
       it("should accept a isoDateString string") {
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "isoDateString") shouldBe a[java.util.Date]
-        CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "isoDateString") shouldBe
-            DateTime.parse(defaultSessionVars("isoDateString").asInstanceOf[String]).toDate
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "isoDateString") shouldBe a[Instant]
+        CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "isoDateString") shouldBe
+            DateTime.parse(defaultSessionVars("isoDateString").asInstanceOf[String]).toInstant
       }
 
       it("should not accept a float and produce a CqlTypeException") {
         intercept[CqlTypeException] {
-          CqlPreparedStatementUtil.asTimestamp(defaultGatlingSession, "float") shouldBe a[java.util.Date]
+          CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "float") shouldBe a[Instant]
         }
       }
 
@@ -770,9 +770,10 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
       createType(keyspace, typeName, "firstname text, lastname text")
       createTable(keyspace, table, "id int, name frozen<fullname>, PRIMARY KEY(id)")
 
-      val addressType = dseSession.getCluster.getMetadata.getKeyspace(keyspace).getUserType(typeName)
+      val addressType:Optional[UserDefinedType] = dseSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType(typeName))
+      addressType should not be Optional.empty
 
-      val insertFullName = addressType.newValue()
+      val insertFullName = addressType.get.newValue()
           .setString("firstname", "John")
           .setString("lastname", "Smith")
 
@@ -781,23 +782,19 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
       val udtSession: Session = gatlingSession.setAll(newSessionVars)
 
       it("should accept a UDTValue") {
-        CqlPreparedStatementUtil.asUdt(udtSession, "fullname") shouldBe a[UDTValue]
+        CqlPreparedStatementUtil.asUdt(udtSession, "fullname") shouldBe a[UdtValue]
       }
 
       it("should not accept a float and produce a CqlTypeException") {
         intercept[CqlTypeException] {
-          CqlPreparedStatementUtil.asUdt(udtSession, "invalid") shouldBe a[UDTValue]
+          CqlPreparedStatementUtil.asUdt(udtSession, "invalid") shouldBe a[UdtValue]
         }
       }
-
     }
 
     describe("asTuple") {
 
-      val table = "tuple_test"
-      createTable(keyspace, table, "id int, tuple_type tuple<timestamp,varchar>, PRIMARY KEY (id)")
-
-      val tupleType = dseSession.getCluster.getMetadata.newTupleType(DataType.varchar(), DataType.varchar())
+      val tupleType = DataTypes.tupleOf(DataTypes.TEXT, DataTypes.TEXT)
       val insertTuple = tupleType.newValue("test", "test2")
       val newSessionVars = Map("tuple_type" -> insertTuple, "invalid" -> "string")
       val tupleSession: Session = gatlingSession.setAll(newSessionVars)
@@ -811,14 +808,10 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
           CqlPreparedStatementUtil.asTuple(tupleSession, "invalid") shouldBe a[TupleValue]
         }
       }
-
     }
-
   }
 
-
   describe("boundStatementFunctions") {
-
 
     val typeName = "fullname2"
     createType(keyspace, typeName, "firstname text, lastname text")
@@ -843,7 +836,6 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
            |timeuuid_type,
            |int_type,
            |text_type,
-           |varchar_type,
            |ascii_type,
            |float_type,
            |double_type,
@@ -866,168 +858,168 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
            |null_type,
            |none_type)
            |VALUES
-           |(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""".stripMargin
+           |(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""".stripMargin
 
       val boundStatementKeys = dseSession.prepare(preparedStatementInsert).bind()
 
       it("should bind with a UUID") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.UUID, "uuid", 0)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.UUID.getProtocolCode, "uuid", 0)
         result shouldBe a[BoundStatement]
         result.isSet(0) shouldBe true
       }
 
       it("should bind with a timeUuid") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TIMEUUID, "timeUuid", 1)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TIMEUUID.getProtocolCode, "timeUuid", 1)
         result shouldBe a[BoundStatement]
         result.isSet(1) shouldBe true
       }
 
       it("should bind with a int") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.INT, "int", 2)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.INT.getProtocolCode, "int", 2)
         result shouldBe a[BoundStatement]
         result.isSet(2) shouldBe true
       }
 
       it("should bind with a text") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TEXT, "string", 3)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TEXT.getProtocolCode, "string", 3)
         result shouldBe a[BoundStatement]
         result.isSet(3) shouldBe true
       }
 
-      it("should bind with a varchar") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.VARCHAR, "string", 4)
+      it("should bind with a ascii") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.ASCII.getProtocolCode, "string", 4)
         result shouldBe a[BoundStatement]
         result.isSet(4) shouldBe true
       }
 
-      it("should bind with a ascii") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.ASCII, "string", 5)
+      it("should bind with a float") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.FLOAT.getProtocolCode, "float", 5)
         result shouldBe a[BoundStatement]
         result.isSet(5) shouldBe true
       }
 
-      it("should bind with a float") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.FLOAT, "float", 6)
+      it("should bind with a double") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.DOUBLE.getProtocolCode, "double", 6)
         result shouldBe a[BoundStatement]
         result.isSet(6) shouldBe true
       }
 
-      it("should bind with a double") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.DOUBLE, "double", 7)
+      it("should bind with a decimal") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.DECIMAL.getProtocolCode, "double", 7)
         result shouldBe a[BoundStatement]
         result.isSet(7) shouldBe true
       }
 
-      it("should bind with a decimal") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.DECIMAL, "double", 8)
+      it("should bind with a boolean") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.BOOLEAN.getProtocolCode, "boolean", 8)
         result shouldBe a[BoundStatement]
         result.isSet(8) shouldBe true
       }
 
-      it("should bind with a boolean") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.BOOLEAN, "boolean", 9)
+      it("should bind with a inetAddress") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.INET.getProtocolCode, "inetStr", 9)
         result shouldBe a[BoundStatement]
         result.isSet(9) shouldBe true
       }
 
-      it("should bind with a inetAddress") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.INET, "inetStr", 10)
+      it("should bind with a timestamp") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TIMESTAMP.getProtocolCode, "epoch", 10)
         result shouldBe a[BoundStatement]
         result.isSet(10) shouldBe true
       }
 
-      it("should bind with a timestamp") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TIMESTAMP, "epoch", 11)
+      it("should bind with a bigInt") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.BIGINT.getProtocolCode, "bigInteger", 11)
         result shouldBe a[BoundStatement]
         result.isSet(11) shouldBe true
       }
 
-      it("should bind with a bigInt") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.BIGINT, "bigInteger", 12)
+      it("should bind with a blob_type") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.BLOB.getProtocolCode, "byteArray", 12)
         result shouldBe a[BoundStatement]
         result.isSet(12) shouldBe true
       }
 
-      it("should bind with a blob_type") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.BLOB, "byteArray", 13)
+      it("should bind with a varint") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.VARINT.getProtocolCode, "int", 13)
         result shouldBe a[BoundStatement]
         result.isSet(13) shouldBe true
       }
 
-      it("should bind with a varint") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.VARINT, "int", 14)
+      it("should bind with a list") {
+        val protocolCode = DataTypes.listOf(DataTypes.INT).getProtocolCode
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, protocolCode, "list", 14)
         result shouldBe a[BoundStatement]
         result.isSet(14) shouldBe true
       }
 
-      it("should bind with a list") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.LIST, "list", 15)
+      it("should bind with a set") {
+        val protocolCode = DataTypes.setOf(DataTypes.INT).getProtocolCode
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, protocolCode, "set", 15)
         result shouldBe a[BoundStatement]
         result.isSet(15) shouldBe true
       }
 
-      it("should bind with a set") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.SET, "set", 16)
+      it("should bind with a map") {
+        val protocolCode = DataTypes.mapOf(DataTypes.INT, DataTypes.INT).getProtocolCode
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, protocolCode, "map", 16)
         result shouldBe a[BoundStatement]
         result.isSet(16) shouldBe true
       }
 
-      it("should bind with a map") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.MAP, "map", 17)
+      it("should bind with a date") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.DATE.getProtocolCode, "epoch", 17)
         result shouldBe a[BoundStatement]
         result.isSet(17) shouldBe true
       }
 
-      it("should bind with a date") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.DATE, "epoch", 18)
+      it("should bind with a smallInt") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.SMALLINT.getProtocolCode, "int", 18)
         result shouldBe a[BoundStatement]
         result.isSet(18) shouldBe true
       }
 
-      it("should bind with a smallInt") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.SMALLINT, "int", 19)
+      it("should bind with a tinyint") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TINYINT.getProtocolCode, "int", 19)
         result shouldBe a[BoundStatement]
         result.isSet(19) shouldBe true
       }
 
-      it("should bind with a tinyint") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TINYINT, "int", 20)
+      it("should bind with a time") {
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TIME.getProtocolCode, "epoch", 20)
         result shouldBe a[BoundStatement]
         result.isSet(20) shouldBe true
       }
 
-      it("should bind with a time") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TIME, "epoch", 21)
-        result shouldBe a[BoundStatement]
-        result.isSet(21) shouldBe true
-      }
-
       it("should bind with a tuple") {
 
-        val tupleType = dseSession.getCluster.getMetadata.newTupleType(DataType.varchar(), DataType.varchar())
+        val tupleType = DataTypes.tupleOf(DataTypes.TEXT, DataTypes.TEXT)
         val insertTuple = tupleType.newValue("test", "test2")
         val newSessionVars = Map("tuple_type" -> insertTuple, "invalid" -> "string")
         val tupleSession: Session = gatlingSession.setAll(newSessionVars)
 
-        val result = CqlPreparedStatementUtil.bindParamByOrder(tupleSession, boundStatementKeys, DataType.Name.TUPLE, "tuple_type", 22)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(tupleSession, boundStatementKeys, tupleType.getProtocolCode, "tuple_type", 21)
         result shouldBe a[BoundStatement]
 
-        result.isSet(22) shouldBe true
+        result.isSet(21) shouldBe true
       }
 
 
       it("should bind with a udt") {
 
-        val addressType = dseSession.getCluster.getMetadata.getKeyspace(keyspace).getUserType("fullname2")
-        val insertFullName = addressType.newValue()
-            .setString("firstname", "John")
-            .setString("lastname", "Smith")
+        val addressType:Optional[UserDefinedType] = dseSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType("fullname"))
+        addressType should not be Optional.empty
+
+        val insertFullName = addressType.get.newValue()
+          .setString("firstname", "John")
+          .setString("lastname", "Smith")
+
         val newSessionVars = Map("fullname2" -> insertFullName, "invalid" -> "string")
         val udtSession: Session = gatlingSession.setAll(newSessionVars)
 
-        val result = CqlPreparedStatementUtil.bindParamByOrder(udtSession, boundStatementKeys, DataType.Name.UDT, "fullname2", 23)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(udtSession, boundStatementKeys, addressType.get.getProtocolCode, "fullname2", 22)
         result shouldBe a[BoundStatement]
-        result.isSet(23) shouldBe true
+        result.isSet(22) shouldBe true
       }
 
 
@@ -1038,7 +1030,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
         val boundStatementCounter = dseSession.prepare(preparedStatementInsertCounter).bind()
 
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementCounter, DataType.Name.COUNTER, "int", 0)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementCounter, DataTypes.COUNTER.getProtocolCode, "int", 0)
         result shouldBe a[BoundStatement]
         result.isSet(0) shouldBe true
       }
@@ -1047,7 +1039,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
         boundStatementKeys.isSet("null_type") shouldBe false
 
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TINYINT, "null_type", 24)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TINYINT.getProtocolCode, "null_type", 24)
         result shouldBe a[BoundStatement]
 
         boundStatementKeys.isSet("null_type") shouldBe true
@@ -1058,17 +1050,17 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
         val field = "none_type"
 
-        CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TEXT, field, 25) shouldBe a[BoundStatement]
+        CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TEXT.getProtocolCode, field, 25) shouldBe a[BoundStatement]
         boundStatementKeys.isSet(field) shouldBe false
 
         val newSessionVars = Map(field -> "test")
         val newSession: Session = gatlingSession.setAll(newSessionVars)
 
-        CqlPreparedStatementUtil.bindParamByOrder(newSession, boundStatementKeys, DataType.Name.TEXT, field, 25) shouldBe a[BoundStatement]
+        CqlPreparedStatementUtil.bindParamByOrder(newSession, boundStatementKeys, DataTypes.TEXT.getProtocolCode, field, 25) shouldBe a[BoundStatement]
         boundStatementKeys.isSet(field) shouldBe true
         boundStatementKeys.getString(field) shouldBe "test"
 
-        CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataType.Name.TEXT, field, 25) shouldBe a[BoundStatement]
+        CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TEXT.getProtocolCode, field, 25) shouldBe a[BoundStatement]
         boundStatementKeys.isSet(field) shouldBe false
       }
 
@@ -1078,7 +1070,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val newSessionVars = Map("missing" -> "test")
         val newSession: Session = gatlingSession.setAll(newSessionVars)
 
-        CqlPreparedStatementUtil.bindParamByOrder(newSession, boundStatementKeys, DataType.Name.TEXT, field, 25) shouldBe a[BoundStatement]
+        CqlPreparedStatementUtil.bindParamByOrder(newSession, boundStatementKeys, DataTypes.TEXT.getProtocolCode, field, 25) shouldBe a[BoundStatement]
         boundStatementKeys.isSet(field) shouldBe false
       }
     }
@@ -1092,7 +1084,6 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
            |timeuuid_type,
            |int_type,
            |text_type,
-           |varchar_type,
            |ascii_type,
            |float_type,
            |double_type,
@@ -1147,10 +1138,9 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
       val defaultSessionVars = Map(
         "uuid_type" -> java.util.UUID.randomUUID(),
-        "timeuuid_type" -> UUIDs.timeBased(),
+        "timeuuid_type" -> Uuids.timeBased(),
         "int_type" -> 12,
         "text_type" -> "string",
-        "varchar_type" -> "string",
         "ascii_type" -> "string",
         "float_type" -> 12.0.toFloat,
         "double_type" -> 12.0,
@@ -1177,84 +1167,77 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
       it("should bind with a UUID") {
         val paramName = "uuid_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.UUID, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.UUID.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a timeUuid") {
         val paramName = "timeuuid_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TIMEUUID, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TIMEUUID.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a int") {
         val paramName = "int_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.INT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.INT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a text") {
         val paramName = "text_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TEXT, paramName)
-        result shouldBe a[BoundStatement]
-        boundStatementNames.isSet(paramName) shouldBe true
-      }
-
-      it("should bind with a varchar") {
-        val paramName = "varchar_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.VARCHAR, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TEXT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a ascii") {
         val paramName = "ascii_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.ASCII, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.ASCII.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a float") {
         val paramName = "float_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.FLOAT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.FLOAT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a double") {
         val paramName = "double_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.DOUBLE, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.DOUBLE.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a decimal") {
         val paramName = "decimal_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.DECIMAL, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.DECIMAL.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a boolean") {
         val paramName = "boolean_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.BOOLEAN, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.BOOLEAN.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a inetAddress") {
         val paramName = "inet_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.INET, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.INET.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a timestamp") {
         val paramName = "timestamp_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TIMESTAMP, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TIMESTAMP.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
 
@@ -1262,97 +1245,103 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
       it("should bind with a bigInt") {
         val paramName = "bigint_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.BIGINT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.BIGINT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a blob_type") {
         val paramName = "blob_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.BLOB, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.BLOB.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a varint") {
         val paramName = "varint_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.VARINT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.VARINT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a list") {
         val paramName = "list_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.LIST, paramName)
+        val protocolCode = DataTypes.listOf(DataTypes.INT).getProtocolCode
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, protocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a set") {
         val paramName = "set_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.SET, paramName)
+        val protocolCode = DataTypes.setOf(DataTypes.INT).getProtocolCode
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, protocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a map") {
         val paramName = "map_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.MAP, paramName)
+        val protocolCode = DataTypes.mapOf(DataTypes.INT, DataTypes.INT).getProtocolCode
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, protocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a date") {
         val paramName = "date_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.DATE, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.DATE.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a smallInt") {
         val paramName = "smallint_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.SMALLINT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.SMALLINT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a tinyint") {
         val paramName = "tinyint_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TINYINT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TINYINT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a time") {
         val paramName = "time_type"
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TIME, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TIME.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
       it("should bind with a tuple") {
         val paramName = "tuple_type"
-        val tupleType = dseSession.getCluster.getMetadata.newTupleType(DataType.varchar(), DataType.varchar())
+        val tupleType = DataTypes.tupleOf(DataTypes.TEXT, DataTypes.TEXT)
         val insertTuple = tupleType.newValue("test", "test2")
-        val newSessionVars = Map("tuple_type" -> insertTuple, "invalid" -> "string")
+        val newSessionVars = Map(paramName -> insertTuple, "invalid" -> "string")
         val tupleSession: Session = gatlingSession.setAll(newSessionVars)
 
-        val result = CqlPreparedStatementUtil.bindParamByName(tupleSession, boundStatementNames, DataType.Name.TUPLE, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(tupleSession, boundStatementNames, tupleType.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
 
-
       it("should bind with a udt") {
+
         val paramName = "udt_type"
-        val addressType = dseSession.getCluster.getMetadata.getKeyspace(keyspace).getUserType("fullname2")
-        val insertFullName = addressType.newValue()
-            .setString("firstname", "John")
-            .setString("lastname", "Smith")
-        val newSessionVars = Map("udt_type" -> insertFullName, "invalid" -> "string")
+
+        val addressType:Optional[UserDefinedType] = dseSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType("fullname"))
+        addressType should not be Optional.empty
+
+        val insertFullName = addressType.get.newValue()
+          .setString("firstname", "John")
+          .setString("lastname", "Smith")
+        val newSessionVars = Map(paramName -> insertFullName, "invalid" -> "string")
         val udtSession: Session = gatlingSession.setAll(newSessionVars)
 
-        val result = CqlPreparedStatementUtil.bindParamByName(udtSession, boundStatementNames, DataType.Name.UDT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(udtSession, boundStatementNames, addressType.get.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
       }
@@ -1365,7 +1354,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
         val boundNamedStatementCounter = dseSession.prepare(preparedStatementInsertCounter).bind()
 
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundNamedStatementCounter, DataType.Name.COUNTER, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundNamedStatementCounter, DataTypes.COUNTER.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
       }
 
@@ -1374,7 +1363,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val paramName = "null_type"
         boundStatementNames.isSet(paramName) shouldBe false
 
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TINYINT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TINYINT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
 
         boundStatementNames.isSet(paramName) shouldBe true
@@ -1385,19 +1374,19 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
         val paramName = "none_type"
 
-        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TEXT, paramName)
+        val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TEXT.getProtocolCode, paramName)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe false
 
         val newSessionVars = Map(paramName -> "test")
         val newSession: Session = gatlingSession.setAll(newSessionVars)
 
-        val result2 = CqlPreparedStatementUtil.bindParamByName(newSession, boundStatementNames, DataType.Name.TEXT, paramName)
+        val result2 = CqlPreparedStatementUtil.bindParamByName(newSession, boundStatementNames, DataTypes.TEXT.getProtocolCode, paramName)
         result2 shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe true
         boundStatementNames.getString(paramName) shouldBe "test"
 
-        val result3 = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataType.Name.TEXT, paramName)
+        val result3 = CqlPreparedStatementUtil.bindParamByName(typeSession, boundStatementNames, DataTypes.TEXT.getProtocolCode, paramName)
         result3 shouldBe a[BoundStatement]
         boundStatementNames.isSet(paramName) shouldBe false
       }
@@ -1408,11 +1397,10 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val newSessionVars = Map("missing" -> "test")
         val newSession: Session = gatlingSession.setAll(newSessionVars)
 
-        val result = CqlPreparedStatementUtil.bindParamByName(newSession, boundStatementNames, DataType.Name.TEXT, field)
+        val result = CqlPreparedStatementUtil.bindParamByName(newSession, boundStatementNames, DataTypes.TEXT.getProtocolCode, field)
         result shouldBe a[BoundStatement]
         boundStatementNames.isSet(field) shouldBe false
       }
-
     }
   }
 }
