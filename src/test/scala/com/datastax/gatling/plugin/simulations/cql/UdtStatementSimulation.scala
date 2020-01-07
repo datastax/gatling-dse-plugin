@@ -1,8 +1,9 @@
 package com.datastax.gatling.plugin.simulations.cql
 
-import com.datastax.driver.core.ResultSet
 import com.datastax.gatling.plugin.DsePredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
+import com.datastax.oss.driver.api.core.`type`.UserDefinedType
+import com.datastax.oss.driver.api.core.cql.Row
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -17,7 +18,7 @@ class UdtStatementSimulation extends BaseCqlSimulation {
 
   val cqlConfig = cql.session(session)
   //Initialize Gatling DSL with your session
-  val addressType = session.getCluster.getMetadata.getKeyspace(testKeyspace).getUserType("fullname")
+  val addressType:UserDefinedType = session.getMetadata.getKeyspace(testKeyspace).flatMap(_.getUserDefinedType("fullname")).get
 
   val simpleId = 1
   val preparedId = 2
@@ -25,7 +26,6 @@ class UdtStatementSimulation extends BaseCqlSimulation {
   val insertFullName = addressType.newValue()
       .setString("firstname", "John")
       .setString("lastname", "Smith")
-
 
   val simpleStatementInsert = s"""INSERT INTO $testKeyspace.$table_name (id, name) VALUES ($simpleId, $insertFullName)"""
   val simpleStatementSelect = s"""SELECT * FROM $testKeyspace.$table_name WHERE id = $simpleId"""
@@ -74,44 +74,47 @@ class UdtStatementSimulation extends BaseCqlSimulation {
     )
   )
 
+  private def extractFirstNameFromRow(row:Row):String =
+    row.getUdtValue("name").getString(0)
+
   val scn = scenario("SimpleStatement")
       .exec(insertCql
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .check(resultSet.transform(_.hasMorePages) is false)
+          .check(resultSet.transform(_.remaining) is 0) // "normal" INSERTs don't return anything
       )
       .pause(100.millis)
 
       .exec(selectCql
-          .check(rowCount is 1)
-          .check(columnValue("name").find(0) not "")
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => extractFirstNameFromRow(rs.one)) not "")
       )
       .pause(100.millis)
 
       .feed(preparedFeed)
       .exec(insertPreparedCql
           .withParams(List("id", "fullname"))
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .check(resultSet.transform(_.hasMorePages) is false)
+          .check(resultSet.transform(_.remaining) is 0) // "normal" INSERTs don't return anything
       )
       .pause(100.millis)
 
       .exec(selectPreparedCql
           .withParams(List("id"))
-          .check(rowCount is 1)
-          .check(columnValue("name").find(0) not "")
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => extractFirstNameFromRow(rs.one)) not "")
       )
       .pause(100.millis)
 
       .feed(namedFeed)
       .exec(insertNamedCql
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .check(resultSet.transform(_.hasMorePages) is false)
+          .check(resultSet.transform(_.remaining) is 0) // "normal" INSERTs don't return anything
       )
       .pause(100.millis)
 
       .exec(selectNamedCql
-          .check(rowCount is 1)
-          .check(columnValue("name").find(0) not "")
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => extractFirstNameFromRow(rs.one)) not "")
       )
 
   setUp(
@@ -120,8 +123,7 @@ class UdtStatementSimulation extends BaseCqlSimulation {
     global.failedRequests.count.is(0)
   )
 
-
-  def createTable: ResultSet = {
+  private def createTable = {
 
     val udt =
       s"""
