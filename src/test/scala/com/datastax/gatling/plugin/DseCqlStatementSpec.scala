@@ -49,9 +49,8 @@ class DseCqlStatementSpec extends BaseSpec {
       val result = DseCqlSimpleStatement(stmt).buildFromSession(validGatlingSession)
 
       result shouldBe a[Success[_]]
-      result.get.toString shouldBe stmt.toString
+      result.get.build.getQuery shouldBe stmt.getQuery
     }
-
   }
 
 

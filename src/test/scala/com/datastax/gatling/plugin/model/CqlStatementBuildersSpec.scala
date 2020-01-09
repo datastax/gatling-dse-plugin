@@ -36,7 +36,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
     val routingKey = mock[ByteBuffer]
     val routingKeyspace = "some_keyspace"
     val routingToken = mock[Token]
-    val timeout = mock[Duration]
+    val timeout = Duration.ofHours(1)
     val cqlCheck = CqlChecks.resultSet.find.is(mock[AsyncResultSet].expressionSuccess).build
     val statementAttributes: DseCqlAttributes[_,_] = cql("the-session-tag")
       .executeCql("FOO")
@@ -63,12 +63,12 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
     statementAttributes.enableTrace should be(Some(true))
     statementAttributes.pageSize should be(Some(3))
     statementAttributes.pagingState should be(Some(pagingState))
-    statementAttributes.queryTimestamp should be(queryTimestamp)
-    statementAttributes.routingKey should be(routingKey)
-    statementAttributes.routingKeyspace should be(routingKeyspace)
-    statementAttributes.routingToken should be(routingToken)
+    statementAttributes.queryTimestamp should be(Some(queryTimestamp))
+    statementAttributes.routingKey should be(Some(routingKey))
+    statementAttributes.routingKeyspace should be(Some(routingKeyspace))
+    statementAttributes.routingToken should be(Some(routingToken))
     statementAttributes.serialCl should be(Some(THREE))
-    statementAttributes.timeout should be(timeout)
+    statementAttributes.timeout should be(Some(timeout))
     statementAttributes.cqlStatements should contain only "FOO"
   }
 

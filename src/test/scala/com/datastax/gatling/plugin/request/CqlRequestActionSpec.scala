@@ -16,6 +16,7 @@ import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseCqlStatement}
 import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.config.DefaultDriverOption
 import com.datastax.oss.driver.api.core.cql.{SimpleStatement => SimpleS, SimpleStatementBuilder => SimpleB, _}
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.datastax.oss.driver.api.core.metadata.token.Token
@@ -40,7 +41,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   val routingKey:ByteBuffer = mock[ByteBuffer]
   val routingKeyspace = "some_keyspace"
   val routingToken:Token = mock[Token]
-  val timeout:Duration = mock[Duration]
+  val timeout:Duration = Duration.ofHours(1)
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
@@ -88,7 +89,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement shouldBe a[SimpleS]
       capturedStatement.getConsistencyLevel shouldBe null
       capturedStatement.getSerialConsistencyLevel shouldBe null
-      capturedStatement.getPageSize shouldBe 0
+      capturedStatement.getPageSize should be <= 0
       capturedStatement.isIdempotent shouldBe null
       capturedStatement.isTracing shouldBe false
       capturedStatement.getQuery should be("select * from test")
@@ -131,7 +132,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement.getPagingState shouldBe pagingState
       capturedStatement.getQueryTimestamp shouldBe queryTimestamp
       capturedStatement.getRoutingKey shouldBe routingKey
-      capturedStatement.getRoutingKeyspace shouldBe routingKeyspace
+      capturedStatement.getRoutingKeyspace.toString shouldBe routingKeyspace
       capturedStatement.getRoutingToken shouldBe routingToken
       capturedStatement.getSerialConsistencyLevel shouldBe ConsistencyLevel.LOCAL_SERIAL
       capturedStatement.getTimeout shouldBe timeout

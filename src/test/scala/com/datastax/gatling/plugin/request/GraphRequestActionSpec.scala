@@ -30,7 +30,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   val dseGraphStatement = mock[DseGraphStatement[ScriptS,ScriptB]]
   val node:Node = mock[Node]
   val subProtocol = "graph-binary-3.0"
-  val timeout:Duration = mock[Duration]
+  val timeout:Duration = Duration.ofHours(1)
   val timestamp = 123L
   val pagingState:ByteBuffer = mock[ByteBuffer]
   val statsEngine: StatsEngine = mock[StatsEngine]
