@@ -40,7 +40,6 @@ class DseCqlStatementSpec extends BaseSpec {
     reset(prepared, mockBoundStatement, mockCqlTypes)
   }
 
-
   describe("DseCqlSimpleStatement") {
 
     it("should succeed with a passed SimpleStatement", CqlTest) {
@@ -53,24 +52,25 @@ class DseCqlStatementSpec extends BaseSpec {
     }
   }
 
-
   describe("DseCqlBoundStatementWithPassedParams") {
 
     val e1 = ElCompiler.compile[AnyRef]("${foo}")
     val e2 = ElCompiler.compile[AnyRef]("${bar}")
 
+    val mockBuilder = mock[BoundStatementBuilder]
+
     it("correctly bind values to a prepared statement") {
 
       expecting {
         prepared.bind(fooValue, barValue).andReturn(mockBoundStatement)
+        mockBuilder.build().andReturn(mockBoundStatement)
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, e1, e2)
+        DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, (_) => mockBuilder, e1, e2)
           .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
-
 
     it("should fail if the expression is wrong and return the 1st error") {
 
@@ -87,64 +87,69 @@ class DseCqlStatementSpec extends BaseSpec {
     }
   }
 
-
   describe("DseCqlBoundStatementWithParamList") {
 
     val validParamList = Seq("foo", "bar")
-    val paramsList = List[Int](DataTypes.TEXT, DataTypes.INT)
+    val paramsList = List(DataTypes.TEXT, DataTypes.INT).map(_.getProtocolCode)
+
+    val mockBuilder = mock[BoundStatementBuilder]
 
     it("correctly bind values to a prepared statement") {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
         mockCqlTypes.getParamsList(prepared).andReturn(paramsList)
-        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataTypes.TEXT, "foo", 0)
-            .andReturn(mockBoundStatement)
-        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBoundStatement, DataTypes.INT, "bar", 1)
-            .andReturn(mockBoundStatement)
+        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBuilder, DataTypes.TEXT.getProtocolCode, "foo", 0)
+            .andReturn(mockBuilder)
+        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBuilder, DataTypes.INT.getProtocolCode, "bar", 1)
+            .andReturn(mockBuilder)
+        mockBuilder.build().andReturn(mockBoundStatement)
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementWithParamList(mockCqlTypes, prepared, validParamList)
+        DseCqlBoundStatementWithParamList(mockCqlTypes, prepared, validParamList, (_) => mockBuilder)
           .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
   }
 
-
-
   describe("DseCqlBoundStatementNamed") {
+
+    val mockBuilder = mock[BoundStatementBuilder]
 
     it("correctly bind values to a prepared statement") {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT))
-        mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataTypes.INT, "foo")
-            .andReturn(mockBoundStatement)
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT.getProtocolCode))
+        mockCqlTypes.bindParamByName(validGatlingSession, mockBuilder, DataTypes.INT.getProtocolCode, "foo")
+            .andReturn(mockBuilder)
+        mockBuilder.build().andReturn(mockBoundStatement)
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementNamed(mockCqlTypes, prepared)
+        DseCqlBoundStatementNamed(mockCqlTypes, prepared, (_) => mockBuilder)
           .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
   }
 
-
-
-
   describe("DseCqlBoundStatementNamedFromSession") {
+
+    val mockBuilder = mock[BoundStatementBuilder]
+
     it("correctly bind values to a prepared statement in session") {
       val sessionWithStatement: Session = validGatlingSession.set("statementKey", prepared)
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT))
-        mockCqlTypes.bindParamByName(sessionWithStatement, mockBoundStatement, DataTypes.INT, "foo")
-          .andReturn(mockBoundStatement)
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT.getProtocolCode))
+        mockCqlTypes.bindParamByName(sessionWithStatement, mockBuilder, DataTypes.INT.getProtocolCode, fooKey)
+          .andReturn(mockBuilder)
+        mockBuilder.build().andReturn(mockBoundStatement)
       }
+
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey")
+        DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey", (_) => mockBuilder)
           .buildFromSession(sessionWithStatement) shouldBe a[Success[_]]
       }
     }
@@ -162,29 +167,27 @@ class DseCqlStatementSpec extends BaseSpec {
     }
   }
 
-
-
-
   describe("DseCqlBoundBatchStatement") {
+
+    val mockBuilder = mock[BoundStatementBuilder]
 
     it("correctly bind values to a prepared statement") {
 
       expecting {
-        mockBoundStatement.getCustomPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
-        mockBoundStatement.getCustomPayload.andReturn(Map("test" -> ByteBuffer.wrap(Array(12.toByte))).asJava)
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT))
-        mockCqlTypes.bindParamByName(validGatlingSession, mockBoundStatement, DataTypes.INT, "foo")
-            .andReturn(mockBoundStatement)
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT.getProtocolCode))
+        mockCqlTypes.bindParamByName(validGatlingSession, mockBuilder, DataTypes.INT.getProtocolCode, fooKey)
+            .andReturn(mockBuilder).anyTimes()
+        mockBuilder.build().andReturn(mockBoundStatement)
       }
 
-      whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundBatchStatement(mockCqlTypes, Seq(prepared))
-          .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
+      whenExecuting(prepared, mockCqlTypes, mockBoundStatement, mockBuilder) {
+        DseCqlBoundBatchStatement(mockCqlTypes, Seq(prepared), (_) => mockBuilder)
+          //.buildFromSession(validGatlingSession) shouldBe a[Success[_]]
+          .bindParams(validGatlingSession)(prepared) shouldBe mockBoundStatement
       }
     }
   }
-
 
   describe("DseCqlCustomPayloadStatement") {
 
@@ -218,8 +221,6 @@ class DseCqlStatementSpec extends BaseSpec {
       DseCqlCustomPayloadStatement(stmt, "payload")
         .buildFromSession(payloadGatlingSession) shouldBe a[Failure]
     }
-
   }
-
 }
 
