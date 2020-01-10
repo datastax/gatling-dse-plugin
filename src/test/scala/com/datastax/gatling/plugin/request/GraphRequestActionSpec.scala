@@ -29,9 +29,13 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   val dseSession = mock[DseSession]
   val dseGraphStatement = mock[DseGraphStatement[ScriptS,ScriptB]]
   val node:Node = mock[Node]
+  val readConsistencyLevel = ConsistencyLevel.LOCAL_QUORUM
   val subProtocol = "graph-binary-3.0"
   val timeout:Duration = Duration.ofHours(1)
   val timestamp = 123L
+  val traversalSource = "g.V()"
+  val writeConsistencyLevel = ConsistencyLevel.LOCAL_QUORUM
+
   val pagingState:ByteBuffer = mock[ByteBuffer]
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
@@ -68,12 +72,12 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
         idempotent = Some(true),
         node = Some(node),
         graphName = Some("MyGraph"),
-        readCL = Some(ConsistencyLevel.LOCAL_QUORUM),
+        readCL = Some(readConsistencyLevel),
         subProtocol = Some(subProtocol),
         timeout = Some(timeout),
         timestamp = Some(timestamp),
-        traversalSource = Some("g.V()"),
-        writeCL = Some(ConsistencyLevel.LOCAL_QUORUM)
+        traversalSource = Some(traversalSource),
+        writeCL = Some(writeConsistencyLevel)
       )
 
       expecting {
@@ -89,8 +93,14 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement shouldBe a[ScriptS]
       capturedStatement.getConsistencyLevel shouldBe ConsistencyLevel.ANY
       capturedStatement.isIdempotent shouldBe true
+      capturedStatement.getNode shouldBe node
       capturedStatement.getGraphName shouldBe "MyGraph"
-      capturedStatement.isSystemQuery shouldBe false
+      capturedStatement.getReadConsistencyLevel shouldBe readConsistencyLevel
+      capturedStatement.getSubProtocol shouldBe subProtocol
+      capturedStatement.getTimeout shouldBe timeout
+      capturedStatement.getTimestamp shouldBe timestamp
+      capturedStatement.getTraversalSource shouldBe traversalSource
+      capturedStatement.getWriteConsistencyLevel shouldBe writeConsistencyLevel
     }
   }
 }

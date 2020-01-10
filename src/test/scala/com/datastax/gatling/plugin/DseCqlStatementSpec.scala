@@ -183,8 +183,7 @@ class DseCqlStatementSpec extends BaseSpec {
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement, mockBuilder) {
         DseCqlBoundBatchStatement(mockCqlTypes, Seq(prepared), (_) => mockBuilder)
-          //.buildFromSession(validGatlingSession) shouldBe a[Success[_]]
-          .bindParams(validGatlingSession)(prepared) shouldBe mockBoundStatement
+          .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
   }
@@ -195,15 +194,18 @@ class DseCqlStatementSpec extends BaseSpec {
 
     it("should succeed with a passed SimpleStatement", CqlTest) {
 
+      val expectedCustomPayload = Map("test" -> ByteBuffer.wrap(Array(12.toByte)))
       val payloadGatlingSession = new Session("name", 1, Map(
-        "payload" -> Map("test" -> ByteBuffer.wrap(Array(12.toByte))))
+        "payload" -> expectedCustomPayload)
       )
 
       val result = DseCqlCustomPayloadStatement(stmt, "payload")
         .buildFromSession(payloadGatlingSession)
 
       result shouldBe a[Success[_]]
-      result.get.toString shouldBe stmt.toString
+      val resultStmt = result.get.build
+      resultStmt.getCustomPayload shouldBe expectedCustomPayload.asJava
+      resultStmt.getQuery shouldBe stmt.getQuery
     }
 
     it("should fail with non existent sessionKey", CqlTest) {
