@@ -3,7 +3,7 @@ package com.datastax.gatling.plugin.utils
 import java.math.BigInteger
 import java.net.InetAddress
 import java.nio.ByteBuffer
-import java.time.{Instant, LocalDate}
+import java.time.{Duration, Instant, LocalDate, LocalTime}
 import java.util.Optional
 
 import com.datastax.dse.driver.api.core.data.geometry._
@@ -24,6 +24,13 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
   createKeyspace(keyspace)
 
+  def toLocalDate(epochMillis:Long):LocalDate = {
+
+    val end = Instant.ofEpochMilli(epochMillis)
+    val d = Duration.between(Instant.EPOCH,end)
+    LocalDate.ofEpochDay(d.toDays)
+  }
+
   val gatlingSession = new Session("test", 1L)
   val defaultSessionVars = Map(
     "string" -> "string",
@@ -43,12 +50,13 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     "floatStr" -> "12.4",
     "double" -> 12.0,
     "epoch" -> 1483299340813L,
+    "epochInstant" -> Instant.ofEpochMilli(1483299340813L),
     "number" -> 12.asInstanceOf[Number],
 
     "inetStr" -> "127.0.0.1",
     "inet" -> InetAddress.getByName("127.0.0.1"),
 
-    "localDate" -> LocalDate.from(Instant.ofEpochMilli(1483299340813L)),
+    "localDate" -> toLocalDate(1483299340813L),
     "stringDate" -> "2016-10-05",
 
     "set" -> Set(1),
@@ -113,7 +121,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val preparedStatement = dseSession.prepare(s"SELECT * FROM $keyspace.$table where id = ?")
         val paramList = CqlPreparedStatementUtil.getParamsList(preparedStatement)
 
-        paramList should contain(DataTypes.INT)
+        paramList should contain(DataTypes.INT.getProtocolCode)
       }
 
     }
@@ -125,7 +133,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val preparedStatement = dseSession.prepare(s"SELECT * FROM $keyspace.$table where id = :id")
         val paramsMap = CqlPreparedStatementUtil.getParamsMap(preparedStatement)
 
-        paramsMap("id") shouldBe DataTypes.INT
+        paramsMap("id") shouldBe DataTypes.INT.getProtocolCode
       }
 
     }
@@ -520,21 +528,21 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     describe("asTime") {
 
       it("should accept a Long") {
-        CqlPreparedStatementUtil.asTime(defaultGatlingSession, "long") shouldBe a[java.lang.Long]
+        CqlPreparedStatementUtil.asTime(defaultGatlingSession, "long") shouldBe a[LocalTime]
       }
 
       describe("should accept a String") {
 
         it("should accept a String time w/o nanoseconds") {
           val validHour = CqlPreparedStatementUtil.asTime(defaultGatlingSession, "hourTime")
-          validHour shouldBe a[java.lang.Long]
-          validHour shouldBe 3661000000000L
+          validHour shouldBe a[LocalTime]
+          validHour.toNanoOfDay shouldBe 3661000000000L
         }
 
         it("should accept a String time w/ nanoseconds") {
           val validNano = CqlPreparedStatementUtil.asTime(defaultGatlingSession, "nanoTime")
-          validNano shouldBe a[java.lang.Long]
-          validNano shouldBe 3661343000000L
+          validNano shouldBe a[LocalTime]
+          validNano.toNanoOfDay shouldBe 3661343000000L
         }
 
         it("should not accept invalid hour and produce a CqlTypeException") {
@@ -704,18 +712,18 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
     }
 
-    describe("asTimestamp") {
+    describe("asInstant") {
 
       it("should accept an epoch long") {
         CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "epoch") shouldBe a[Instant]
         CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "epoch") shouldBe
-            new java.util.Date(defaultSessionVars("epoch").asInstanceOf[Long])
+            defaultSessionVars("epochInstant")
       }
 
       it("should accept a java Instant") {
         CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "javaInstant") shouldBe a[Instant]
         CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "javaInstant") shouldBe
-            defaultSessionVars("javaInstant").asInstanceOf[Instant]
+            defaultSessionVars("javaInstant")
       }
 
       it("should accept a date string") {
@@ -735,7 +743,6 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
           CqlPreparedStatementUtil.asInstant(defaultGatlingSession, "float") shouldBe a[Instant]
         }
       }
-
     }
 
     describe("asByte") {
@@ -818,7 +825,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
     val tableName = "type_table"
     createTable(keyspace, tableName, "uuid_type uuid, timeuuid_type timeuuid, int_type int, text_type text, " +
-        "varchar_type varchar, ascii_type ascii, float_type float, double_type double, decimal_type decimal, " +
+        "ascii_type ascii, float_type float, double_type double, decimal_type decimal, " +
         "boolean_type boolean, inet_type inet, timestamp_type timestamp, bigint_type bigint, blob_type blob, " +
         "varint_type varint, list_type list<int>, set_type set<int>, map_type map<int,int>, date_type date, " +
         "smallint_type smallint, tinyint_type tinyint, time_type time, tuple_type tuple<varchar,varchar>, " +
@@ -923,7 +930,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
       }
 
       it("should bind with a timestamp") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TIMESTAMP.getProtocolCode, "epoch", 10)
+        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.TIMESTAMP.getProtocolCode, "epochInstant", 10)
         result shouldBe a[BoundStatement]
         result.isSet(10) shouldBe true
       }
@@ -1110,7 +1117,6 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
            |:timeuuid_type,
            |:int_type,
            |:text_type,
-           |:varchar_type,
            |:ascii_type,
            |:float_type,
            |:double_type,

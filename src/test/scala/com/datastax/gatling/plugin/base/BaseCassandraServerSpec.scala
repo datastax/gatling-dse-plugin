@@ -1,6 +1,7 @@
 package com.datastax.gatling.plugin.base
 
 import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicBoolean
 
 import com.datastax.dse.driver.api.core.DseSession
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
@@ -45,12 +46,11 @@ class BaseCassandraServerSpec extends BaseSpec {
 }
 
 object BaseCassandraServerSpec {
-  if (EmbeddedCassandraServerHelper.getSession == null) {
+
     EmbeddedCassandraServerHelper.startEmbeddedCassandra(
       "cassandra.yaml",
       Files.createTempDirectory("gatling-dse-plugin.").toString,
       30000L)
-  }
 
   private val dseSession: DseSession = GatlingDseSession.getSession
 }

@@ -31,7 +31,7 @@ trait GatlingDseSession {
 
     session =
         try {
-          DseSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).build()
+          DseSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).withLocalDatacenter("datacenter1").build()
         }
         catch {
           case _: Exception => DseSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).build()
