@@ -9,7 +9,8 @@ package com.datastax.gatling.plugin.utils
 import java.math.BigInteger
 import java.net.InetAddress
 import java.nio.ByteBuffer
-import java.time.{Instant, LocalDate, LocalTime}
+import java.time.{Duration, Instant, LocalDate, LocalTime}
+import java.lang
 import java.util
 
 import com.datastax.dse.driver.api.core.data.geometry._
@@ -17,11 +18,11 @@ import com.datastax.oss.driver.api.core.cql._
 import com.datastax.oss.protocol.internal.ProtocolConstants.DataType._
 import com.datastax.gatling.plugin.exceptions.CqlTypeException
 import com.datastax.oss.driver.api.core.data.{TupleValue, UdtValue}
+import com.github.nscala_time.time.Imports.DateTime
 import io.gatling.core.session.Session
 
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
-
 
 trait CqlPreparedStatementUtil {
 
@@ -44,11 +45,79 @@ trait CqlPreparedStatementUtil {
   def getParamsList(preparedStatement: PreparedStatement): List[Int]
 }
 
+object SessionCollectionResolver {
+  def get(session:Session, name:String):Option[Any] = session.attributes.get(name)
+
+  def getClz[T <: Any](session:Session, name:String):Option[Class[T]] = {
+    get(session,name).flatMap((sessionVal) => {
+      sessionVal match {
+        case clz:Class[T] => Option(clz)
+        case _ => Option.empty
+      }
+    })
+  }
+
+  def getIterable[T <: Any](session:Session, name:String):Option[lang.Iterable[T]] = {
+    get(session,name).flatMap((sessionVal) => {
+      sessionVal match {
+        case rv:Iterable[T] => Option(rv.asJava)
+        case rv:lang.Iterable[T] => Option(rv)
+        case _ => Option.empty
+      }
+    })
+  }
+
+  def getMap[K <: Any, V <: Any](session:Session, name:String):Option[util.Map[K,V]] = {
+    get(session,name).flatMap((sessionVal) => {
+      sessionVal match {
+        case rv:Map[K,V] => Option(rv.asJava)
+        case rv:util.Map[K,V] => Option(rv)
+        case _ => Option.empty
+      }
+    })
+  }
+
+  def getIterableClz[T <: Any](session:Session, name:String):Class[_ <: T] = {
+    val sessionOption:Option[Class[T]] = getClz(session, name + "-clz")
+    if (sessionOption.isDefined) {
+      sessionOption.get
+    } else {
+      val iterableOption:Option[lang.Iterable[T]] = getIterable(session, name)
+      if (iterableOption.isEmpty) {
+        throw new IllegalStateException("Iterable element class wasn't defined in Gatling session and Iterable is unavailable, cannot determine list type")
+      }
+      val iterator = iterableOption.get.iterator
+      if (!iterator.hasNext) {
+        throw new IllegalStateException("Iterable element class wasn't defined in Gatling session and Iterable is empty, cannot determine list type")
+      }
+      iterator.next.getClass
+    }
+  }
+
+  def getMapClzs[K <: Any, V <: Any](session:Session, name:String):(Class[_ <: K],Class[_ <: V]) = {
+    val sessionKeyOption:Option[Class[K]] = getClz(session, name + "-key-clz")
+    val sessionValOption:Option[Class[V]] = getClz(session, name + "-val-clz")
+    if (sessionKeyOption.isDefined && sessionValOption.isDefined) {
+      (sessionKeyOption.get, sessionValOption.get)
+    } else {
+      val mapOption:Option[util.Map[K,V]] = getMap(session, name)
+      if (mapOption.isEmpty) {
+        throw new IllegalStateException("Map classes weren't defined in Gatling session and Map is unavailable, cannot determine list type")
+      }
+      val iterator = mapOption.get.entrySet.iterator
+      if (!iterator.hasNext) {
+        throw new IllegalStateException("Map classes wasn't defined in Gatling session and Map is empty, cannot determine list type")
+      }
+      val entry = iterator.next
+      (entry.getKey.getClass, entry.getValue.getClass)
+    }
+  }
+}
+
 /**
   * Utilities for CQL Statement building
   */
 object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
-
 
   /**
     * Bind CQL Prepared statement params by key order
@@ -67,8 +136,6 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
         bindable.unset(paramName)
       } else { bindable }
     }
-
-    val stringClz = classOf[String]
 
     gatlingSession.attributes.get(paramName) match {
       case Some(null) =>
@@ -106,11 +173,17 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
           case VARINT =>
             bindable.setBigInteger(key, asVarInt(gatlingSession, paramName))
           case LIST =>
-            bindable.setList(key, asList(gatlingSession, paramName, stringClz), stringClz)
+            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
+            bindable.setList(key, asList(gatlingSession, paramName, clz), clz)
           case SET =>
-            bindable.setSet(key, asSet(gatlingSession, paramName, stringClz), stringClz)
+            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
+            bindable.setSet(key, asSet(gatlingSession, paramName, clz), clz)
           case MAP =>
-            bindable.setMap(key, asMap(gatlingSession, paramName, stringClz, stringClz), stringClz, stringClz)
+            val clzs = SessionCollectionResolver.getMapClzs(gatlingSession, paramName)
+            clzs match {
+              case (keyClz, valClz) => bindable.setMap(key, asMap(gatlingSession, paramName, keyClz, valClz), keyClz, valClz)
+              case _ => throw new IllegalStateException("Unexpected value observed when computing map classes")
+            }
           case UDT =>
             bindable.setUdtValue(key, asUdt(gatlingSession, paramName))
           case TUPLE =>
@@ -162,12 +235,10 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     gatlingSession.attributes.get(paramName) match {
       case Some(null) =>
         bindable.setToNull(paramName)
-        bindable
       case Some(None) =>
         if (bindable.isSet(paramName)) {
           bindable.unset(paramName)
-        }
-        bindable
+        } else { bindable }
       case _ =>
         paramType match {
           case (VARCHAR | ASCII) =>
@@ -197,11 +268,17 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
           case VARINT =>
             bindable.setBigInteger(paramName, asVarInt(gatlingSession, paramName))
           case LIST =>
-            bindable.setList(paramName, asList(gatlingSession, paramName, stringClz), stringClz)
+            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
+            bindable.setList(paramName, asList(gatlingSession, paramName, clz), clz)
           case SET =>
-            bindable.setSet(paramName, asSet(gatlingSession, paramName, stringClz), stringClz)
+            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
+            bindable.setSet(paramName, asSet(gatlingSession, paramName, clz), clz)
           case MAP =>
-            bindable.setMap(paramName, asMap(gatlingSession, paramName, stringClz, stringClz), stringClz, stringClz)
+            val clzs = SessionCollectionResolver.getMapClzs(gatlingSession, paramName)
+            clzs match {
+              case (keyClz, valClz) => bindable.setMap(paramName, asMap(gatlingSession, paramName, keyClz, valClz), keyClz, valClz)
+              case _ => throw new IllegalStateException("Unexpected value observed when computing map classes")
+            }
           case UDT =>
             bindable.setUdtValue(paramName, asUdt(gatlingSession, paramName))
           case TUPLE =>
@@ -491,7 +568,7 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
       case Some(l: Long) =>
         Instant.ofEpochMilli(l)
       case Some(s: String) =>
-        Instant.parse(s)
+        Instant.ofEpochMilli(DateTime.parse(s).getMillis)
       case Some(i: Instant) =>
         i
       case _ =>
@@ -765,9 +842,9 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
         val dateSplit = s.split("-").toList
         LocalDate.of(dateSplit.head.toInt, dateSplit(1).toInt, dateSplit(2).toInt)
       case Some(l: Long) =>
-        LocalDate.ofEpochDay(l)
+        toLocalDate(l)
       case Some(i: Int) =>
-        LocalDate.ofEpochDay(i)
+        toLocalDate(i)
       case Some(ld: LocalDate) =>
         ld
       case _ =>
@@ -855,5 +932,11 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
       case _ =>
         throw new CqlTypeException(s"$paramName expected to be type of ByteBuffer, Array[Byte] or Byte")
     }
+  }
+
+  def toLocalDate(epochMillis:Long):LocalDate = {
+    val end = Instant.ofEpochMilli(epochMillis)
+    val d = Duration.between(Instant.EPOCH,end)
+    LocalDate.ofEpochDay(d.toDays)
   }
 }
