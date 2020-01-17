@@ -28,10 +28,12 @@ class GraphStatementSimulation extends BaseGraphSimulation {
       .executeGraph(insertStatement)
       .withParams("vertexLabel", "myType")
       .withConsistencyLevel(ConsistencyLevel.LOCAL_ONE)
+      .withTraversalSource("g")
       .withName(graph_name)
 
   val queryGraph = graph("Graph Query")
       .executeGraph("g.V().limit(5)")
+      .withTraversalSource("g")
       .withName(graph_name)
 
   val queryStatement: FluentGraphStatement = FluentGraphStatement.newInstance(DseGraph.g.V().limit(5))
