@@ -26,6 +26,8 @@ import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.stats.message.ResponseTimings
 
+import collection.JavaConverters._
+
 object DseResponseHandler {
   def sanitize(s: String): String = s.replaceAll("""(\r|\n)""", " ")
 
@@ -153,8 +155,26 @@ class CqlResponseHandler[T <: Statement[T], B <: StatementBuilder[B,T]](val next
                          val metricsLogger: MetricsLogger)
   extends DseResponseHandler[T, AsyncResultSet, CqlResponse] {
   override protected def tag: String = dseAttributes.tag
-  override protected def queries: Seq[String] = Seq.empty
+  override protected def queries: Seq[String] = formatStatement(stmt)
   override protected def specificChecks: List[DseCqlCheck] = dseAttributes.cqlChecks
   override protected def newResponse(rs: AsyncResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
   override protected def coordinator(rs: AsyncResultSet): Node = rs.getExecutionInfo.getCoordinator
+
+  def formatSimpleStatement(s:SimpleStatement):String = s.getQuery
+
+  def formatBoundStatement(s:BoundStatement):String = s.getPreparedStatement.getQuery
+
+  def formatStatement(stmt:Statement[T]):Seq[String] = {
+
+    stmt match {
+      case s:SimpleStatement => Seq(formatSimpleStatement(s))
+      case s:BoundStatement => Seq(formatBoundStatement(s))
+      case s:BatchStatement => s.iterator.asScala.map((stmt) => {
+        stmt match {
+          case s:SimpleStatement => formatSimpleStatement(s)
+          case s:BoundStatement => formatBoundStatement(s)
+        }
+      }).toSeq
+    }
+  }
 }

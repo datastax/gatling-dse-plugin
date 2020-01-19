@@ -4,6 +4,7 @@ import com.datastax.gatling.plugin.DsePredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
 import com.datastax.oss.driver.api.core.`type`.UserDefinedType
 import com.datastax.oss.driver.api.core.cql.Row
+import com.datastax.oss.driver.api.querybuilder.QueryBuilder
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -27,14 +28,20 @@ class UdtStatementSimulation extends BaseCqlSimulation {
       .setString("firstname", "John")
       .setString("lastname", "Smith")
 
-  val simpleStatementInsert = s"""INSERT INTO $testKeyspace.$table_name (id, name) VALUES ($simpleId, $insertFullName)"""
-  val simpleStatementSelect = s"""SELECT * FROM $testKeyspace.$table_name WHERE id = $simpleId"""
+  val simpleStatementInsert = QueryBuilder.insertInto(testKeyspace, table_name)
+    .value("id", QueryBuilder.literal(simpleId))
+    .value("name", QueryBuilder.literal(insertFullName))
+    .build()
+  val simpleStatementSelect = QueryBuilder.selectFrom(testKeyspace, table_name)
+    .all()
+    .whereColumn("id").isEqualTo(QueryBuilder.literal(simpleId))
+    .build()
 
   val insertCql = cql("Insert Simple Statements")
-      .executeCql(simpleStatementInsert)
+      .executeStatement(simpleStatementInsert)
 
   val selectCql = cql("Select Simple Statement")
-      .executeCql(simpleStatementSelect)
+      .executeStatement(simpleStatementSelect)
 
   val preparedStatementInsert = s"""INSERT INTO $testKeyspace.$table_name (id, name) VALUES (?, ?)"""
   val preparedStatementSelect = s"""SELECT * FROM $testKeyspace.$table_name WHERE id = ?"""

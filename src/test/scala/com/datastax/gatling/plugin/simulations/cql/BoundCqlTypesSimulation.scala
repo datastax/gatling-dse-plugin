@@ -2,12 +2,14 @@ package com.datastax.gatling.plugin.simulations.cql
 
 import java.nio.ByteBuffer
 import java.sql.Timestamp
+import java.time.Instant
 
 import com.datastax.gatling.plugin.DsePredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
 import com.datastax.oss.driver.api.core.`type`.{DataTypes, UserDefinedType}
 import com.datastax.oss.driver.api.core.cql.Row
 import com.datastax.oss.driver.api.core.uuid.Uuids
+import com.datastax.oss.driver.api.querybuilder.QueryBuilder
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -45,7 +47,10 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
        |:tinyint_type, :time_type, :null_type, :udt_type, :tuple_type, :frozen_set_type, :set_string_type
        |)""".stripMargin
 
-  val preparedStatementSelect = s"""SELECT * FROM $testKeyspace.$table_name WHERE uuid_type = ?"""
+  val preparedStatementSelect = QueryBuilder.selectFrom(testKeyspace, table_name)
+    .all()
+    .whereColumn("uuid_type").isEqualTo(QueryBuilder.bindMarker())
+    .build()
 
   val preparedInsert = session.prepare(preparedStatementInsert)
   val preparedSelect = session.prepare(preparedStatementSelect)
@@ -113,12 +118,12 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
 
   // A predicate function can be useful when we want to do multiple comparisons on data in a single row
   private def preparedCqlPredicate(row:Row):Boolean =
-    row.getBoolean("boolean_type") && (!row.getString("null_type").equals("test"))
+    row.getBoolean("boolean_type") && row.isNull("null_type")
 
-  // In most cases we can simply extrat a value from the row and compare that extracted value to an expected value
+  // In most cases we can simply extract a value from the row and compare that extracted value to an expected value
   // via the Gatling API
-  private def counterCqlExtract(row:Row):Int =
-    row.getInt("counter_type")
+  private def counterCqlExtract(row:Row):Long =
+    row.getLong("counter_type")
 
   val scn = scenario("BoundCqlStatement")
 
@@ -147,7 +152,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
       .exec(selectCounterPreparedCql
           .withParams(List("uuid_type"))
           .check(resultSet.transform(_.remaining) is 1)
-          .check(resultSet.transform(rs => counterCqlExtract(rs.one)) is 2)
+          .check(resultSet.transform(rs => counterCqlExtract(rs.one)) is 2L)
       )
       .pause(100.millis)
 
@@ -212,11 +217,11 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   }
 
 
-  def getRandomEpoch: Timestamp = {
-    val offset: Long = Timestamp.valueOf("2012-01-01 00:00:00").getTime
+  def getRandomEpoch: Instant = {
+    val offset = Timestamp.valueOf("2012-01-01 00:00:00").getTime
     val end = Timestamp.valueOf("2017-01-01 00:00:00").getTime
     val diff = end - offset + 1
-    val time: Long = (offset + (Math.random() * diff)).toLong
-    new Timestamp(time)
+    val time = (offset + (Math.random() * diff)).toLong
+    Instant.ofEpochMilli(time)
   }
 }

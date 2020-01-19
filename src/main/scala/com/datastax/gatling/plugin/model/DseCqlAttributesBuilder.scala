@@ -157,5 +157,5 @@ case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]
     withConsistencyLevel(level)
 
   def check(check: DseCqlCheck):DseCqlAttributesBuilder[T, B] =
-    DseCqlAttributesBuilder(attr.copy(cqlChecks = check :: attr.cqlChecks))
+    DseCqlAttributesBuilder(attr.copy(cqlChecks = (attr.cqlChecks :+ check)))
 }
