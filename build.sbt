@@ -44,7 +44,6 @@ assemblyMergeStrategy in assembly := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard
   case x => MergeStrategy.first
 }
-test in assembly := {}
 
 //
 // Releases should reuse credentials from other build systems.
@@ -73,7 +72,6 @@ val lookupM2Settings = {
   }
 }
 
-/*
 publishTo := {
   if (isSnapshot.value) {
     Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-snapshots-local;build.timestamp=" + new java.util.Date().getTime)
@@ -81,8 +79,6 @@ publishTo := {
     Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-releases-local")
   }
 }
- */
-publishTo := Some(MavenCache("local-maven", file("/work/maven/repo")))
 
 releaseUseGlobalVersion := false
 
