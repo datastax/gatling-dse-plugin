@@ -8,17 +8,10 @@ package com.datastax.gatling.plugin.model
 
 import java.nio.ByteBuffer
 
-import com.datastax.oss.driver.api.core.cql.{
-  BatchStatement => BatchS,
-  BatchStatementBuilder => BatchB,
-  BoundStatement => BoundS,
-  BoundStatementBuilder => BoundB,
-  SimpleStatement => SimpleS,
-  SimpleStatementBuilder => SimpleB,
-  _
-}
+import com.datastax.oss.driver.api.core.cql.{BatchStatement => BatchS, BatchStatementBuilder => BatchB, BoundStatement => BoundS, BoundStatementBuilder => BoundB, SimpleStatement => SimpleS, SimpleStatementBuilder => SimpleB, _}
 import com.datastax.gatling.plugin.exceptions.DseCqlStatementException
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
+import com.datastax.oss.driver.api.core.`type`.DataType
 import io.gatling.commons.validation._
 import io.gatling.core.session._
 
@@ -67,7 +60,7 @@ case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil,
     * @return
     */
   protected def bindParams(gatlingSession: Session, template: BoundS,
-                           queryParams: Map[String, Int]): BoundS = {
+                           queryParams: Map[String, DataType]): BoundS = {
     val completedBuilder =
       queryParams.foldLeft(builderFn(template)) {
         (builder, kv) =>
@@ -202,7 +195,7 @@ case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil,
     * @return
     */
   def bindParams(gatlingSession: Session)(statement: PreparedStatement): BoundS = {
-    val queryParams: Map[String, Int] = cqlTypes.getParamsMap(statement)
+    val queryParams: Map[String, DataType] = cqlTypes.getParamsMap(statement)
     val initBuilder:BoundB = builderFn(statement.bind())
     val completedBuilder =
       queryParams.foldLeft(initBuilder) {

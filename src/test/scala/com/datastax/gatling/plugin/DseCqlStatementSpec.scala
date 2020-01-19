@@ -34,8 +34,6 @@ class DseCqlStatementSpec extends BaseSpec {
   val invalidStmt = "select * from test where invalid = 'test'"
   val invalidExceptionError = "Prepared Statements must have at least one settable param. Query: " + invalidStmt
 
-  implicit def dataTypeToInt(in:DataType):Int = in.getProtocolCode
-
   before {
     reset(prepared, mockBoundStatement, mockCqlTypes)
   }
@@ -90,7 +88,7 @@ class DseCqlStatementSpec extends BaseSpec {
   describe("DseCqlBoundStatementWithParamList") {
 
     val validParamList = Seq("foo", "bar")
-    val paramsList = List(DataTypes.TEXT, DataTypes.INT).map(_.getProtocolCode)
+    val paramsList = List(DataTypes.TEXT, DataTypes.INT)
 
     val mockBuilder = mock[BoundStatementBuilder]
 
@@ -99,9 +97,9 @@ class DseCqlStatementSpec extends BaseSpec {
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
         mockCqlTypes.getParamsList(prepared).andReturn(paramsList)
-        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBuilder, DataTypes.TEXT.getProtocolCode, "foo", 0)
+        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBuilder, DataTypes.TEXT, "foo", 0)
             .andReturn(mockBuilder)
-        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBuilder, DataTypes.INT.getProtocolCode, "bar", 1)
+        mockCqlTypes.bindParamByOrder(validGatlingSession, mockBuilder, DataTypes.INT, "bar", 1)
             .andReturn(mockBuilder)
         mockBuilder.build().andReturn(mockBoundStatement)
       }
@@ -121,8 +119,8 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT.getProtocolCode))
-        mockCqlTypes.bindParamByName(validGatlingSession, mockBuilder, DataTypes.INT.getProtocolCode, "foo")
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT))
+        mockCqlTypes.bindParamByName(validGatlingSession, mockBuilder, DataTypes.INT, "foo")
             .andReturn(mockBuilder)
         mockBuilder.build().andReturn(mockBoundStatement)
       }
@@ -142,8 +140,8 @@ class DseCqlStatementSpec extends BaseSpec {
       val sessionWithStatement: Session = validGatlingSession.set("statementKey", prepared)
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT.getProtocolCode))
-        mockCqlTypes.bindParamByName(sessionWithStatement, mockBuilder, DataTypes.INT.getProtocolCode, fooKey)
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT))
+        mockCqlTypes.bindParamByName(sessionWithStatement, mockBuilder, DataTypes.INT, fooKey)
           .andReturn(mockBuilder)
         mockBuilder.build().andReturn(mockBoundStatement)
       }
@@ -175,8 +173,8 @@ class DseCqlStatementSpec extends BaseSpec {
 
       expecting {
         prepared.bind().andReturn(mockBoundStatement)
-        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT.getProtocolCode))
-        mockCqlTypes.bindParamByName(validGatlingSession, mockBuilder, DataTypes.INT.getProtocolCode, fooKey)
+        mockCqlTypes.getParamsMap(prepared).andReturn(Map(fooKey -> DataTypes.INT))
+        mockCqlTypes.bindParamByName(validGatlingSession, mockBuilder, DataTypes.INT, fooKey)
             .andReturn(mockBuilder).anyTimes()
         mockBuilder.build().andReturn(mockBoundStatement)
       }

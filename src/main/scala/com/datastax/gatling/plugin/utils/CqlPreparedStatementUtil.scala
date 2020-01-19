@@ -15,6 +15,7 @@ import java.util
 
 import com.datastax.dse.driver.api.core.data.geometry._
 import com.datastax.oss.driver.api.core.cql._
+import com.datastax.oss.driver.api.core.`type`._
 import com.datastax.oss.protocol.internal.ProtocolConstants.DataType._
 import com.datastax.gatling.plugin.exceptions.CqlTypeException
 import com.datastax.oss.driver.api.core.data.{TupleValue, UdtValue}
@@ -31,18 +32,18 @@ trait CqlPreparedStatementUtil {
 
   def bindParamByOrder[T <: Bindable[T]](gatlingSession: Session,
                                          bindable: T,
-                                         paramType: Int,
+                                         paramType: DataType,
                                          paramName: String,
                                          key: Int): T
 
   def bindParamByName[T <: Bindable[T]](gatlingSession: Session,
                                         bindable: T,
-                                        paramType: Int,
+                                        paramType: DataType,
                                         paramName: String): T
 
-  def getParamsMap(preparedStatement: PreparedStatement): Map[String, Int]
+  def getParamsMap(preparedStatement: PreparedStatement): Map[String, DataType]
 
-  def getParamsList(preparedStatement: PreparedStatement): List[Int]
+  def getParamsList(preparedStatement: PreparedStatement): List[DataType]
 }
 
 object SessionCollectionResolver {
@@ -128,7 +129,7 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * @param paramName      Gatling Session Attribute Name
     * @param key            Key/Order of param
     */
-  def bindParamByOrder[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: Int,
+  def bindParamByOrder[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: DataType,
                           paramName: String, key: Int): T = {
 
     if (!gatlingSession.attributes.contains(paramName)) {
@@ -145,7 +146,7 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
           bindable.unset(paramName)
         } else { bindable }
       case _ =>
-        paramType match {
+        paramType.getProtocolCode match {
           case (VARCHAR | ASCII) =>
             bindable.setString(key, asString(gatlingSession, paramName))
           case INT =>
@@ -221,7 +222,7 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * @param paramType      Type of param ie String, int, boolean
     * @param paramName      Gatling Session Attribute Value
     */
-  def bindParamByName[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: Int,
+  def bindParamByName[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: DataType,
                          paramName: String): T = {
 
     if (!gatlingSession.attributes.contains(paramName)) {
@@ -240,7 +241,7 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
           bindable.unset(paramName)
         } else { bindable }
       case _ =>
-        paramType match {
+        paramType.getProtocolCode match {
           case (VARCHAR | ASCII) =>
             bindable.setString(paramName, asString(gatlingSession, paramName))
           case INT =>
@@ -315,10 +316,10 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * @param preparedStatement CQL Prepared Stated
     * @return
     */
-  def getParamsMap(preparedStatement: PreparedStatement): Map[String, Int] = {
+  def getParamsMap(preparedStatement: PreparedStatement): Map[String, DataType] = {
     val paramVariables = preparedStatement.getVariableDefinitions
     val paramIterator = paramVariables.iterator.asScala
-    paramIterator.map(p => (p.getName.asCql(true), p.getType.getProtocolCode)).toMap
+    paramIterator.map(p => (p.getName.asCql(true), p.getType)).toMap
   }
 
 
@@ -328,9 +329,9 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * @param preparedStatement CQL Prepared Stated
     * @return
     */
-  def getParamsList(preparedStatement: PreparedStatement): List[Int] = {
+  def getParamsList(preparedStatement: PreparedStatement): List[DataType] = {
     val paramVariables = preparedStatement.getVariableDefinitions
-    paramVariables.iterator.asScala.map(p => p.getType.getProtocolCode).toList
+    paramVariables.iterator.asScala.map(_.getType).toList
   }
 
 
