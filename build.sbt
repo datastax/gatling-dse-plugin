@@ -4,7 +4,7 @@ val gatlingVersion = "2.3.0"
 
 scalacOptions += "-target:jvm-1.8"
 
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"          % "2.3.0"
+libraryDependencies += "com.datastax.oss"             %  "java-driver-core"              % "4.4.0"
 libraryDependencies += "com.github.nscala-time"       %% "nscala-time"                   % "2.18.0"
 libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala"          % "2.9.1"
 libraryDependencies += "org.hdrhistogram"             %  "HdrHistogram"                  % "2.1.10"
@@ -17,7 +17,7 @@ libraryDependencies += "org.easymock"                 %  "easymock"             
 libraryDependencies += "org.cassandraunit"            %  "cassandra-unit"                % "4.3.1.0"      % Test
 libraryDependencies += "org.pegdown"                  %  "pegdown"                       % "1.6.0"        % Test
 libraryDependencies += "com.typesafe.akka"            %% "akka-testkit"                  % "2.5.11"       % Test
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-query-builder" % "2.3.0"        % Test
+libraryDependencies += "com.datastax.oss"             %  "java-driver-query-builder"     % "4.4.0"        % Test
 
 
 resolvers += Resolver.mavenLocal
