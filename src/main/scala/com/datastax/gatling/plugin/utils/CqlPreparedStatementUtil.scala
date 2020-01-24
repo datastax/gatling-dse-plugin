@@ -52,7 +52,7 @@ object SessionCollectionResolver {
   def getClz[T <: Any](session:Session, name:String):Option[Class[T]] = {
     get(session,name).flatMap((sessionVal) => {
       sessionVal match {
-        case clz:Class[T] => Option(clz)
+        case clz:Class[T]@unchecked => Option(clz)
         case _ => Option.empty
       }
     })
@@ -61,8 +61,8 @@ object SessionCollectionResolver {
   def getIterable[T <: Any](session:Session, name:String):Option[lang.Iterable[T]] = {
     get(session,name).flatMap((sessionVal) => {
       sessionVal match {
-        case rv:Iterable[T] => Option(rv.asJava)
-        case rv:lang.Iterable[T] => Option(rv)
+        case rv:Iterable[T]@unchecked => Option(rv.asJava)
+        case rv:lang.Iterable[T]@unchecked => Option(rv)
         case _ => Option.empty
       }
     })
@@ -71,8 +71,8 @@ object SessionCollectionResolver {
   def getMap[K <: Any, V <: Any](session:Session, name:String):Option[util.Map[K,V]] = {
     get(session,name).flatMap((sessionVal) => {
       sessionVal match {
-        case rv:Map[K,V] => Option(rv.asJava)
-        case rv:util.Map[K,V] => Option(rv)
+        case rv:Map[K,V]@unchecked => Option(rv.asJava)
+        case rv:util.Map[K,V]@unchecked => Option(rv)
         case _ => Option.empty
       }
     })
