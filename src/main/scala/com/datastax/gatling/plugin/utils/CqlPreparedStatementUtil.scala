@@ -58,21 +58,25 @@ object SessionCollectionResolver {
     })
   }
 
-  def getIterable[T <: Any](session:Session, name:String):Option[lang.Iterable[T]] = {
+  // Note the Java return type here.  This function is used to generate objects which will subsequently
+  // be passed to the Java Bindable impl which is expecting Java Iterators.
+  def getIterable[T <: Any](session:Session, name:String):Option[Iterable[T]] = {
     get(session,name).flatMap((sessionVal) => {
       sessionVal match {
-        case rv:Iterable[T]@unchecked => Option(rv.asJava)
-        case rv:lang.Iterable[T]@unchecked => Option(rv)
+        case rv:Iterable[T]@unchecked => Option(rv)
+        case rv:lang.Iterable[T]@unchecked => Option(rv.asScala)
         case _ => Option.empty
       }
     })
   }
 
-  def getMap[K <: Any, V <: Any](session:Session, name:String):Option[util.Map[K,V]] = {
+  // Note the Java return type here.  This function is used to generate objects which will subsequently
+  // be passed to the Java Bindable impl which is expecting Java Maps.
+  def getMap[K <: Any, V <: Any](session:Session, name:String):Option[Map[K,V]] = {
     get(session,name).flatMap((sessionVal) => {
       sessionVal match {
-        case rv:Map[K,V]@unchecked => Option(rv.asJava)
-        case rv:util.Map[K,V]@unchecked => Option(rv)
+        case rv:Map[K,V]@unchecked => Option(rv)
+        case rv:util.Map[K,V]@unchecked => Option(rv.asScala.toMap)
         case _ => Option.empty
       }
     })
@@ -80,10 +84,9 @@ object SessionCollectionResolver {
 
   def getIterableClz[T <: Any](session:Session, name:String):Class[_ <: T] = {
     val sessionOption:Option[Class[T]] = getClz(session, name + "-clz")
-    if (sessionOption.isDefined) {
-      sessionOption.get
-    } else {
-      val iterableOption:Option[lang.Iterable[T]] = getIterable(session, name)
+    sessionOption.getOrElse {
+
+      val iterableOption:Option[Iterable[T]] = getIterable(session, name)
       if (iterableOption.isEmpty) {
         throw new IllegalStateException("Iterable element class wasn't defined in Gatling session and Iterable is unavailable, cannot determine list type")
       }
@@ -98,19 +101,21 @@ object SessionCollectionResolver {
   def getMapClzs[K <: Any, V <: Any](session:Session, name:String):(Class[_ <: K],Class[_ <: V]) = {
     val sessionKeyOption:Option[Class[K]] = getClz(session, name + "-key-clz")
     val sessionValOption:Option[Class[V]] = getClz(session, name + "-val-clz")
-    if (sessionKeyOption.isDefined && sessionValOption.isDefined) {
-      (sessionKeyOption.get, sessionValOption.get)
-    } else {
-      val mapOption:Option[util.Map[K,V]] = getMap(session, name)
+    sessionKeyOption.flatMap((k) => {
+      sessionValOption.map((v) => {
+        (k,v)
+      })
+    }).getOrElse {
+      val mapOption:Option[Map[K,V]] = getMap(session, name)
       if (mapOption.isEmpty) {
         throw new IllegalStateException("Map classes weren't defined in Gatling session and Map is unavailable, cannot determine list type")
       }
-      val iterator = mapOption.get.entrySet.iterator
+      val iterator = mapOption.get.iterator
       if (!iterator.hasNext) {
-        throw new IllegalStateException("Map classes wasn't defined in Gatling session and Map is empty, cannot determine list type")
+        throw new IllegalStateException("Map classes weren't defined in Gatling session and Map is empty, cannot determine list type")
       }
       val entry = iterator.next
-      (entry.getKey.getClass, entry.getValue.getClass)
+      (entry._1.getClass, entry._2.getClass)
     }
   }
 }

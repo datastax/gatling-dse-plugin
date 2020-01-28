@@ -155,24 +155,24 @@ class CqlResponseHandler[T <: Statement[T], B <: StatementBuilder[B,T]](val next
                          val metricsLogger: MetricsLogger)
   extends DseResponseHandler[T, AsyncResultSet, CqlResponse] {
   override protected def tag: String = dseAttributes.tag
-  override protected def queries: Seq[String] = formatStatement(stmt)
+  override protected def queries: Seq[String] = getQueryStrings(stmt)
   override protected def specificChecks: List[DseCqlCheck] = dseAttributes.cqlChecks
   override protected def newResponse(rs: AsyncResultSet): CqlResponse = new CqlResponse(rs, dseAttributes)
   override protected def coordinator(rs: AsyncResultSet): Node = rs.getExecutionInfo.getCoordinator
 
-  def formatSimpleStatement(s:SimpleStatement):String = s.getQuery
+  def getQueryString(s:SimpleStatement):String = s.getQuery
 
-  def formatBoundStatement(s:BoundStatement):String = s.getPreparedStatement.getQuery
+  def getQueryString(s:BoundStatement):String = s.getPreparedStatement.getQuery
 
-  def formatStatement(stmt:Statement[T]):Seq[String] = {
+  def getQueryStrings(stmt:Statement[T]):Seq[String] = {
 
     stmt match {
-      case s:SimpleStatement => Seq(formatSimpleStatement(s))
-      case s:BoundStatement => Seq(formatBoundStatement(s))
+      case s:SimpleStatement => Seq(getQueryString(s))
+      case s:BoundStatement => Seq(getQueryString(s))
       case s:BatchStatement => s.iterator.asScala.map((stmt) => {
         stmt match {
-          case s:SimpleStatement => formatSimpleStatement(s)
-          case s:BoundStatement => formatBoundStatement(s)
+          case s:SimpleStatement => getQueryString(s)
+          case s:BoundStatement => getQueryString(s)
         }
       }).toSeq
     }
