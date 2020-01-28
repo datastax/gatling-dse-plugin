@@ -11,10 +11,10 @@ import java.util.concurrent.atomic.AtomicLong
 
 import akka.Done
 import akka.actor.ActorSystem
-import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.request.{CqlRequestActionBuilder, GraphRequestActionBuilder}
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
+import com.datastax.oss.driver.api.core.CqlSession
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
@@ -63,7 +63,7 @@ object DseProtocol extends StrictLogging {
   }
 }
 
-case class DseProtocol(session: DseSession) extends Protocol
+case class DseProtocol(session: CqlSession) extends Protocol
 
 object DseComponents {
   private val componentsCache = mutable.Map[ActorSystem, DseComponents]()
@@ -126,10 +126,10 @@ case class DseComponents(dseProtocol: DseProtocol,
 
 
 object DseProtocolBuilder {
-  def session(session: DseSession) = DseProtocolBuilder(session)
+  def session(session: CqlSession) = DseProtocolBuilder(session)
 }
 
-case class DseProtocolBuilder(session: DseSession) {
+case class DseProtocolBuilder(session: CqlSession) {
   def build = DseProtocol(session)
 }
 
