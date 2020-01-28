@@ -1,13 +1,15 @@
 package com.datastax.gatling.plugin.base
 
 import java.net.InetSocketAddress
+import java.util.concurrent.atomic.AtomicReference
 
 import com.datastax.oss.driver.api.core.CqlSession
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 
 trait GatlingCqlSession {
 
-  private var session: CqlSession = _
+  // TODO: Probably should eventually be an actor, using AtomicRef for now to cheat
+  private val session: AtomicReference[CqlSession] = new AtomicReference[CqlSession](null)
 
   /**
     * Create new Dse Session to either the embedded C* instance or a remote instance
@@ -18,26 +20,19 @@ trait GatlingCqlSession {
     * @param cassandraPort Cassandra Port, default will use Embedded Cassandra's port
     * @return
     */
-  def createCqlSession(cassandraHost: String = "127.0.0.1", cassandraPort: Int = -1): CqlSession = {
+  def createCqlSession(cassandraHost: String = "127.0.0.1",
+                       cassandraPort: Int = EmbeddedCassandraServerHelper.getNativeTransportPort,
+                       localDc:String = "datacenter1"): CqlSession = {
 
-    if (session != null) {
-      return session
-    }
-
-    var cPort = cassandraPort
-    if (cPort == -1) {
-      cPort = EmbeddedCassandraServerHelper.getNativeTransportPort
-    }
-
-    session =
-        try {
-          CqlSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).withLocalDatacenter("datacenter1").build()
-        }
-        catch {
-          case _: Exception => CqlSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).build()
-        }
-
-    session
+    session.updateAndGet((v) => {
+      if (v != null) {
+        v
+      }
+      else {
+        val addr = new InetSocketAddress(cassandraHost, cassandraPort)
+        CqlSession.builder().addContactPoint(addr).withLocalDatacenter(localDc).build()
+      }
+    })
   }
 
 
@@ -47,10 +42,7 @@ trait GatlingCqlSession {
     * @return
     */
   def getSession: CqlSession = {
-    if (session == null) {
-      createCqlSession()
-    }
-    session
+    createCqlSession()
   }
 
 
@@ -58,7 +50,7 @@ trait GatlingCqlSession {
     * Close the current session
     */
   def closeSession(): Unit = {
-    session.close()
+    session.getAndSet(null).close()
   }
 
 }
