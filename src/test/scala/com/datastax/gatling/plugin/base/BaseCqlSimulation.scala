@@ -6,7 +6,7 @@ abstract class BaseCqlSimulation extends Simulation {
 
   val testKeyspace = "gatling_cql_unittests"
 
-  val session = GatlingDseSession.createDseSession()
+  val session = GatlingCqlSession.createCqlSession()
 
   def createTestKeyspace = {
     session.execute(

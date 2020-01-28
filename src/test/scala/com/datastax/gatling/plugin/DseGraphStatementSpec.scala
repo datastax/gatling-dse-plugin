@@ -1,10 +1,10 @@
 package com.datastax.gatling.plugin
 
-import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.dse.driver.api.core.graph.{FluentGraphStatement, ScriptGraphStatement}
 import com.datastax.dse.driver.api.core.graph.DseGraph.g
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.model.{GraphBoundStatement, GraphFluentStatement, GraphStringStatement}
+import com.datastax.oss.driver.api.core.CqlSession
 import io.gatling.commons.validation.{Failure, Success}
 import io.gatling.core.session.Session
 import io.gatling.core.session.el.ElCompiler
@@ -12,12 +12,12 @@ import org.easymock.EasyMock.reset
 
 class DseGraphStatementSpec extends BaseSpec {
 
-  val mockDseSession = mock[DseSession]
+  val mockCqlSession = mock[CqlSession]
   val validGatlingSession = new Session("name", 1, Map("test" -> "5"))
   val invalidGatlingSession = new Session("name", 1, Map("buzz" -> Map("test" -> "this")))
 
   before {
-    reset(mockDseSession)
+    reset(mockCqlSession)
   }
 
 

@@ -132,7 +132,7 @@ case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
   /**
     * Apply the Gatling session params to the Prepared statement
     *
-    * @param gatlingSession DseSession
+    * @param gatlingSession current Gatling session
     * @return
     */
   def buildFromSession(gatlingSession: Session): Validation[BoundB] = {

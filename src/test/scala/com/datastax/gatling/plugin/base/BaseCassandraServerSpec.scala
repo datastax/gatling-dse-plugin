@@ -3,14 +3,14 @@ package com.datastax.gatling.plugin.base
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.datastax.dse.driver.api.core.DseSession
+import com.datastax.oss.driver.api.core.CqlSession
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 
 /**
   * Used for Specs that require a running Cassandra instance to run
   */
 class BaseCassandraServerSpec extends BaseSpec {
-  protected val dseSession: DseSession = BaseCassandraServerSpec.dseSession
+  protected val cqlSession: CqlSession = BaseCassandraServerSpec.dseSession
 
   protected def cleanCassandra(keyspace: String = ""): Unit = {
     if (keyspace.isEmpty) {
@@ -21,14 +21,14 @@ class BaseCassandraServerSpec extends BaseSpec {
   }
 
   protected def createKeyspace(keyspace: String): Boolean = {
-    dseSession.execute(
+    cqlSession.execute(
       s"CREATE KEYSPACE IF NOT EXISTS $keyspace WITH replication = " +
           "{ 'class' : 'SimpleStrategy', 'replication_factor': '1'}")
         .wasApplied()
   }
 
   protected def createTable(keyspace: String, name: String, columns: String): Boolean = {
-    dseSession.execute(
+    cqlSession.execute(
       s"""
         CREATE TABLE IF NOT EXISTS $keyspace.$name (
         $columns
@@ -37,7 +37,7 @@ class BaseCassandraServerSpec extends BaseSpec {
 
 
   protected def createType(keyspace: String, name: String, columns: String): Boolean = {
-    dseSession.execute(
+    cqlSession.execute(
       s"""
         CREATE TYPE IF NOT EXISTS $keyspace.$name (
         $columns
@@ -52,5 +52,5 @@ object BaseCassandraServerSpec {
       Files.createTempDirectory("gatling-dse-plugin.").toString,
       30000L)
 
-  private val dseSession: DseSession = GatlingDseSession.getSession
+  private val dseSession: CqlSession = GatlingCqlSession.getSession
 }

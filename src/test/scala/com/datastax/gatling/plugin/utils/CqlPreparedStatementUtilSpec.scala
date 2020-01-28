@@ -118,7 +118,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
       it("should return a list of types") {
 
-        val preparedStatement = dseSession.prepare(s"SELECT * FROM $keyspace.$table where id = ?")
+        val preparedStatement = cqlSession.prepare(s"SELECT * FROM $keyspace.$table where id = ?")
         val paramList = CqlPreparedStatementUtil.getParamsList(preparedStatement)
 
         paramList should contain(DataTypes.INT)
@@ -129,7 +129,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
       it("should return a map of types") {
 
-        val preparedStatement = dseSession.prepare(s"SELECT * FROM $keyspace.$table where id = :id")
+        val preparedStatement = cqlSession.prepare(s"SELECT * FROM $keyspace.$table where id = :id")
         val paramsMap = CqlPreparedStatementUtil.getParamsMap(preparedStatement)
 
         paramsMap("id") shouldBe DataTypes.INT
@@ -775,7 +775,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
       createType(keyspace, typeName, "firstname text, lastname text")
       createTable(keyspace, table, "id int, name frozen<fullname>, PRIMARY KEY(id)")
 
-      val addressType:Optional[UserDefinedType] = dseSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType(typeName))
+      val addressType:Optional[UserDefinedType] = cqlSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType(typeName))
       addressType should not be Optional.empty
 
       val insertFullName = addressType.get.newValue()
@@ -865,7 +865,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
            |VALUES
            |(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""".stripMargin
 
-      val boundStatementKeys = dseSession.prepare(preparedStatementInsert).bind()
+      val boundStatementKeys = cqlSession.prepare(preparedStatementInsert).bind()
 
       it("should bind with a UUID") {
         val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.UUID, "uuid", 0)
@@ -1027,7 +1027,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
       it("should bind with a udt") {
 
-        val addressType:Optional[UserDefinedType] = dseSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType("fullname2"))
+        val addressType:Optional[UserDefinedType] = cqlSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType("fullname2"))
         addressType should not be Optional.empty
 
         val insertFullName = addressType.get.newValue()
@@ -1048,7 +1048,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val preparedStatementInsertCounter =
           s"""UPDATE $keyspace.$counterTableName SET counter_type = counter_type + ? WHERE uuid_type = ?"""
 
-        val boundStatementCounter = dseSession.prepare(preparedStatementInsertCounter).bind()
+        val boundStatementCounter = cqlSession.prepare(preparedStatementInsertCounter).bind()
 
         val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementCounter, DataTypes.COUNTER, "int", 0)
         result shouldBe a[BoundStatement]
@@ -1157,7 +1157,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
            |:none_type
            |)""".stripMargin
 
-      val boundStatementNames = dseSession.prepare(preparedStatementInsert).bind()
+      val boundStatementNames = cqlSession.prepare(preparedStatementInsert).bind()
 
       val defaultSessionVars = Map(
         "uuid_type" -> java.util.UUID.randomUUID(),
@@ -1351,7 +1351,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
 
         val paramName = "udt_type"
 
-        val addressType:Optional[UserDefinedType] = dseSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType("fullname2"))
+        val addressType:Optional[UserDefinedType] = cqlSession.getMetadata.getKeyspace(keyspace).flatMap(_.getUserDefinedType("fullname2"))
         addressType should not be Optional.empty
 
         val insertFullName = addressType.get.newValue()
@@ -1371,7 +1371,7 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         val preparedStatementInsertCounter =
           s"""UPDATE $keyspace.$counterTableName SET counter_type = counter_type + :counter_type WHERE uuid_type = :uuid_type"""
 
-        val boundNamedStatementCounter = dseSession.prepare(preparedStatementInsertCounter).bind()
+        val boundNamedStatementCounter = cqlSession.prepare(preparedStatementInsertCounter).bind()
 
         val result = CqlPreparedStatementUtil.bindParamByName(typeSession, boundNamedStatementCounter, DataTypes.COUNTER, paramName)
         result shouldBe a[BoundStatement]

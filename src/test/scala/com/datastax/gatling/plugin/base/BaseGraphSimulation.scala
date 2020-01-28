@@ -6,7 +6,7 @@ abstract class BaseGraphSimulation extends Simulation {
 
   val testKeyspace = "gatling_cql_unittests"
 
-  val session = GatlingDseSession.createDseSession("10.10.10.2", 9042)
+  val session = GatlingCqlSession.createCqlSession("10.10.10.2", 9042)
 
   def createTestKeyspace = {
     session.execute(

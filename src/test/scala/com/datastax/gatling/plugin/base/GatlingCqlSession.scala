@@ -2,12 +2,12 @@ package com.datastax.gatling.plugin.base
 
 import java.net.InetSocketAddress
 
-import com.datastax.dse.driver.api.core.DseSession
+import com.datastax.oss.driver.api.core.CqlSession
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 
-trait GatlingDseSession {
+trait GatlingCqlSession {
 
-  private var session: DseSession = _
+  private var session: CqlSession = _
 
   /**
     * Create new Dse Session to either the embedded C* instance or a remote instance
@@ -18,7 +18,7 @@ trait GatlingDseSession {
     * @param cassandraPort Cassandra Port, default will use Embedded Cassandra's port
     * @return
     */
-  def createDseSession(cassandraHost: String = "127.0.0.1", cassandraPort: Int = -1): DseSession = {
+  def createCqlSession(cassandraHost: String = "127.0.0.1", cassandraPort: Int = -1): CqlSession = {
 
     if (session != null) {
       return session
@@ -31,10 +31,10 @@ trait GatlingDseSession {
 
     session =
         try {
-          DseSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).withLocalDatacenter("datacenter1").build()
+          CqlSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).withLocalDatacenter("datacenter1").build()
         }
         catch {
-          case _: Exception => DseSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).build()
+          case _: Exception => CqlSession.builder().addContactPoint(new InetSocketAddress(cassandraHost, cPort)).build()
         }
 
     session
@@ -46,9 +46,9 @@ trait GatlingDseSession {
     *
     * @return
     */
-  def getSession: DseSession = {
+  def getSession: CqlSession = {
     if (session == null) {
-      createDseSession()
+      createCqlSession()
     }
     session
   }
@@ -63,4 +63,4 @@ trait GatlingDseSession {
 
 }
 
-object GatlingDseSession extends GatlingDseSession
+object GatlingCqlSession extends GatlingCqlSession

@@ -35,11 +35,11 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
   * free the Gatling `injector` actor as fast as possible.
   *
   * The plugin router (and its actors) execute the driver code in order to locate the best replica that should receive
-  * each query, through `DseSession.executeAsync()` or `DseSession.executeGraphAsync()`.  A driver I/O thread encodes
+  * each query, through `CqlSession.executeAsync()` or `CqlSession.executeGraphAsync()`.  A driver I/O thread encodes
   * the request and sends it over the wire.
   *
   * Once the response is received, a driver I/O thread (Netty) decodes the response into a Java Object.  It then
-  * completes the `Future` that was returned by `DseSession.executeAsync()`.
+  * completes the `Future` that was returned by `CqlSession.executeAsync()`.
   *
   * Completing that future results in immediately delegating the latency recording work to the plugin router.  That
   * work includes recording it in HDR histograms through non-blocking data structures, and forwarding the result to

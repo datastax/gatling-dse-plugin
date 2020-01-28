@@ -9,13 +9,12 @@ import akka.testkit.TestKitBase
 import ch.qos.logback.classic.{Level, Logger}
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import com.datastax.dse.driver.api.core.DseSession
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseCqlStatement}
-import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.{ConsistencyLevel, CqlSession}
 import com.datastax.oss.driver.api.core.config.DefaultDriverOption
 import com.datastax.oss.driver.api.core.cql.{SimpleStatement => SimpleS, SimpleStatementBuilder => SimpleB, _}
 import com.datastax.oss.driver.api.core.metadata.Node
@@ -32,7 +31,7 @@ import org.slf4j.LoggerFactory
 class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system:ActorSystem = ActorSystem()
   val gatlingTestConfig: GatlingConfiguration = GatlingConfiguration.loadForTest()
-  val dseSession: DseSession = mock[DseSession]
+  val cqlSession: CqlSession = mock[CqlSession]
   val dseCqlStatement: DseCqlStatement[SimpleS,SimpleB] = mock[DseCqlStatement[SimpleS,SimpleB]]
   val node:Node = mock[Node]
   val pageSize = 3
@@ -51,7 +50,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),
       system,
       statsEngine,
-      DseProtocol(dseSession),
+      DseProtocol(cqlSession),
       dseAttributes,
       NoopMetricsLogger(),
       executorServiceForTests(),
@@ -61,7 +60,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   private def mockAsyncResultSetFuture(): CompletionStage[AsyncResultSet] = CompletableFuture.completedFuture(mock[AsyncResultSet])
 
   before {
-    reset(dseCqlStatement, dseSession, pagingState, statsEngine)
+    reset(dseCqlStatement, cqlSession, pagingState, statsEngine)
   }
 
   override protected def afterAll(): Unit = {
@@ -78,10 +77,10 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       expecting {
         dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleS.builder("select * from test")
           .success)
-        dseSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
+        cqlSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
       }
 
-      whenExecuting(dseCqlStatement, dseSession) {
+      whenExecuting(dseCqlStatement, cqlSession) {
         getTarget(cqlAttributesWithDefaults).sendQuery(gatlingSession)
       }
 
@@ -115,10 +114,10 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       expecting {
         dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleS.builder("select * from test")
           .success)
-        dseSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
+        cqlSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
       }
 
-      whenExecuting(dseCqlStatement, dseSession) {
+      whenExecuting(dseCqlStatement, cqlSession) {
         getTarget(cqlAttributes).sendQuery(gatlingSession)
       }
 
@@ -156,7 +155,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       listAppender.start()
       classLogger.addAppender(listAppender)
 
-      whenExecuting(dseCqlStatement, dseSession) {
+      whenExecuting(dseCqlStatement, cqlSession) {
         cqlRequestAction.sendQuery(gatlingSession)
       }
 
