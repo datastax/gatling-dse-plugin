@@ -90,11 +90,11 @@ object SessionCollectionResolver {
       if (iterableOption.isEmpty) {
         throw new IllegalStateException("Iterable element class wasn't defined in Gatling session and Iterable is unavailable, cannot determine iterable type")
       }
-      val iterator = iterableOption.get.iterator
-      if (!iterator.hasNext) {
+      val iterable = iterableOption.get
+      if (iterable.isEmpty) {
         throw new IllegalStateException("Iterable element class wasn't defined in Gatling session and Iterable is empty, cannot determine iterable type")
       }
-      iterator.next.getClass
+      iterable.head.getClass
     }
   }
 
@@ -111,12 +111,12 @@ object SessionCollectionResolver {
         throw new IllegalStateException(
           "Map key/value classes weren't defined in Gatling session and map is unavailable, cannot determine types for map keys or values")
       }
-      val iterator = mapOption.get.iterator
-      if (!iterator.hasNext) {
+      val iterable = mapOption.get
+      if (iterable.isEmpty) {
         throw new IllegalStateException(
           "Map key/value classes weren't defined in Gatling session and map is empty, cannot determine types for map keys or values")
       }
-      val entry = iterator.next
+      val entry = iterable.head
       (entry._1.getClass, entry._2.getClass)
     }
   }
