@@ -48,6 +48,14 @@ case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]
     DseCqlAttributesBuilder(attr.copy(idempotent = Some(true)))
 
   /**
+    * Set query to be idempotent i.e. run only once
+    *
+    * @return
+    */
+  def withIdempotency(idempotency:Boolean):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(idempotent = Some(idempotency)))
+
+  /**
     * Set the node that should handle this query
     * @param node Node
     * @return
