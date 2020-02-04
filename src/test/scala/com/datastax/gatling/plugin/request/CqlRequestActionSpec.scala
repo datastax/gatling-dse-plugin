@@ -2,7 +2,7 @@ package com.datastax.gatling.plugin.request
 
 import java.nio.ByteBuffer
 import java.time.Duration
-import java.util.concurrent.{CompletableFuture, CompletionStage, Executor, TimeUnit}
+import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKitBase
@@ -15,8 +15,7 @@ import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseCqlStatement}
 import com.datastax.oss.driver.api.core.{ConsistencyLevel, CqlSession}
-import com.datastax.oss.driver.api.core.config.DefaultDriverOption
-import com.datastax.oss.driver.api.core.cql.{SimpleStatement => SimpleS, SimpleStatementBuilder => SimpleB, _}
+import com.datastax.oss.driver.api.core.cql.{AsyncResultSet, SimpleStatement, SimpleStatementBuilder}
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.datastax.oss.driver.api.core.metadata.token.Token
 import io.gatling.commons.validation.SuccessWrapper
@@ -32,7 +31,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system:ActorSystem = ActorSystem()
   val gatlingTestConfig: GatlingConfiguration = GatlingConfiguration.loadForTest()
   val cqlSession: CqlSession = mock[CqlSession]
-  val dseCqlStatement: DseCqlStatement[SimpleS,SimpleB] = mock[DseCqlStatement[SimpleS,SimpleB]]
+  val dseCqlStatement: DseCqlStatement[SimpleStatement,SimpleStatementBuilder] = mock[DseCqlStatement[SimpleStatement,SimpleStatementBuilder]]
   val node:Node = mock[Node]
   val pageSize = 3
   val pagingState: ByteBuffer = mock[ByteBuffer]
@@ -44,7 +43,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseCqlAttributes[SimpleS,SimpleB]): CqlRequestAction[SimpleS,SimpleB] = {
+  def getTarget(dseAttributes: DseCqlAttributes[SimpleStatement,SimpleStatementBuilder]): CqlRequestAction[SimpleStatement,SimpleStatementBuilder] = {
     new CqlRequestAction(
       "sample-dse-request",
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),
@@ -68,14 +67,14 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   }
 
   describe("CQL") {
-    val statementCapture = EasyMock.newCapture[SimpleS]
+    val statementCapture = EasyMock.newCapture[SimpleStatement]
     it("should have default CQL attributes set if nothing passed") {
       val cqlAttributesWithDefaults = DseCqlAttributes(
         "test",
         dseCqlStatement)
 
       expecting {
-        dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleS.builder("select * from test")
+        dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleStatement.builder("select * from test")
           .success)
         cqlSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
       }
@@ -85,7 +84,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       }
 
       val capturedStatement = statementCapture.getValue
-      capturedStatement shouldBe a[SimpleS]
+      capturedStatement shouldBe a[SimpleStatement]
       capturedStatement.getConsistencyLevel shouldBe null
       capturedStatement.getSerialConsistencyLevel shouldBe null
       capturedStatement.getPageSize should be <= 0
@@ -95,7 +94,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
     }
 
     it("should enable all the CQL Attributes in DseAttributes") {
-      val cqlAttributes = new DseCqlAttributes[SimpleS,SimpleB](
+      val cqlAttributes = new DseCqlAttributes[SimpleStatement,SimpleStatementBuilder](
         "test",
         dseCqlStatement,
         cl = Some(ConsistencyLevel.ANY),
@@ -112,7 +111,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
         timeout = Some(timeout))
 
       expecting {
-        dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleS.builder("select * from test")
+        dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleStatement.builder("select * from test")
           .success)
         cqlSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
       }
@@ -122,7 +121,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       }
 
       val capturedStatement = statementCapture.getValue
-      capturedStatement shouldBe a[SimpleS]
+      capturedStatement shouldBe a[SimpleStatement]
       capturedStatement.getConsistencyLevel shouldBe ConsistencyLevel.ANY
       capturedStatement.isIdempotent shouldBe true
       capturedStatement.getNode shouldBe node
@@ -150,7 +149,7 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
 
       val cqlRequestAction = getTarget(cqlAttributesWithDefaults)
 
-      val classLogger = LoggerFactory.getLogger(classOf[CqlRequestAction[SimpleS,SimpleB]]).asInstanceOf[Logger]
+      val classLogger = LoggerFactory.getLogger(classOf[CqlRequestAction[SimpleStatement,SimpleStatementBuilder]]).asInstanceOf[Logger]
       val listAppender: ListAppender[ILoggingEvent] = new ListAppender[ILoggingEvent]
       listAppender.start()
       classLogger.addAppender(listAppender)

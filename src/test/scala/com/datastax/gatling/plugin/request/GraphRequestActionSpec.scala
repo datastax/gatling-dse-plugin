@@ -6,13 +6,14 @@ import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKitBase
-import com.datastax.dse.driver.api.core.graph.{ScriptGraphStatement => ScriptS, ScriptGraphStatementBuilder => ScriptB, _}
+import com.datastax.dse.driver.api.core.DseSession
+import com.datastax.dse.driver.api.core.graph.{AsyncGraphResultSet, ScriptGraphStatement, ScriptGraphStatementBuilder}
+import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
-import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.model.{DseGraphAttributes, DseGraphStatement}
-import com.datastax.oss.driver.api.core.{ConsistencyLevel, CqlSession}
+import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.datastax.oss.driver.api.core.metadata.Node
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.Exit
@@ -25,8 +26,8 @@ import org.easymock.EasyMock._
 class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system = ActorSystem()
   val gatlingTestConfig = GatlingConfiguration.loadForTest()
-  val cqlSession = mock[CqlSession]
-  val dseGraphStatement = mock[DseGraphStatement[ScriptS,ScriptB]]
+  val cqlSession = mock[DseSession]
+  val dseGraphStatement = mock[DseGraphStatement[ScriptGraphStatement,ScriptGraphStatementBuilder]]
   val node:Node = mock[Node]
   val readConsistencyLevel = ConsistencyLevel.LOCAL_QUORUM
   val subProtocol = "graph-binary-3.0"
@@ -39,7 +40,8 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseGraphAttributes[ScriptS,ScriptB]): GraphRequestAction[ScriptS,ScriptB] = {
+  def getTarget(dseAttributes: DseGraphAttributes[ScriptGraphStatement,ScriptGraphStatementBuilder]):
+  GraphRequestAction[ScriptGraphStatement,ScriptGraphStatementBuilder] = {
     new GraphRequestAction(
       "sample-dse-request",
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),
@@ -64,7 +66,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
   }
 
   describe("Graph") {
-    val statementCapture = EasyMock.newCapture[ScriptS]
+    val statementCapture = EasyMock.newCapture[ScriptGraphStatement]
     it("should enable all the Graph Attributes in DseAttributes") {
       val graphAttributes = new DseGraphAttributes("test", dseGraphStatement,
         cl = Some(ConsistencyLevel.ANY),
@@ -80,7 +82,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       )
 
       expecting {
-        dseGraphStatement.buildFromSession(gatlingSession) andReturn(ScriptS.builder("g.V()").success)
+        dseGraphStatement.buildFromSession(gatlingSession) andReturn(ScriptGraphStatement.builder("g.V()").success)
         cqlSession.executeAsync(capture(statementCapture)) andReturn mockAsyncGraphResultSetFuture()
       }
 
@@ -89,7 +91,7 @@ class GraphRequestActionSpec extends BaseSpec with TestKitBase {
       }
 
       val capturedStatement = statementCapture.getValue
-      capturedStatement shouldBe a[ScriptS]
+      capturedStatement shouldBe a[ScriptGraphStatement]
       capturedStatement.getConsistencyLevel shouldBe ConsistencyLevel.ANY
       capturedStatement.isIdempotent shouldBe true
       capturedStatement.getNode shouldBe node

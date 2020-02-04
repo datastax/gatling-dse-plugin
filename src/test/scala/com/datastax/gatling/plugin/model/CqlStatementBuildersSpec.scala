@@ -6,7 +6,7 @@ import java.time.Duration
 import com.datastax.gatling.plugin.DsePredef._
 import com.datastax.gatling.plugin.checks.CqlChecks
 import com.datastax.oss.driver.api.core.ConsistencyLevel.{EACH_QUORUM, THREE}
-import com.datastax.oss.driver.api.core.cql.{SimpleStatement => SimpleS, SimpleStatementBuilder => SimpleB, _}
+import com.datastax.oss.driver.api.core.cql.{AsyncResultSet, SimpleStatement, SimpleStatementBuilder}
 import com.datastax.oss.driver.api.core.metadata.Node
 import com.datastax.oss.driver.api.core.metadata.token.Token
 import io.gatling.core.session.{ExpressionSuccessWrapper, Session}
@@ -18,7 +18,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
 
 
   it should "build statements from a CQL String" in {
-    val statementAttributes: DseCqlAttributes[SimpleS,SimpleB] = cql("the-tag")
+    val statementAttributes: DseCqlAttributes[SimpleStatement,SimpleStatementBuilder] = cql("the-tag")
       .executeCql("SELECT foo FROM bar.baz LIMIT 1")
       .build()
       .dseAttributes
@@ -73,8 +73,8 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
   }
 
   it should "build statements from a SimpleStatement" in {
-    val statementAttributes: DseCqlAttributes[SimpleS,SimpleB] = cql("the-tag")
-      .executeStatement(SimpleS.newInstance("Some CQL"))
+    val statementAttributes: DseCqlAttributes[SimpleStatement,SimpleStatementBuilder] = cql("the-tag")
+      .executeStatement(SimpleStatement.newInstance("Some CQL"))
       .build()
       .dseAttributes
     val statement = statementAttributes.statement
