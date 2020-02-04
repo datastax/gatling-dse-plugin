@@ -6,12 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.dse.driver.api.core.graph.{
-  FluentGraphStatement => FluentS,
-  FluentGraphStatementBuilder => FluentB,
-  ScriptGraphStatement => ScriptS,
-  ScriptGraphStatementBuilder => ScriptB,
-  _}
+import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.exceptions.DseGraphStatementException
 import io.gatling.commons.validation._
 import io.gatling.core.session.{Expression, Session}
@@ -27,10 +22,10 @@ trait DseGraphStatement[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B
   * @param statement the Gremlin String to execute
   */
 case class GraphStringStatement(statement: Expression[String])
-  extends DseGraphStatement[ScriptS, ScriptB] {
+  extends DseGraphStatement[ScriptGraphStatement, ScriptGraphStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[ScriptB] = {
-    statement(gatlingSession).flatMap(stmt => ScriptS.builder(stmt).success)
+  def buildFromSession(gatlingSession: Session): Validation[ScriptGraphStatementBuilder] = {
+    statement(gatlingSession).flatMap(stmt => ScriptGraphStatement.builder(stmt).success)
   }
 }
 
@@ -39,11 +34,11 @@ case class GraphStringStatement(statement: Expression[String])
   *
   * @param statement the Fluent Statement
   */
-case class GraphFluentStatement(statement: FluentS)
-  extends DseGraphStatement[FluentS, FluentB] {
+case class GraphFluentStatement(statement: FluentGraphStatement)
+  extends DseGraphStatement[FluentGraphStatement, FluentGraphStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[FluentB] = {
-    FluentS.builder(statement).success
+  def buildFromSession(gatlingSession: Session): Validation[FluentGraphStatementBuilder] = {
+    FluentGraphStatement.builder(statement).success
   }
 }
 
@@ -54,11 +49,11 @@ case class GraphFluentStatement(statement: FluentS)
   * @param lambda Scala lambda that takes a Gatling User Session (from which it can retrieve parameters)
   *               and returns a fluent Graph Statement
   */
-case class GraphFluentStatementFromScalaLambda(lambda: Session => FluentS)
-  extends DseGraphStatement[FluentS, FluentB] {
+case class GraphFluentStatementFromScalaLambda(lambda: Session => FluentGraphStatement)
+  extends DseGraphStatement[FluentGraphStatement, FluentGraphStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[FluentB] = {
-    FluentS.builder(lambda(gatlingSession)).success
+  def buildFromSession(gatlingSession: Session): Validation[FluentGraphStatementBuilder] = {
+    FluentGraphStatement.builder(lambda(gatlingSession)).success
   }
 }
 
@@ -69,16 +64,16 @@ case class GraphFluentStatementFromScalaLambda(lambda: Session => FluentS)
   * @param sessionKey Place a GraphTraversal in your session with this key name
   */
 case class GraphFluentSessionKey(sessionKey: String)
-  extends DseGraphStatement[FluentS, FluentB] {
+  extends DseGraphStatement[FluentGraphStatement, FluentGraphStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[FluentB] = {
+  def buildFromSession(gatlingSession: Session): Validation[FluentGraphStatementBuilder] = {
 
     if (!gatlingSession.contains(sessionKey)) {
       throw new DseGraphStatementException(s"Passed sessionKey: {$sessionKey} does not exist in Session.")
     }
 
     Try {
-      FluentS.builder(gatlingSession(sessionKey).as[GraphTraversal[_, _]])
+      FluentGraphStatement.builder(gatlingSession(sessionKey).as[GraphTraversal[_, _]])
     } match {
       case TrySuccess(builder) => builder.success
       case TryFailure(error) => error.getMessage.failure
@@ -92,8 +87,8 @@ case class GraphFluentSessionKey(sessionKey: String)
   * @param builder   SimpleGraphStatementBuilder
   * @param sessionKeys Gatling session param keys mapped to their bind name, to allow name override
   */
-case class GraphBoundStatement(builder: ScriptB, sessionKeys: Map[String, String])
-  extends DseGraphStatement[ScriptS, ScriptB] {
+case class GraphBoundStatement(builder: ScriptGraphStatementBuilder, sessionKeys: Map[String, String])
+  extends DseGraphStatement[ScriptGraphStatement, ScriptGraphStatementBuilder] {
 
   /**
     * Apply the Gatling session params passed to the GraphStatement
@@ -102,7 +97,7 @@ case class GraphBoundStatement(builder: ScriptB, sessionKeys: Map[String, String
     * @return
     */
 
-  def buildFromSession(gatlingSession: Session): Validation[ScriptB] = {
+  def buildFromSession(gatlingSession: Session): Validation[ScriptGraphStatementBuilder] = {
     Try {
       sessionKeys foreach { k =>
         k match {
