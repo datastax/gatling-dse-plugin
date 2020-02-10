@@ -158,27 +158,6 @@ case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]
   def withTimeout(timeout: Duration):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(timeout = Some(timeout)))
 
-  /**
-    * For backwards compatibility
-    *
-    * @param level
-    * @return
-    */
-  @deprecated("Replaced by withSerialConsistencyLevel")
-  def serialConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
-    withSerialConsistencyLevel(level)
-
-  /**
-    * Backwards compatibility to set consistencyLevel
-    *
-    * @see [[DseCqlAttributesBuilder.withConsistencyLevel]]
-    * @param level Consistency Level to use
-    * @return
-    */
-  @deprecated("Replaced by withConsistencyLevel")
-  def consistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
-    withConsistencyLevel(level)
-
   def check(check: DseCqlCheck):DseCqlAttributesBuilder[T, B] =
     DseCqlAttributesBuilder(attr.copy(cqlChecks = (attr.cqlChecks :+ check)))
 }
