@@ -31,6 +31,8 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
 
   it should "forward all attributs to DseCqlAttributes" in {
     val node = mock[Node]
+    val customPayloadKey = "key"
+    val customPayloadVal = mock[ByteBuffer]
     val pagingState = mock[ByteBuffer]
     val queryTimestamp = 123L
     val routingKey = mock[ByteBuffer]
@@ -41,6 +43,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
     val statementAttributes: DseCqlAttributes[_,_] = cql("the-session-tag")
       .executeCql("FOO")
       .withConsistencyLevel(EACH_QUORUM)
+      .addCustomPayload(customPayloadKey, customPayloadVal)
       .withIdempotency()
       .withNode(node)
       .withTracingEnabled()
@@ -58,6 +61,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
     statementAttributes.tag should be("the-session-tag")
     statementAttributes.cl should be(Some(EACH_QUORUM))
     statementAttributes.cqlChecks should contain only cqlCheck
+    statementAttributes.customPayload should be(Some(Map(customPayloadKey -> customPayloadVal)))
     statementAttributes.idempotent should be(Some(true))
     statementAttributes.node should be(Some(node))
     statementAttributes.enableTrace should be(Some(true))

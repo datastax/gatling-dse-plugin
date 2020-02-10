@@ -40,6 +40,21 @@ case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]
     DseCqlAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
+    * Set custom payload
+    *
+    * @param k the key for this custom payload
+    * @param v the value for this custom payload
+    * @return
+    */
+  def addCustomPayload(k:String, v:ByteBuffer):DseCqlAttributesBuilder[T, B] = {
+    val newVal =
+      attr.customPayload
+        .orElse(Some(Map[String, ByteBuffer]()))
+        .map(m => m + (k -> v))
+    DseCqlAttributesBuilder(attr.copy(customPayload = newVal))
+  }
+
+  /**
     * Set query to be idempotent i.e. run only once
     *
     * @return
