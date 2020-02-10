@@ -65,7 +65,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, (_) => mockBuilder, e1, e2)
+        DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, e1, e2)((_) => mockBuilder)
           .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
@@ -77,7 +77,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        val r = DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, e1, e2)
+        val r = DseCqlBoundStatementWithPassedParams(mockCqlTypes, prepared, e1, e2)((_) => mockBuilder)
           .buildFromSession(invalidGatlingSession)
         r shouldBe a[Failure]
         r shouldBe "No attribute named 'foo' is defined".failure
@@ -105,7 +105,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementWithParamList(mockCqlTypes, prepared, validParamList, (_) => mockBuilder)
+        DseCqlBoundStatementWithParamList(mockCqlTypes, prepared, validParamList)((_) => mockBuilder)
           .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
@@ -126,7 +126,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementNamed(mockCqlTypes, prepared, (_) => mockBuilder)
+        DseCqlBoundStatementNamed(mockCqlTypes, prepared)((_) => mockBuilder)
           .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }
@@ -147,7 +147,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
-        DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey", (_) => mockBuilder)
+        DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey")((_) => mockBuilder)
           .buildFromSession(sessionWithStatement) shouldBe a[Success[_]]
       }
     }
@@ -157,7 +157,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement) {
         val thrown = intercept[DseCqlStatementException] {
-          DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey")
+          DseCqlBoundStatementNamedFromSession(mockCqlTypes, "statementKey")((_) => mockBuilder)
             .buildFromSession(validGatlingSession) shouldBe a[Failure]
         }
         thrown.getMessage shouldBe "Passed sessionKey: {statementKey} does not exist in Session."
@@ -180,7 +180,7 @@ class DseCqlStatementSpec extends BaseSpec {
       }
 
       whenExecuting(prepared, mockCqlTypes, mockBoundStatement, mockBuilder) {
-        DseCqlBoundBatchStatement(mockCqlTypes, Seq(prepared), (_) => mockBuilder)
+        DseCqlBoundBatchStatement(mockCqlTypes, Seq(prepared))((_) => mockBuilder)
           .buildFromSession(validGatlingSession) shouldBe a[Success[_]]
       }
     }

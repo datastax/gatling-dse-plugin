@@ -39,8 +39,8 @@ case class DseCqlSimpleStatement(statement: SimpleStatement)
   * @param preparedStatement the prepared statement on which to bind parameters
   */
 case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil,
-                                     preparedStatement: PreparedStatement,
-                                     builderFn: (BoundStatement) => BoundStatementBuilder)
+                                     preparedStatement: PreparedStatement)
+                                    (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
   extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
   def buildFromSession(gatlingSession: Session): Validation[BoundStatementBuilder] = {
@@ -73,14 +73,6 @@ case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil,
   }
 }
 
-object DseCqlBoundStatementNamed {
-  val defaultBuilderFn = (s:BoundStatement) => new BoundStatementBuilder(s)
-
-  def apply(cqlTypes: CqlPreparedStatementUtil,
-            preparedStatement: PreparedStatement):DseCqlBoundStatementNamed =
-    new DseCqlBoundStatementNamed(cqlTypes, preparedStatement, defaultBuilderFn)
-}
-
 /**
   * Bind Gatling session values to the CQL Prepared Statement
   *
@@ -89,8 +81,8 @@ object DseCqlBoundStatementNamed {
   */
 case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUtil,
                                                 preparedStatement: PreparedStatement,
-                                                builderFn: (BoundStatement) => BoundStatementBuilder,
                                                 params: Expression[AnyRef]*)
+                                               (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
   extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
   def buildFromSession(gatlingSession: Session): Validation[BoundStatementBuilder] = {
@@ -109,15 +101,6 @@ case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUt
   }
 }
 
-object DseCqlBoundStatementWithPassedParams {
-  val defaultBuilderFn = (s:BoundStatement) => new BoundStatementBuilder(s)
-
-  def apply(cqlTypes: CqlPreparedStatementUtil,
-            preparedStatement: PreparedStatement,
-            params: Expression[AnyRef]*):DseCqlBoundStatementWithPassedParams =
-    new DseCqlBoundStatementWithPassedParams(cqlTypes, preparedStatement, defaultBuilderFn, params:_*)
-}
-
 /**
   * Bind Gatling session params to the CQL Prepared Statement
   *
@@ -125,8 +108,8 @@ object DseCqlBoundStatementWithPassedParams {
   */
 case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
                                              preparedStatement: PreparedStatement,
-                                             sessionKeys: Seq[String],
-                                             builderFn: (BoundStatement) => BoundStatementBuilder)
+                                             sessionKeys: Seq[String])
+                                            (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
   extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
   /**
@@ -162,23 +145,14 @@ case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
   }
 }
 
-object DseCqlBoundStatementWithParamList {
-  val defaultBuilderFn = (s:BoundStatement) => new BoundStatementBuilder(s)
-
-  def apply(cqlTypes: CqlPreparedStatementUtil,
-            preparedStatement: PreparedStatement,
-            sessionKeys: Seq[String]):DseCqlBoundStatementWithParamList =
-    new DseCqlBoundStatementWithParamList(cqlTypes, preparedStatement, sessionKeys, defaultBuilderFn)
-}
-
 /**
   * Bound CQL Prepared Statement from Named Params
   *
   * @param statements CQL Prepared Statements
   */
 case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil,
-                                     statements: Seq[PreparedStatement],
-                                     builderFn: (BoundStatement) => BoundStatementBuilder)
+                                     statements: Seq[PreparedStatement])
+                                    (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
   extends DseCqlStatement[BatchStatement, BatchStatementBuilder] {
 
   def buildFromSession(gatlingSession: Session): Validation[BatchStatementBuilder] = {
@@ -207,14 +181,6 @@ case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil,
       }
     completedBuilder.build()
   }
-}
-
-object DseCqlBoundBatchStatement {
-  val defaultBuilderFn = (s:BoundStatement) => new BoundStatementBuilder(s)
-
-  def apply(cqlTypes: CqlPreparedStatementUtil,
-            statements: Seq[PreparedStatement]):DseCqlBoundBatchStatement =
-    new DseCqlBoundBatchStatement(cqlTypes, statements, defaultBuilderFn)
 }
 
 /**
@@ -248,8 +214,8 @@ case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: 
   * @param sessionKey the session key which is associated to a PreparedStatement
   */
 case class DseCqlBoundStatementNamedFromSession(cqlTypes: CqlPreparedStatementUtil,
-                                                sessionKey: String,
-                                                builderFn: (BoundStatement) => BoundStatementBuilder)
+                                                sessionKey: String)
+                                               (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
   extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
   def buildFromSession(gatlingSession: Session): Validation[BoundStatementBuilder] = {
@@ -257,14 +223,6 @@ case class DseCqlBoundStatementNamedFromSession(cqlTypes: CqlPreparedStatementUt
       throw new DseCqlStatementException(s"Passed sessionKey: {$sessionKey} does not exist in Session.")
     }
     val preparedStatement = gatlingSession(sessionKey).as[PreparedStatement]
-    DseCqlBoundStatementNamed(cqlTypes, preparedStatement, builderFn).buildFromSession(gatlingSession)
+    DseCqlBoundStatementNamed(cqlTypes, preparedStatement)(builderFn).buildFromSession(gatlingSession)
   }
-}
-
-object DseCqlBoundStatementNamedFromSession {
-  val defaultBuilderFn = (s:BoundStatement) => new BoundStatementBuilder(s)
-
-  def apply(cqlTypes: CqlPreparedStatementUtil,
-            sessionKey: String):DseCqlBoundStatementNamedFromSession =
-    new DseCqlBoundStatementNamedFromSession(cqlTypes, sessionKey, defaultBuilderFn)
 }

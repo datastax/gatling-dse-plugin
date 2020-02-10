@@ -22,6 +22,8 @@ import io.gatling.core.session.Expression
   */
 case class DseCqlStatementBuilder(tag: String) {
 
+  implicit val defaultBuilderFn = (s:BoundStatement) => new BoundStatementBuilder(s)
+
   /**
     * Execute a simple Statement built from a CQL string.
     *
@@ -135,6 +137,8 @@ case class DseCqlStatementBuilder(tag: String) {
   * @param prepared CQL Prepared Statement
   */
 case class DsePreparedCqlStatementBuilder(tag: String, prepared: PreparedStatement) {
+
+  implicit val defaultBuilderFn = (s:BoundStatement) => new BoundStatementBuilder(s)
 
   /**
     * Alias for the behavior of executeNamed function
