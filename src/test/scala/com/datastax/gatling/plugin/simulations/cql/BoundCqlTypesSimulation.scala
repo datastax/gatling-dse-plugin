@@ -120,11 +120,6 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   private def preparedCqlPredicate(row:Row):Boolean =
     row.getBoolean("boolean_type") && row.isNull("null_type")
 
-  // In most cases we can simply extract a value from the row and compare that extracted value to an expected value
-  // via the Gatling API
-  private def counterCqlExtract(row:Row):Long =
-    row.getLong("counter_type")
-
   val scn = scenario("BoundCqlStatement")
 
       .feed(preparedFeed)
@@ -152,7 +147,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
       .exec(selectCounterPreparedCql
           .withParams(List("uuid_type"))
           .check(resultSet.transform(_.remaining) is 1)
-          .check(resultSet.transform(rs => counterCqlExtract(rs.one)) is 2L)
+          .check(resultSet.transform(rs => rs.one().getLong("counter_type")) is 2L)
       )
       .pause(100.millis)
 
