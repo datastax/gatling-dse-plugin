@@ -24,6 +24,7 @@ import com.datastax.oss.driver.api.core.metadata.Node
   * @param graphChecks            Data-level checks to be run after response is returned
   * @param idempotent             Set request to be idempotent i.e. whether it can be applied multiple times
   * @param node                   Set the node that should handle this query
+  * @param userOrRole             Set the user/role for this query if proxy authentication is used
   * @param graphName              Name of the graph to use if different from the one used when connecting
   * @param readCL                 Consistency level to use for the read part of the query
   * @param subProtocol            Name of the graph protocol to use for encoding/decoding
@@ -40,6 +41,7 @@ case class DseGraphAttributes[T <: GraphStatement[T], B <: GraphStatementBuilder
    cl: Option[ConsistencyLevel] = None,
    idempotent: Option[Boolean] = None,
    node: Option[Node] = None,
+   userOrRole: Option[String] = None,
    /* Graph-specific attributes */
    graphName: Option[String] = None,
    readCL: Option[ConsistencyLevel] = None,

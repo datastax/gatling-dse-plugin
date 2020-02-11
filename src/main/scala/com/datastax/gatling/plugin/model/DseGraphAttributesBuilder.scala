@@ -45,6 +45,23 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T], B <: GraphStatement
     DseGraphAttributesBuilder(attr.copy(idempotent = Some(true)))
 
   /**
+    * Set the node that should handle this query
+    * @param node Node
+    * @return
+    */
+  def withNode(node: Node):DseGraphAttributesBuilder[T, B] =
+    DseGraphAttributesBuilder(attr.copy(node = Some(node)))
+
+  /**
+    * Set the user or role to use for proxy auth
+    * @param userOrRole String
+    * @return
+    */
+  def executeAs(userOrRole: String):DseGraphAttributesBuilder[T, B] =
+    DseGraphAttributesBuilder(attr.copy(userOrRole = Some(userOrRole)))
+
+
+  /**
     * Sets the graph name to use
     *
     * @param name Graph name
@@ -52,14 +69,6 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T], B <: GraphStatement
     */
   def withName(name: String):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(graphName = Some(name)))
-
-  /**
-    * Set the node that should handle this query
-    * @param node Node
-    * @return
-    */
-  def withNode(node: Node):DseGraphAttributesBuilder[T, B] =
-    DseGraphAttributesBuilder(attr.copy(node = Some(node)))
 
   /**
     * Define [[ConsistencyLevel]] to be used for read queries
@@ -114,16 +123,6 @@ case class DseGraphAttributesBuilder[T <: GraphStatement[T], B <: GraphStatement
     */
   def withWriteConsistency(writeCL: ConsistencyLevel):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(writeCL = Some(writeCL)))
-
-  /**
-    * Backwards compatibility to set consistencyLevel
-    *
-    * @see [[DseGraphAttributesBuilder.withConsistencyLevel]]
-    * @param level Consistency Level to use
-    * @return
-    */
-  @deprecated("use withConsistencyLevel() instead, will be removed in future version")
-  def consistencyLevel(level: ConsistencyLevel):DseGraphAttributesBuilder[T, B] = withConsistencyLevel(level)
 
   def check(check: DseGraphCheck):DseGraphAttributesBuilder[T, B] =
     DseGraphAttributesBuilder(attr.copy(graphChecks = check :: attr.graphChecks))

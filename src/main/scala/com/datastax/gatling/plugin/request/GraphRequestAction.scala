@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
+import com.datastax.dse.driver.api.core.auth.ProxyAuthentication
 import com.datastax.dse.driver.api.core.graph.{GraphStatement, GraphStatementBuilderBase}
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
@@ -82,7 +83,11 @@ class GraphRequestAction[T <: GraphStatement[T], B <: GraphStatementBuilderBase[
 
   private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:B): Unit = {
 
-    val stmt:T = buildStatement(builder)
+    val baseStmt:T = buildStatement(builder)
+    val stmt:T =
+      dseAttributes.userOrRole
+        .map(ProxyAuthentication.executeAs(_,baseStmt))
+        .getOrElse(baseStmt)
     val responseHandler =
       new GraphResponseHandler[T, B](
         next,
@@ -121,8 +126,8 @@ class GraphRequestAction[T <: GraphStatement[T], B <: GraphStatementBuilderBase[
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
     }
-    val stmt = dseAttributes.statement.buildFromSession(session)
-    stmt.onFailure(handleFailure(session, responseTimeBuilder))
-    stmt.onSuccess(handleSuccess(session, responseTimeBuilder))
+    val stmtBuilder = dseAttributes.statement.buildFromSession(session)
+    stmtBuilder.onFailure(handleFailure(session, responseTimeBuilder))
+    stmtBuilder.onSuccess(handleSuccess(session, responseTimeBuilder))
   }
 }

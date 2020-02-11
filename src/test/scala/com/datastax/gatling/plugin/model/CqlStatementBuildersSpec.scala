@@ -19,7 +19,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
 
   it should "build statements from a CQL String" in {
     val statementAttributes: DseCqlAttributes[SimpleStatement,SimpleStatementBuilder] = cql("the-tag")
-      .executeCql("SELECT foo FROM bar.baz LIMIT 1")
+      .executeStatement("SELECT foo FROM bar.baz LIMIT 1")
       .build()
       .dseAttributes
     val statement = statementAttributes.statement
@@ -31,6 +31,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
 
   it should "forward all attributs to DseCqlAttributes" in {
     val node = mock[Node]
+    val userOrRole = "userOrRole"
     val customPayloadKey = "key"
     val customPayloadVal = mock[ByteBuffer]
     val pagingState = mock[ByteBuffer]
@@ -41,11 +42,12 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
     val timeout = Duration.ofHours(1)
     val cqlCheck = CqlChecks.resultSet.find.is(mock[AsyncResultSet].expressionSuccess).build
     val statementAttributes: DseCqlAttributes[_,_] = cql("the-session-tag")
-      .executeCql("FOO")
+      .executeStatement("FOO")
       .withConsistencyLevel(EACH_QUORUM)
       .addCustomPayload(customPayloadKey, customPayloadVal)
       .withIdempotency()
       .withNode(node)
+      .executeAs(userOrRole)
       .withTracingEnabled()
       .withPageSize(3)
       .withPagingState(pagingState)
@@ -64,6 +66,7 @@ class CqlStatementBuildersSpec extends FlatSpec with Matchers with EasyMockSugar
     statementAttributes.customPayload should be(Some(Map(customPayloadKey -> customPayloadVal)))
     statementAttributes.idempotent should be(Some(true))
     statementAttributes.node should be(Some(node))
+    statementAttributes.userOrRole should be(Some(userOrRole))
     statementAttributes.enableTrace should be(Some(true))
     statementAttributes.pageSize should be(Some(3))
     statementAttributes.pagingState should be(Some(pagingState))

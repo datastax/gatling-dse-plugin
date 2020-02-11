@@ -27,6 +27,7 @@ import com.datastax.oss.driver.api.core.time.TimestampGenerator
   * @param cqlChecks        Data-level checks to be run after response is returned
   * @param idempotent       Set request to be idempotent i.e. whether it can be applied multiple times
   * @param node             Set the node that should handle this query
+  * @param userOrRole       Set the user/role for this query if proxy authentication is used
   * @param customPayload    Custom payload for this request
   * @param enableTrace      Whether tracing should be enabled
   * @param pageSize         Set pageSize (formerly known as fetchSize)
@@ -50,6 +51,7 @@ case class DseCqlAttributes[T <: Statement[T], B <: StatementBuilder[B,T]]
    cl: Option[ConsistencyLevel] = None,
    idempotent: Option[Boolean] = None,
    node: Option[Node] = None,
+   userOrRole: Option[String] = None,
    /* CQL-specific attributes */
    customPayload: Option[Map[String, ByteBuffer]] = None,
    enableTrace: Option[Boolean] = None,

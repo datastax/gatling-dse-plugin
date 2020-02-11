@@ -79,6 +79,14 @@ case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]
     DseCqlAttributesBuilder(attr.copy(node = Some(node)))
 
   /**
+    * Set the user or role to use for proxy auth
+    * @param userOrRole String
+    * @return
+    */
+  def executeAs(userOrRole: String):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(userOrRole = Some(userOrRole)))
+
+  /**
     * Enable CQL Tracing on the query
     *
     * @return

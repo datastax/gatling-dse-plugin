@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.MICROSECONDS
 
 import akka.actor.ActorSystem
+import com.datastax.dse.driver.api.core.auth.ProxyAuthentication
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.metrics.MetricsLogger
 import com.datastax.gatling.plugin.model.DseCqlAttributes
@@ -91,7 +92,11 @@ class CqlRequestAction[T <: Statement[T], B <: StatementBuilder[B,T]](val name: 
 
   private def handleSuccess(session: Session, responseTimeBuilder: ResponseTimeBuilder)(builder:B): Unit = {
 
-    val stmt:T = buildStatement(builder)
+    val baseStmt:T = buildStatement(builder)
+    val stmt:T =
+      dseAttributes.userOrRole
+      .map(ProxyAuthentication.executeAs(_,baseStmt))
+      .getOrElse(baseStmt)
     val responseHandler =
       new CqlResponseHandler[T, B](
         next,
@@ -129,8 +134,8 @@ class CqlRequestAction[T <: Statement[T], B <: StatementBuilder[B,T]](val name: 
       ThroughputVerifier.checkForGatlingOverloading(session, gatlingTimingSource)
       GatlingResponseTime.startedByGatling(session, gatlingTimingSource)
     }
-    val stmt = safely()(dseAttributes.statement.buildFromSession(session))
-    stmt.onFailure(handleFailure(session,responseTimeBuilder))
-    stmt.onSuccess(handleSuccess(session,responseTimeBuilder))
+    val stmtBuilder = safely()(dseAttributes.statement.buildFromSession(session))
+    stmtBuilder.onFailure(handleFailure(session,responseTimeBuilder))
+    stmtBuilder.onSuccess(handleSuccess(session,responseTimeBuilder))
   }
 }
