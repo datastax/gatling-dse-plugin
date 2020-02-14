@@ -58,8 +58,6 @@ object SessionCollectionResolver {
     })
   }
 
-  // Note the Java return type here.  This function is used to generate objects which will subsequently
-  // be passed to the Java Bindable impl which is expecting Java Iterators.
   def getIterable[T <: Any](session:Session, name:String):Option[Iterable[T]] = {
     get(session,name).flatMap((sessionVal) => {
       sessionVal match {
@@ -70,8 +68,6 @@ object SessionCollectionResolver {
     })
   }
 
-  // Note the Java return type here.  This function is used to generate objects which will subsequently
-  // be passed to the Java Bindable impl which is expecting Java Maps.
   def getMap[K <: Any, V <: Any](session:Session, name:String):Option[Map[K,V]] = {
     get(session,name).flatMap((sessionVal) => {
       sessionVal match {
