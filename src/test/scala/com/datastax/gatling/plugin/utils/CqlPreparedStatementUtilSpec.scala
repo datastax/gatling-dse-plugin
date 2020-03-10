@@ -53,21 +53,14 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
     "stringDate" -> "2016-10-05",
 
     "set" -> Set(1),
-    "set-clz" -> classOf[Integer],
     "setString" -> Set("test"),
     "setJava" -> Set(1).asJava,
-    "anotherSet" -> Set(1),
 
     "list" -> List(1),
-    "list-clz" -> classOf[Integer],
     "listJava" -> List(1).asJava,
-    "anotherList" -> List(1),
 
     "map" -> Map(1 -> 1),
-    "map-key-clz" -> classOf[Integer],
-    "map-val-clz" -> classOf[Integer],
     "mapJava" -> Map(1 -> 1).asJava,
-    "anotherMap" -> Map(1 -> 1),
 
     "seq" -> Seq(1),
     "seqString" -> Seq("test"),
@@ -957,32 +950,14 @@ class CqlPreparedStatementUtilSpec extends BaseCassandraServerSpec {
         result.isSet(14) shouldBe true
       }
 
-      it("should bind with a list when inferring types") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.listOf(DataTypes.INT), "anotherList", 14)
-        result shouldBe a[BoundStatement]
-        result.isSet(14) shouldBe true
-      }
-
       it("should bind with a set") {
         val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.setOf(DataTypes.INT), "set", 15)
         result shouldBe a[BoundStatement]
         result.isSet(15) shouldBe true
       }
 
-      it("should bind with a set when inferring types") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.setOf(DataTypes.INT), "anotherSet", 15)
-        result shouldBe a[BoundStatement]
-        result.isSet(15) shouldBe true
-      }
-
       it("should bind with a map") {
         val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.mapOf(DataTypes.INT, DataTypes.INT), "map", 16)
-        result shouldBe a[BoundStatement]
-        result.isSet(16) shouldBe true
-      }
-
-      it("should bind with a map when inferring types") {
-        val result = CqlPreparedStatementUtil.bindParamByOrder(defaultGatlingSession, boundStatementKeys, DataTypes.mapOf(DataTypes.INT, DataTypes.INT), "anotherMap", 16)
         result shouldBe a[BoundStatement]
         result.isSet(16) shouldBe true
       }

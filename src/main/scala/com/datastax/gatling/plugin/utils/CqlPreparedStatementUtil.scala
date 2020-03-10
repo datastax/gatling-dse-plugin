@@ -10,7 +10,6 @@ import java.math.BigInteger
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.time.{Duration, Instant, LocalDate, LocalTime}
-import java.lang
 import java.util
 
 import com.datastax.dse.driver.api.core.data.geometry._
@@ -46,78 +45,6 @@ trait CqlPreparedStatementUtil {
   def getParamsList(preparedStatement: PreparedStatement): List[DataType]
 }
 
-object SessionCollectionResolver {
-  def get(session:Session, name:String):Option[Any] = session.attributes.get(name)
-
-  def getClz[T <: Any](session:Session, name:String):Option[Class[T]] = {
-    get(session,name).flatMap((sessionVal) => {
-      sessionVal match {
-        case clz:Class[T]@unchecked => Option(clz)
-        case _ => Option.empty
-      }
-    })
-  }
-
-  def getIterable[T <: Any](session:Session, name:String):Option[Iterable[T]] = {
-    get(session,name).flatMap((sessionVal) => {
-      sessionVal match {
-        case rv:Iterable[T]@unchecked => Option(rv)
-        case rv:lang.Iterable[T]@unchecked => Option(rv.asScala)
-        case _ => Option.empty
-      }
-    })
-  }
-
-  def getMap[K <: Any, V <: Any](session:Session, name:String):Option[Map[K,V]] = {
-    get(session,name).flatMap((sessionVal) => {
-      sessionVal match {
-        case rv:Map[K,V]@unchecked => Option(rv)
-        case rv:util.Map[K,V]@unchecked => Option(rv.asScala.toMap)
-        case _ => Option.empty
-      }
-    })
-  }
-
-  def getIterableClz[T <: Any](session:Session, name:String):Class[_ <: T] = {
-    val sessionOption:Option[Class[T]] = getClz(session, name + "-clz")
-    sessionOption.getOrElse {
-
-      val iterableOption:Option[Iterable[T]] = getIterable(session, name)
-      if (iterableOption.isEmpty) {
-        throw new IllegalStateException("Iterable element class wasn't defined in Gatling session and Iterable is unavailable, cannot determine iterable type")
-      }
-      val iterable = iterableOption.get
-      if (iterable.isEmpty) {
-        throw new IllegalStateException("Iterable element class wasn't defined in Gatling session and Iterable is empty, cannot determine iterable type")
-      }
-      iterable.head.getClass
-    }
-  }
-
-  def getMapClzs[K <: Any, V <: Any](session:Session, name:String):(Class[_ <: K],Class[_ <: V]) = {
-    val sessionKeyOption:Option[Class[K]] = getClz(session, name + "-key-clz")
-    val sessionValOption:Option[Class[V]] = getClz(session, name + "-val-clz")
-    sessionKeyOption.flatMap((k) => {
-      sessionValOption.map((v) => {
-        (k,v)
-      })
-    }).getOrElse {
-      val mapOption:Option[Map[K,V]] = getMap(session, name)
-      if (mapOption.isEmpty) {
-        throw new IllegalStateException(
-          "Map key/value classes weren't defined in Gatling session and map is unavailable, cannot determine types for map keys or values")
-      }
-      val iterable = mapOption.get
-      if (iterable.isEmpty) {
-        throw new IllegalStateException(
-          "Map key/value classes weren't defined in Gatling session and map is empty, cannot determine types for map keys or values")
-      }
-      val entry = iterable.head
-      (entry._1.getClass, entry._2.getClass)
-    }
-  }
-}
-
 /**
   * Utilities for CQL Statement building
   */
@@ -127,18 +54,20 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * Bind CQL Prepared statement params by key order
     *
     * @param gatlingSession Gatling Session
-    * @param bindable CQL Bindable impl
+    * @param bindable       CQL Bindable impl
     * @param paramType      Type of param ie String, int, boolean
     * @param paramName      Gatling Session Attribute Name
     * @param key            Key/Order of param
     */
   def bindParamByOrder[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: DataType,
-                          paramName: String, key: Int): T = {
+                                         paramName: String, key: Int): T = {
 
     if (!gatlingSession.attributes.contains(paramName)) {
       return if (bindable.isSet(paramName)) {
         bindable.unset(paramName)
-      } else { bindable }
+      } else {
+        bindable
+      }
     }
 
     gatlingSession.attributes.get(paramName) match {
@@ -147,7 +76,9 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
       case Some(None) =>
         if (bindable.isSet(paramName)) {
           bindable.unset(paramName)
-        } else { bindable }
+        } else {
+          bindable
+        }
       case _ =>
         paramType.getProtocolCode match {
           case (VARCHAR | ASCII) =>
@@ -177,16 +108,32 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
           case VARINT =>
             bindable.setBigInteger(key, asVarInt(gatlingSession, paramName))
           case LIST =>
-            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
-            bindable.setList(key, asList(gatlingSession, paramName, clz), clz)
+            val dataType = bindable.getType(key)
+            dataType match {
+              case l: ListType => {
+                val memberClz = clzFromCodec(bindable, l.getElementType)
+                bindable.setList(key, asList(gatlingSession, paramName, memberClz), memberClz)
+              }
+              case _ => throw new IllegalStateException("Observed something other than ListType for a LIST param")
+            }
           case SET =>
-            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
-            bindable.setSet(key, asSet(gatlingSession, paramName, clz), clz)
+            val dataType = bindable.getType(key)
+            dataType match {
+              case s: SetType => {
+                val memberClz = clzFromCodec(bindable, s.getElementType)
+                bindable.setSet(key, asSet(gatlingSession, paramName, memberClz), memberClz)
+              }
+              case _ => throw new IllegalStateException("Observed something other than SetType for a SET param")
+            }
           case MAP =>
-            val clzs = SessionCollectionResolver.getMapClzs(gatlingSession, paramName)
-            clzs match {
-              case (keyClz, valClz) => bindable.setMap(key, asMap(gatlingSession, paramName, keyClz, valClz), keyClz, valClz)
-              case _ => throw new IllegalStateException("Unexpected value observed when computing map classes")
+            val dataType = bindable.getType(key)
+            dataType match {
+              case m: MapType => {
+                val keyClz = clzFromCodec(bindable, m.getKeyType)
+                val valClz = clzFromCodec(bindable, m.getValueType)
+                bindable.setMap(key, asMap(gatlingSession, paramName, keyClz, valClz), keyClz, valClz)
+              }
+              case _ => throw new IllegalStateException("Observed something other than MapType for a MAP param")
             }
           case UDT =>
             bindable.setUdtValue(key, asUdt(gatlingSession, paramName))
@@ -221,20 +168,20 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * Bind CQL Prepared statement params by anem
     *
     * @param gatlingSession Gatling Session
-    * @param bindable CQL Bindable impl
+    * @param bindable       CQL Bindable impl
     * @param paramType      Type of param ie String, int, boolean
     * @param paramName      Gatling Session Attribute Value
     */
   def bindParamByName[T <: Bindable[T]](gatlingSession: Session, bindable: T, paramType: DataType,
-                         paramName: String): T = {
+                                        paramName: String): T = {
 
     if (!gatlingSession.attributes.contains(paramName)) {
       return if (bindable.isSet(paramName)) {
         bindable.unset(paramName)
-      } else { bindable }
+      } else {
+        bindable
+      }
     }
-
-    val stringClz = classOf[String]
 
     gatlingSession.attributes.get(paramName) match {
       case Some(null) =>
@@ -242,7 +189,9 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
       case Some(None) =>
         if (bindable.isSet(paramName)) {
           bindable.unset(paramName)
-        } else { bindable }
+        } else {
+          bindable
+        }
       case _ =>
         paramType.getProtocolCode match {
           case (VARCHAR | ASCII) =>
@@ -272,16 +221,32 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
           case VARINT =>
             bindable.setBigInteger(paramName, asVarInt(gatlingSession, paramName))
           case LIST =>
-            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
-            bindable.setList(paramName, asList(gatlingSession, paramName, clz), clz)
+            val dataType = bindable.getType(paramName)
+            dataType match {
+              case l: ListType => {
+                val memberClz = clzFromCodec(bindable, l.getElementType)
+                bindable.setList(paramName, asList(gatlingSession, paramName, memberClz), memberClz)
+              }
+              case _ => throw new IllegalStateException("Observed something other than ListType for a LIST param")
+            }
           case SET =>
-            val clz = SessionCollectionResolver.getIterableClz(gatlingSession, paramName)
-            bindable.setSet(paramName, asSet(gatlingSession, paramName, clz), clz)
+            val dataType = bindable.getType(paramName)
+            dataType match {
+              case s: SetType => {
+                val memberClz = clzFromCodec(bindable, s.getElementType)
+                bindable.setSet(paramName, asSet(gatlingSession, paramName, memberClz), memberClz)
+              }
+              case _ => throw new IllegalStateException("Observed something other than SetType for a SET param")
+            }
           case MAP =>
-            val clzs = SessionCollectionResolver.getMapClzs(gatlingSession, paramName)
-            clzs match {
-              case (keyClz, valClz) => bindable.setMap(paramName, asMap(gatlingSession, paramName, keyClz, valClz), keyClz, valClz)
-              case _ => throw new IllegalStateException("Unexpected value observed when computing map classes")
+            val dataType = bindable.getType(paramName)
+            dataType match {
+              case m: MapType => {
+                val keyClz = bindable.codecRegistry().codecFor(m.getKeyType).getJavaType.getRawType.asInstanceOf[Class[Any]]
+                val valClz = bindable.codecRegistry().codecFor(m.getValueType).getJavaType.getRawType.asInstanceOf[Class[Any]]
+                bindable.setMap(paramName, asMap(gatlingSession, paramName, keyClz, valClz), keyClz, valClz)
+              }
+              case _ => throw new IllegalStateException("Observed something other than MapType for a MAP param")
             }
           case UDT =>
             bindable.setUdtValue(paramName, asUdt(gatlingSession, paramName))
@@ -636,11 +601,11 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     * @param paramName      CQL prepared statement parameter name
     * @return
     */
-  def asMap[K,V](gatlingSession: Session, paramName: String, keyType: Class[K], valType: Class[V]): util.Map[K,V] = {
+  def asMap[K, V](gatlingSession: Session, paramName: String, keyType: Class[K], valType: Class[V]): util.Map[K, V] = {
     gatlingSession.attributes.get(paramName).flatMap(Option(_)) match {
-      case Some(m: Map[K,V]@unchecked) =>
+      case Some(m: Map[K, V]@unchecked) =>
         m.asJava
-      case Some(mj: util.Map[K,V]@unchecked) =>
+      case Some(mj: util.Map[K, V]@unchecked) =>
         mj
       case _ =>
         throw new CqlTypeException(s"$paramName expected to be type of Set")
@@ -678,7 +643,7 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
         throw new CqlTypeException(s"$paramName expected to be type of LineString")
     }
   }
-  
+
   /**
     * Returns CQL compatible Polygon type
     *
@@ -938,9 +903,13 @@ object CqlPreparedStatementUtil extends CqlPreparedStatementUtil {
     }
   }
 
-  def toLocalDate(epochMillis:Long):LocalDate = {
+  def toLocalDate(epochMillis: Long): LocalDate = {
     val end = Instant.ofEpochMilli(epochMillis)
-    val d = Duration.between(Instant.EPOCH,end)
+    val d = Duration.between(Instant.EPOCH, end)
     LocalDate.ofEpochDay(d.toDays)
+  }
+
+  def clzFromCodec(bindable: Bindable[_], genType: DataType): Class[Any] = {
+    bindable.codecRegistry().codecFor(genType).getJavaType.getRawType.asInstanceOf[Class[Any]]
   }
 }
