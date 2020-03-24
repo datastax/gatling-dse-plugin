@@ -2,6 +2,8 @@ package com.datastax.gatling.plugin.simulations.cql
 
 import com.datastax.gatling.plugin.DsePredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
+import com.datastax.oss.driver.api.core.cql.Row
+import com.datastax.oss.driver.api.querybuilder.QueryBuilder
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -19,8 +21,16 @@ class PreparedStatementSimulation extends BaseCqlSimulation {
   val insertStr = "two"
   val insertName = "test"
 
-  val statementInsert = s"""INSERT INTO $testKeyspace.$table_name (id, str, name) VALUES (?, ?, ?)"""
-  val statementSelect = s"""SELECT * FROM $testKeyspace.$table_name WHERE id = ? AND str = ?"""
+  val statementInsert = QueryBuilder.insertInto(testKeyspace, table_name)
+    .value("id", QueryBuilder.bindMarker())
+    .value("str", QueryBuilder.bindMarker())
+    .value("name", QueryBuilder.bindMarker())
+    .build()
+  val statementSelect = QueryBuilder.selectFrom(testKeyspace, table_name)
+    .all()
+    .whereColumn("id").isEqualTo(QueryBuilder.bindMarker())
+    .whereColumn("str").isEqualTo(QueryBuilder.bindMarker())
+    .build()
 
   val preparedInsert = session.prepare(statementInsert)
   val preparedSelect = session.prepare(statementSelect)
@@ -36,35 +46,37 @@ class PreparedStatementSimulation extends BaseCqlSimulation {
   )
 
   val insertCql = cql("Insert_Statement")
-      .executePrepared(preparedInsert)
+      .executeStatement(preparedInsert)
       .withParams("${id}", "${str}", "${name}")
 
   val selectCql = cql("Select_Statement")
-      .executePrepared(preparedSelect)
+      .executeStatement(preparedSelect)
       .withParams("${id}", "${str}")
 
   val selectCqlSessionParam = cql("Select_Statement_Array")
-      .executePrepared(preparedSelect)
+      .executeStatement(preparedSelect)
       .withParams(List("id", "str"))
 
+  private def selectCqlExtract(row:Row):String =
+    row.getString("name")
 
   val scnPassed = scenario("ABCPreparedStatement")
       .feed(feeder)
       .exec(insertCql
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .check(resultSet.transform(_.hasMorePages) is false)
+          .check(resultSet.transform(_.remaining) is 0) // "normal" INSERTs don't return anything
       )
       .pause(1.seconds)
 
       .exec(selectCql
-          .check(rowCount is 1)
-          .check(columnValue("name") is insertName)
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => selectCqlExtract(rs.one)) is insertName)
       )
       .pause(1.seconds)
 
       .exec(selectCqlSessionParam
-          .check(rowCount is 1)
-          .check(columnValue("name") is insertName)
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => selectCqlExtract(rs.one)) is insertName)
       )
 
 

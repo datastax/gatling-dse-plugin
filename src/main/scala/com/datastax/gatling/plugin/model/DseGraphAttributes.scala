@@ -6,9 +6,12 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.{ConsistencyLevel, Row}
-import com.datastax.driver.dse.graph.{GraphNode, GraphStatement}
-import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
+import java.time.Duration
+
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.dse.driver.api.core.graph.{GraphStatement, GraphStatementBuilderBase}
+import com.datastax.gatling.plugin.checks.DseGraphCheck
+import com.datastax.oss.driver.api.core.metadata.Node
 
 /**
   * Graph Query Attributes to be applied to the current query
@@ -19,34 +22,31 @@ import com.datastax.gatling.plugin.checks.{DseGraphCheck, GenericCheck}
   * @param statement              Graph Statement to be sent to Cluster
   * @param cl                     Consistency Level to be used
   * @param graphChecks            Data-level checks to be run after response is returned
-  * @param genericChecks          Low-level checks to be run after response is returned
-  * @param userOrRole             User or role to be used when proxy auth is enabled
-  * @param readTimeout            Read timeout to be used
   * @param idempotent             Set request to be idempotent i.e. whether it can be applied multiple times
-  * @param defaultTimestamp       Set default timestamp on request, overriding current system time
-  * @param  readCL                Consistency level to use for the read part of the query
-  * @param  writeCL               Consistency level to use for the write part of the query
-  * @param  graphName             Name of the graph to use if different from the one used when connecting
-  * @param  graphLanguage         Language used in the query
-  * @param  graphSource           Graph source to use if different from the one used when connecting
-  * @param  isSystemQuery         Whether the query is a system one and should be used without any graph name
-  * @param  graphInternalOptions  Query-specific options not available in the driver public API
-  * @param  graphTransformResults Function to use in order to transform a row into a Graph node
+  * @param node                   Set the node that should handle this query
+  * @param userOrRole             Set the user/role for this query if proxy authentication is used
+  * @param graphName              Name of the graph to use if different from the one used when connecting
+  * @param readCL                 Consistency level to use for the read part of the query
+  * @param subProtocol            Name of the graph protocol to use for encoding/decoding
+  * @param timeout                Timeout to use for this request
+  * @param timestamp              Timestamp to use for this request
+  * @param traversalSource        The traversal source for this request
+  * @param writeCL                Consistency level to use for the write part of the query
   */
-case class DseGraphAttributes(tag: String,
-                              statement: DseStatement[GraphStatement],
-                              cl: Option[ConsistencyLevel] = None,
-                              graphChecks: List[DseGraphCheck] = List.empty,
-                              genericChecks: List[GenericCheck] = List.empty,
-                              userOrRole: Option[String] = None,
-                              readTimeout: Option[Int] = None,
-                              idempotent: Option[Boolean] = None,
-                              defaultTimestamp: Option[Long] = None,
-                              readCL: Option[ConsistencyLevel] = None,
-                              writeCL: Option[ConsistencyLevel] = None,
-                              graphName: Option[String] = None,
-                              graphLanguage: Option[String] = None,
-                              graphSource: Option[String] = None,
-                              isSystemQuery: Option[Boolean] = None,
-                              graphInternalOptions: Option[Seq[(String, String)]] = None,
-                              graphTransformResults: Option[com.google.common.base.Function[Row, GraphNode]] = None)
+case class DseGraphAttributes[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B,T]]
+  (tag: String,
+   statement: DseGraphStatement[T, B],
+   graphChecks: List[DseGraphCheck] = List.empty,
+   /* General attributes */
+   cl: Option[ConsistencyLevel] = None,
+   idempotent: Option[Boolean] = None,
+   node: Option[Node] = None,
+   userOrRole: Option[String] = None,
+   /* Graph-specific attributes */
+   graphName: Option[String] = None,
+   readCL: Option[ConsistencyLevel] = None,
+   subProtocol: Option[String] = None,
+   timeout: Option[Duration] = None,
+   timestamp: Option[Long] = None,
+   traversalSource: Option[String] = None,
+   writeCL: Option[ConsistencyLevel] = None)

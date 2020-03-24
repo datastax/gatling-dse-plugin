@@ -2,11 +2,14 @@ package com.datastax.gatling.plugin.simulations.cql
 
 import java.nio.ByteBuffer
 import java.sql.Timestamp
+import java.time.Instant
 
-import com.datastax.driver.core.utils.UUIDs
-import com.datastax.driver.core.{DataType, ResultSet}
 import com.datastax.gatling.plugin.DsePredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
+import com.datastax.oss.driver.api.core.`type`.{DataTypes, UserDefinedType}
+import com.datastax.oss.driver.api.core.cql.Row
+import com.datastax.oss.driver.api.core.uuid.Uuids
+import com.datastax.oss.driver.api.querybuilder.QueryBuilder
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -20,16 +23,16 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   createTable
 
   val cqlConfig = cql.session(session)
-  val udtType = session.getCluster.getMetadata.getKeyspace(testKeyspace).getUserType("fullname")
+  val addressType:UserDefinedType = session.getMetadata.getKeyspace(testKeyspace).flatMap(_.getUserDefinedType("fullname")).get
 
-  val insertFullName = udtType.newValue()
+  val insertFullName = addressType.newValue()
       .setString("firstname", "John")
       .setString("lastname", "Smith")
 
-  val tupleType = session.getCluster.getMetadata.newTupleType(DataType.text(), DataType.text())
+  val tupleType = DataTypes.tupleOf(DataTypes.TEXT, DataTypes.TEXT)
   val insertTuple = tupleType.newValue("one", "two")
 
-  val uuid = UUIDs.random()
+  val uuid = Uuids.random()
 
   val preparedStatementInsert =
     s"""INSERT INTO $testKeyspace.$table_name (
@@ -44,7 +47,10 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
        |:tinyint_type, :time_type, :null_type, :udt_type, :tuple_type, :frozen_set_type, :set_string_type
        |)""".stripMargin
 
-  val preparedStatementSelect = s"""SELECT * FROM $testKeyspace.$table_name WHERE uuid_type = ?"""
+  val preparedStatementSelect = QueryBuilder.selectFrom(testKeyspace, table_name)
+    .all()
+    .whereColumn("uuid_type").isEqualTo(QueryBuilder.bindMarker())
+    .build()
 
   val preparedInsert = session.prepare(preparedStatementInsert)
   val preparedSelect = session.prepare(preparedStatementSelect)
@@ -58,7 +64,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   val preparedFeed = Iterator.continually(
     Map(
       "uuid_type" -> uuid,
-      "timeuuid_type" -> UUIDs.timeBased(),
+      "timeuuid_type" -> Uuids.timeBased(),
       "int_type" -> 1,
       "text_type" -> "text",
       "float_type" -> 4.50,
@@ -110,37 +116,38 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   )
   // End counter details
 
+  // A predicate function can be useful when we want to do multiple comparisons on data in a single row
+  private def preparedCqlPredicate(row:Row):Boolean =
+    row.getBoolean("boolean_type") && row.isNull("null_type")
 
   val scn = scenario("BoundCqlStatement")
 
       .feed(preparedFeed)
       .exec(insertPreparedCql
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .check(resultSet.transform(_.hasMorePages) is false)
+          .check(resultSet.transform(_.remaining) is 0) // "normal" INSERTs don't return anything
       )
       .pause(100.millis)
 
       .exec(selectPreparedCql
           .withParams(List("uuid_type"))
 
-          .check(rowCount is 1)
-          .check(columnValue("name") not "")
-          .check(columnValue("null_type") not "test")
-          .check(columnValue("boolean_type") is true)
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => preparedCqlPredicate(rs.one)) is true)
       )
       .pause(100.millis)
 
       .feed(counterFeed)
       .exec(insertCounterPreparedCql
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
+        .check(resultSet.transform(_.hasMorePages) is false)
+        .check(resultSet.transform(_.remaining) is 0) // "normal" INSERTs don't return anything
       )
       .pause(100.millis)
 
       .exec(selectCounterPreparedCql
           .withParams(List("uuid_type"))
-          .check(rowCount is 1)
-          .check(columnValue("counter_type") is 2)
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => rs.one().getLong("counter_type")) is 2L)
       )
       .pause(100.millis)
 
@@ -151,8 +158,7 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
     global.failedRequests.count.is(0)
   )
 
-
-  def createTable: ResultSet = {
+  private def createTable = {
 
     val udt =
       s"""
@@ -206,12 +212,11 @@ class BoundCqlTypesSimulation extends BaseCqlSimulation {
   }
 
 
-  def getRandomEpoch: Timestamp = {
-    val offset: Long = Timestamp.valueOf("2012-01-01 00:00:00").getTime
+  def getRandomEpoch: Instant = {
+    val offset = Timestamp.valueOf("2012-01-01 00:00:00").getTime
     val end = Timestamp.valueOf("2017-01-01 00:00:00").getTime
     val diff = end - offset + 1
-    val time: Long = (offset + (Math.random() * diff)).toLong
-    new Timestamp(time)
+    val time = (offset + (Math.random() * diff)).toLong
+    Instant.ofEpochMilli(time)
   }
-
 }

@@ -6,7 +6,7 @@
 
 package com.datastax.gatling.plugin.checks
 
-import com.datastax.driver.dse.graph._
+import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.response.GraphResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check.extractor.{Extractor, SingleArity}
@@ -14,7 +14,6 @@ import io.gatling.core.check._
 import io.gatling.core.session.{Expression, ExpressionSuccessWrapper, Session}
 
 import scala.collection.mutable
-
 
 /**
   * This class serves as model for the Graph-specific checks.
@@ -52,51 +51,9 @@ private class GraphResponseExtractor[X](val name: String,
 }
 
 object GraphChecks {
-  val graphResultSet =
-    new GraphResponseExtractor[GraphResultSet](
-      "graphResultSet",
-      r => r.getGraphResultSet)
-      .toCheckBuilder
-
-  val allNodes =
-    new GraphResponseExtractor[Seq[GraphNode]](
-      "allNodes",
-      r => r.getAllNodes)
-      .toCheckBuilder
-
-  val oneNode =
-    new GraphResponseExtractor[GraphNode](
-      "oneNode",
-      r => r.getOneNode)
-      .toCheckBuilder
-
-  def edges(column: String) =
-    new GraphResponseExtractor[Seq[Edge]](
-      "edges",
-      r => r.getEdges(column))
-      .toCheckBuilder
-
-  def vertexes(column: String) =
-    new GraphResponseExtractor[Seq[Vertex]](
-      "vertices",
-      r => r.getVertexes(column))
-      .toCheckBuilder
-
-  def paths(column: String) =
-    new GraphResponseExtractor[Seq[Path]](
-      "paths",
-      r => r.getPaths(column))
-      .toCheckBuilder
-
-  def properties(column: String) =
-    new GraphResponseExtractor[Seq[Property]](
-      "properties",
-      r => r.getProperties(column))
-      .toCheckBuilder
-
-  def vertexProperties(column: String) =
-    new GraphResponseExtractor[Seq[Property]](
-      "vertexProperties",
-      r => r.getVertexProperties(column))
-      .toCheckBuilder
+  val resultSet:GraphCheckBuilder[AsyncGraphResultSet] =
+    new GraphResponseExtractor[AsyncGraphResultSet](
+    "graphResultSet",
+    r => r.resultSet)
+    .toCheckBuilder
 }

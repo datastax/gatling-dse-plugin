@@ -4,20 +4,21 @@ val gatlingVersion = "2.3.0"
 
 scalacOptions += "-target:jvm-1.8"
 
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-core"     % "1.6.8"
-libraryDependencies += "com.datastax.dse"             %  "dse-java-driver-graph"    % "1.6.8"
-libraryDependencies += "com.github.nscala-time"       %% "nscala-time"              % "2.18.0"
-libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala"     % "2.9.1"
-libraryDependencies += "org.hdrhistogram"             %  "HdrHistogram"             % "2.1.10"
+libraryDependencies += "com.datastax.oss"             %  "java-driver-core"              % "4.5.0"
+libraryDependencies += "com.github.nscala-time"       %% "nscala-time"                   % "2.18.0"
+libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala"          % "2.9.1"
+libraryDependencies += "org.hdrhistogram"             %  "HdrHistogram"                  % "2.1.10"
 
-libraryDependencies += "io.gatling.highcharts"        % "gatling-charts-highcharts" % gatlingVersion % Provided
+libraryDependencies += "io.gatling.highcharts"        % "gatling-charts-highcharts"      % gatlingVersion % Provided
 
-libraryDependencies += "org.fusesource"               %  "sigar"                    % "1.6.4"        % Test
-libraryDependencies += "org.scalatest"                %% "scalatest"                % "3.0.5"        % Test
-libraryDependencies += "org.easymock"                 %  "easymock"                 % "3.5"          % Test
-libraryDependencies += "org.cassandraunit"            %  "cassandra-unit"           % "3.3.0.2"      % Test
-libraryDependencies += "org.pegdown"                  %  "pegdown"                  % "1.6.0"        % Test
-libraryDependencies += "com.typesafe.akka"            %% "akka-testkit"             % "2.5.11"       % Test
+libraryDependencies += "org.fusesource"               %  "sigar"                         % "1.6.4"        % Test
+libraryDependencies += "org.scalatest"                %% "scalatest"                     % "3.0.5"        % Test
+libraryDependencies += "org.easymock"                 %  "easymock"                      % "3.5"          % Test
+libraryDependencies += "org.cassandraunit"            %  "cassandra-unit"                % "4.3.1.0"      % Test
+libraryDependencies += "org.pegdown"                  %  "pegdown"                       % "1.6.0"        % Test
+libraryDependencies += "com.typesafe.akka"            %% "akka-testkit"                  % "2.5.11"       % Test
+libraryDependencies += "com.datastax.oss"             %  "java-driver-query-builder"     % "4.4.0"        % Test
+
 
 resolvers += Resolver.mavenLocal
 resolvers += Resolver.mavenCentral

@@ -1,21 +1,23 @@
 package com.datastax.gatling.plugin.request
 
-import java.util.concurrent.{Executor, TimeUnit}
+import java.nio.ByteBuffer
+import java.time.Duration
+import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.actor.{ActorSystem, Props}
 import akka.testkit.TestKitBase
 import ch.qos.logback.classic.{Level, Logger}
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import com.datastax.driver.core._
-import com.datastax.driver.core.policies.FallthroughRetryPolicy
-import com.datastax.driver.dse.DseSession
 import com.datastax.gatling.plugin.base.BaseSpec
 import com.datastax.gatling.plugin.metrics.NoopMetricsLogger
 import com.datastax.gatling.plugin.utils.GatlingTimingSource
 import com.datastax.gatling.plugin.DseProtocol
 import com.datastax.gatling.plugin.model.{DseCqlAttributes, DseCqlStatement}
-import com.google.common.util.concurrent.{Futures, ListenableFuture}
+import com.datastax.oss.driver.api.core.{ConsistencyLevel, CqlSession}
+import com.datastax.oss.driver.api.core.cql.{AsyncResultSet, SimpleStatement, SimpleStatementBuilder}
+import com.datastax.oss.driver.api.core.metadata.Node
+import com.datastax.oss.driver.api.core.metadata.token.Token
 import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.action.Exit
 import io.gatling.core.config.GatlingConfiguration
@@ -28,39 +30,36 @@ import org.slf4j.LoggerFactory
 class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   implicit lazy val system:ActorSystem = ActorSystem()
   val gatlingTestConfig: GatlingConfiguration = GatlingConfiguration.loadForTest()
-  val dseSession: DseSession = mock[DseSession]
-  val dseCqlStatement: DseCqlStatement = mock[DseCqlStatement]
-  val pagingState: PagingState = mock[PagingState]
+  val cqlSession: CqlSession = mock[CqlSession]
+  val dseCqlStatement: DseCqlStatement[SimpleStatement,SimpleStatementBuilder] = mock[DseCqlStatement[SimpleStatement,SimpleStatementBuilder]]
+  val node:Node = mock[Node]
+  val pageSize = 3
+  val pagingState: ByteBuffer = mock[ByteBuffer]
+  val queryTimestamp = 123L
+  val routingKey:ByteBuffer = mock[ByteBuffer]
+  val routingKeyspace = "some_keyspace"
+  val routingToken:Token = mock[Token]
+  val timeout:Duration = Duration.ofHours(1)
   val statsEngine: StatsEngine = mock[StatsEngine]
   val gatlingSession = Session("scenario", 1)
 
-  def getTarget(dseAttributes: DseCqlAttributes): CqlRequestAction = {
+  def getTarget(dseAttributes: DseCqlAttributes[SimpleStatement,SimpleStatementBuilder]): CqlRequestAction[SimpleStatement,SimpleStatementBuilder] = {
     new CqlRequestAction(
       "sample-dse-request",
       new Exit(system.actorOf(Props[DseRequestActor]), statsEngine),
       system,
       statsEngine,
-      DseProtocol(dseSession),
+      DseProtocol(cqlSession),
       dseAttributes,
       NoopMetricsLogger(),
       executorServiceForTests(),
       GatlingTimingSource())
   }
 
-  private def mockResultSetFuture(): ResultSetFuture = new ResultSetFuture {
-    val delegate: ListenableFuture[ResultSet] = Futures.immediateFuture(mock[ResultSet])
-    override def cancel(b: Boolean): Boolean = false
-    override def getUninterruptibly: ResultSet = delegate.get()
-    override def getUninterruptibly(duration: Long, timeUnit: TimeUnit): ResultSet = delegate.get(duration, timeUnit)
-    override def addListener(listener: Runnable, executor: Executor): Unit = delegate.addListener(listener, executor)
-    override def isCancelled: Boolean = delegate.isCancelled
-    override def isDone: Boolean = delegate.isDone
-    override def get(): ResultSet = delegate.get()
-    override def get(timeout: Long, unit: TimeUnit): ResultSet = delegate.get(timeout, unit)
-  }
+  private def mockAsyncResultSetFuture(): CompletionStage[AsyncResultSet] = CompletableFuture.completedFuture(mock[AsyncResultSet])
 
   before {
-    reset(dseCqlStatement, dseSession, pagingState, statsEngine)
+    reset(dseCqlStatement, cqlSession, pagingState, statsEngine)
   }
 
   override protected def afterAll(): Unit = {
@@ -68,19 +67,19 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
   }
 
   describe("CQL") {
-    val statementCapture = EasyMock.newCapture[RegularStatement]
+    val statementCapture = EasyMock.newCapture[SimpleStatement]
     it("should have default CQL attributes set if nothing passed") {
       val cqlAttributesWithDefaults = DseCqlAttributes(
         "test",
         dseCqlStatement)
 
       expecting {
-        dseCqlStatement.buildFromSession(gatlingSession).andReturn(new SimpleStatement("select * from test")
+        dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleStatement.builder("select * from test")
           .success)
-        dseSession.executeAsync(capture(statementCapture)) andReturn mockResultSetFuture()
+        cqlSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
       }
 
-      whenExecuting(dseCqlStatement, dseSession) {
+      whenExecuting(dseCqlStatement, cqlSession) {
         getTarget(cqlAttributesWithDefaults).sendQuery(gatlingSession)
       }
 
@@ -88,50 +87,53 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
       capturedStatement shouldBe a[SimpleStatement]
       capturedStatement.getConsistencyLevel shouldBe null
       capturedStatement.getSerialConsistencyLevel shouldBe null
-      capturedStatement.getFetchSize shouldBe 0
-      capturedStatement.getDefaultTimestamp shouldBe -9223372036854775808L
-      capturedStatement.getReadTimeoutMillis shouldBe -2147483648
-      capturedStatement.getRetryPolicy shouldBe null
+      capturedStatement.getPageSize should be <= 0
       capturedStatement.isIdempotent shouldBe null
       capturedStatement.isTracing shouldBe false
-      capturedStatement.getQueryString should be("select * from test")
+      capturedStatement.getQuery should be("select * from test")
     }
 
     it("should enable all the CQL Attributes in DseAttributes") {
-      val cqlAttributes = DseCqlAttributes(
+      val cqlAttributes = new DseCqlAttributes[SimpleStatement,SimpleStatementBuilder](
         "test",
         dseCqlStatement,
         cl = Some(ConsistencyLevel.ANY),
-        userOrRole = Some("test_user"),
-        readTimeout = Some(12),
-        defaultTimestamp = Some(1498167845000L),
         idempotent = Some(true),
-        fetchSize = Some(50),
+        node = Some(node),
+        enableTrace = Some(true),
+        pagingState = Some(pagingState),
+        pageSize = Some(pageSize),
+        queryTimestamp = Some(queryTimestamp),
+        routingKey = Some(routingKey),
+        routingKeyspace = Some(routingKeyspace),
+        routingToken = Some(routingToken),
         serialCl = Some(ConsistencyLevel.LOCAL_SERIAL),
-        retryPolicy = Some(FallthroughRetryPolicy.INSTANCE),
-        enableTrace = Some(true))
+        timeout = Some(timeout))
 
       expecting {
-        dseCqlStatement.buildFromSession(gatlingSession).andReturn(new SimpleStatement("select * from test")
+        dseCqlStatement.buildFromSession(gatlingSession) andReturn(SimpleStatement.builder("select * from test")
           .success)
-        dseSession.executeAsync(capture(statementCapture)) andReturn mockResultSetFuture()
+        cqlSession.executeAsync(capture(statementCapture)) andReturn mockAsyncResultSetFuture()
       }
 
-      whenExecuting(dseCqlStatement, dseSession) {
+      whenExecuting(dseCqlStatement, cqlSession) {
         getTarget(cqlAttributes).sendQuery(gatlingSession)
       }
 
       val capturedStatement = statementCapture.getValue
       capturedStatement shouldBe a[SimpleStatement]
       capturedStatement.getConsistencyLevel shouldBe ConsistencyLevel.ANY
-      capturedStatement.getDefaultTimestamp shouldBe 1498167845000L
-      capturedStatement.getReadTimeoutMillis shouldBe 12
       capturedStatement.isIdempotent shouldBe true
-      capturedStatement.getFetchSize shouldBe 50
-      capturedStatement.getSerialConsistencyLevel shouldBe ConsistencyLevel.LOCAL_SERIAL
-      capturedStatement.getRetryPolicy shouldBe FallthroughRetryPolicy.INSTANCE
-      capturedStatement.getQueryString should be("select * from test")
+      capturedStatement.getNode shouldBe node
       capturedStatement.isTracing shouldBe true
+      capturedStatement.getPageSize shouldBe pageSize
+      capturedStatement.getPagingState shouldBe pagingState
+      capturedStatement.getQueryTimestamp shouldBe queryTimestamp
+      capturedStatement.getRoutingKey shouldBe routingKey
+      capturedStatement.getRoutingKeyspace.toString shouldBe routingKeyspace
+      capturedStatement.getRoutingToken shouldBe routingToken
+      capturedStatement.getSerialConsistencyLevel shouldBe ConsistencyLevel.LOCAL_SERIAL
+      capturedStatement.getTimeout shouldBe timeout
     }
 
     it("should log exceptions encountered") {
@@ -147,12 +149,12 @@ class CqlRequestActionSpec extends BaseSpec with TestKitBase {
 
       val cqlRequestAction = getTarget(cqlAttributesWithDefaults)
 
-      val classLogger = LoggerFactory.getLogger(classOf[CqlRequestAction]).asInstanceOf[Logger]
+      val classLogger = LoggerFactory.getLogger(classOf[CqlRequestAction[SimpleStatement,SimpleStatementBuilder]]).asInstanceOf[Logger]
       val listAppender: ListAppender[ILoggingEvent] = new ListAppender[ILoggingEvent]
       listAppender.start()
       classLogger.addAppender(listAppender)
 
-      whenExecuting(dseCqlStatement, dseSession) {
+      whenExecuting(dseCqlStatement, cqlSession) {
         cqlRequestAction.sendQuery(gatlingSession)
       }
 

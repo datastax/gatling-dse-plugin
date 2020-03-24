@@ -8,19 +8,19 @@ package com.datastax.gatling.plugin.request
 
 
 import akka.actor.Actor
-import com.datastax.driver.core.ResultSet
-import com.datastax.driver.dse.graph.GraphResultSet
-import com.google.common.util.concurrent.FutureCallback
+import com.datastax.dse.driver.api.core.graph.{GraphStatement, GraphStatementBuilderBase}
+import com.datastax.gatling.plugin.response.DseResponseCallback
+import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
 import com.typesafe.scalalogging.StrictLogging
 import io.gatling.core.session.Session
 
 import scala.concurrent.ExecutionException
 import scala.util.{Failure, Success, Try}
 
-case class SendCqlQuery(dseRequestAction: CqlRequestAction, session: Session)
-case class SendGraphQuery(dseRequestAction: GraphRequestAction, session: Session)
+case class SendCqlQuery[T <: Statement[T], B <: StatementBuilder[B,T]](dseRequestAction: CqlRequestAction[T,B], session: Session)
+case class SendGraphQuery[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B,T]](dseRequestAction: GraphRequestAction[T,B], session: Session)
 
-case class RecordResult[T](t: Try[T], callback: FutureCallback[T])
+case class RecordResult[T](t: Try[T], callback: DseResponseCallback[T])
 
 class DseRequestActor extends Actor with StrictLogging {
   override def receive: Actor.Receive = {

@@ -6,8 +6,7 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.dse.graph.{GraphStatement, SimpleGraphStatement}
-import com.datastax.dse.graph.api.DseGraph
+import com.datastax.dse.driver.api.core.graph._
 import com.datastax.gatling.plugin.exceptions.DseGraphStatementException
 import io.gatling.commons.validation._
 import io.gatling.core.session.{Expression, Session}
@@ -15,19 +14,18 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
 
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
-
-trait DseGraphStatement extends DseStatement[GraphStatement] {
-  def buildFromSession(session: Session): Validation[GraphStatement]
-}
+trait DseGraphStatement[T <: GraphStatement[T], B <: GraphStatementBuilderBase[B,T]] extends DseStatement[B]
 
 /**
   * Simple DSE Graph Statement from a String
   *
   * @param statement the Gremlin String to execute
   */
-case class GraphStringStatement(statement: Expression[String]) extends DseGraphStatement {
-  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
-    statement(gatlingSession).flatMap(stmt => new SimpleGraphStatement(stmt).success)
+case class GraphStringStatement(statement: Expression[String])
+  extends DseGraphStatement[ScriptGraphStatement, ScriptGraphStatementBuilder] {
+
+  def buildFromSession(gatlingSession: Session): Validation[ScriptGraphStatementBuilder] = {
+    statement(gatlingSession).flatMap(stmt => ScriptGraphStatement.builder(stmt).success)
   }
 }
 
@@ -36,9 +34,11 @@ case class GraphStringStatement(statement: Expression[String]) extends DseGraphS
   *
   * @param statement the Fluent Statement
   */
-case class GraphFluentStatement(statement: GraphStatement) extends DseGraphStatement {
-  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
-    statement.success
+case class GraphFluentStatement(statement: FluentGraphStatement)
+  extends DseGraphStatement[FluentGraphStatement, FluentGraphStatementBuilder] {
+
+  def buildFromSession(gatlingSession: Session): Validation[FluentGraphStatementBuilder] = {
+    FluentGraphStatement.builder(statement).success
   }
 }
 
@@ -49,9 +49,11 @@ case class GraphFluentStatement(statement: GraphStatement) extends DseGraphState
   * @param lambda Scala lambda that takes a Gatling User Session (from which it can retrieve parameters)
   *               and returns a fluent Graph Statement
   */
-case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement) extends DseGraphStatement {
-  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
-    lambda(gatlingSession).success
+case class GraphFluentStatementFromScalaLambda(lambda: Session => FluentGraphStatement)
+  extends DseGraphStatement[FluentGraphStatement, FluentGraphStatementBuilder] {
+
+  def buildFromSession(gatlingSession: Session): Validation[FluentGraphStatementBuilder] = {
+    FluentGraphStatement.builder(lambda(gatlingSession)).success
   }
 }
 
@@ -61,31 +63,32 @@ case class GraphFluentStatementFromScalaLambda(lambda: Session => GraphStatement
   *
   * @param sessionKey Place a GraphTraversal in your session with this key name
   */
-case class GraphFluentSessionKey(sessionKey: String) extends DseGraphStatement {
+case class GraphFluentSessionKey(sessionKey: String)
+  extends DseGraphStatement[FluentGraphStatement, FluentGraphStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[FluentGraphStatementBuilder] = {
 
     if (!gatlingSession.contains(sessionKey)) {
       throw new DseGraphStatementException(s"Passed sessionKey: {$sessionKey} does not exist in Session.")
     }
 
     Try {
-      DseGraph.statementFromTraversal(gatlingSession(sessionKey).as[GraphTraversal[_, _]])
+      FluentGraphStatement.builder(gatlingSession(sessionKey).as[GraphTraversal[_, _]])
     } match {
-      case TrySuccess(stmt) => stmt.success
+      case TrySuccess(builder) => builder.success
       case TryFailure(error) => error.getMessage.failure
     }
   }
-
 }
 
 /**
   * Set/Bind Gatling Session key/vals to GraphStatement
   *
-  * @param statement   SimpleGraphStatement
+  * @param builder   SimpleGraphStatementBuilder
   * @param sessionKeys Gatling session param keys mapped to their bind name, to allow name override
   */
-case class GraphBoundStatement(statement: SimpleGraphStatement, sessionKeys: Map[String, String]) extends DseGraphStatement {
+case class GraphBoundStatement(builder: ScriptGraphStatementBuilder, sessionKeys: Map[String, String])
+  extends DseGraphStatement[ScriptGraphStatement, ScriptGraphStatementBuilder] {
 
   /**
     * Apply the Gatling session params passed to the GraphStatement
@@ -93,28 +96,19 @@ case class GraphBoundStatement(statement: SimpleGraphStatement, sessionKeys: Map
     * @param gatlingSession Gatling Session
     * @return
     */
-  def buildFromSession(gatlingSession: Session): Validation[GraphStatement] = {
+
+  def buildFromSession(gatlingSession: Session): Validation[ScriptGraphStatementBuilder] = {
     Try {
-      sessionKeys.foreach((tuple: (String, String)) => setParam(gatlingSession, tuple._1, tuple._2)).success
-      statement
+      sessionKeys foreach { k =>
+        k match {
+          case (k, v) => builder.setQueryParam(v, gatlingSession(k).as[Object])
+          case _ => throw new RuntimeException(s"Observed ${k} instead of expected key-value pair")
+        }
+      }
+      builder
     } match {
-      case TrySuccess(stmt) => stmt.success
+      case TrySuccess(builder) => builder.success
       case TryFailure(error) => error.getMessage.failure
     }
-  }
-
-  /**
-    * Set a parameter to the current gStatement.
-    *
-    * The value of this parameter is retrieved by looking up paramName from the gatlingSession.
-    * It is then bound to overriddenParamName in gStatement.
-    *
-    * @param gatlingSession      Gatling session
-    * @param paramName           Parameter name as accessible in Gatling session
-    * @param overriddenParamName Parameter name used to bind the statement
-    * @return gStatement
-    */
-  private def setParam(gatlingSession: Session, paramName: String, overriddenParamName: String): GraphStatement = {
-    statement.set(overriddenParamName, gatlingSession(paramName).as[Object])
   }
 }

@@ -6,15 +6,14 @@
 
 package com.datastax.gatling.plugin.checks
 
-import com.datastax.driver.core.{ResultSet, Row}
+import com.datastax.oss.driver.api.core.cql.{AsyncResultSet, Statement, StatementBuilder}
 import com.datastax.gatling.plugin.response.CqlResponse
 import io.gatling.commons.validation.{SuccessWrapper, Validation}
 import io.gatling.core.check._
-import io.gatling.core.check.extractor.{CountArity, CriterionExtractor, Extractor, FindAllArity, FindArity, SingleArity, _}
+import io.gatling.core.check.extractor.{Extractor, SingleArity}
 import io.gatling.core.session.{Expression, ExpressionSuccessWrapper, Session}
 
 import scala.collection.mutable
-
 
 /**
   * This class serves as model for the CQL-specific checks.
@@ -51,50 +50,10 @@ private class CqlResponseExtractor[X](val name: String,
   }
 }
 
-private abstract class ColumnValueExtractor[X] extends CriterionExtractor[CqlResponse, Any, X] {
-  val criterionName = "columnValue"
-}
-
-private class SingleColumnValueExtractor(val criterion: String, val occurrence: Int) extends ColumnValueExtractor[Any] with FindArity {
-  def extract(response: CqlResponse): Validation[Option[Any]] =
-    response.getCqlResultColumnValues(criterion).lift(occurrence).success
-}
-
-private class MultipleColumnValueExtractor(val criterion: String) extends ColumnValueExtractor[Seq[Any]] with FindAllArity {
-  def extract(response: CqlResponse): Validation[Option[Seq[Any]]] =
-    response.getCqlResultColumnValues(criterion).liftSeqOption.success
-}
-
-private class CountColumnValueExtractor(val criterion: String) extends ColumnValueExtractor[Int] with CountArity {
-  def extract(response: CqlResponse): Validation[Option[Int]] =
-    response.getCqlResultColumnValues(criterion).liftSeqOption.map(_.size).success
-}
-
 object CqlChecks {
-  val resultSet =
-    new CqlResponseExtractor[ResultSet](
+  val resultSet:CqlCheckBuilder[AsyncResultSet] =
+    new CqlResponseExtractor[AsyncResultSet](
       "resultSet",
-      r => r.getCqlResultSet)
+      r => r.resultSet)
       .toCheckBuilder
-
-  val allRows =
-    new CqlResponseExtractor[Seq[Row]](
-      "allRows",
-      r => r.getAllRows)
-      .toCheckBuilder
-
-  val oneRow =
-    new CqlResponseExtractor[Row](
-      "oneRow",
-      r => r.getOneRow)
-      .toCheckBuilder
-
-  def columnValue(columnName: Expression[String]) = {
-    val cqlResponseExtender: Extender[DseCqlCheck, CqlResponse] = wrapped => DseCqlCheck(wrapped)
-    new DefaultMultipleFindCheckBuilder[DseCqlCheck, CqlResponse, CqlResponse, Any](cqlResponseExtender, x => x.success) {
-      def findExtractor(occurrence: Int) = columnName.map(new SingleColumnValueExtractor(_, occurrence))
-      def findAllExtractor = columnName.map(new MultipleColumnValueExtractor(_))
-      def countExtractor = columnName.map(new CountColumnValueExtractor(_))
-    }
-  }
 }

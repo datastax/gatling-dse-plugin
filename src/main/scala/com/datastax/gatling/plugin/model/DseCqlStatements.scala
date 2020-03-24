@@ -8,29 +8,28 @@ package com.datastax.gatling.plugin.model
 
 import java.nio.ByteBuffer
 
-import com.datastax.driver.core._
+import com.datastax.oss.driver.api.core.cql._
 import com.datastax.gatling.plugin.exceptions.DseCqlStatementException
 import com.datastax.gatling.plugin.utils.CqlPreparedStatementUtil
+import com.datastax.oss.driver.api.core.`type`.DataType
 import io.gatling.commons.validation._
-import io.gatling.core.session.{Session, _}
+import io.gatling.core.session._
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.ArrayBuffer
 import scala.util.{Try, Failure => TryFailure, Success => TrySuccess}
 
-
-trait DseCqlStatement extends DseStatement[Statement] {
-  def buildFromSession(session: Session): Validation[Statement]
-}
+trait DseCqlStatement[T <: Statement[T], B <: StatementBuilder[B,T]] extends DseStatement[B]
 
 /**
   * Simple CQL Statement from the java driver
   *
   * @param statement the statement to execute
   */
-case class DseCqlSimpleStatement(statement: SimpleStatement) extends DseCqlStatement {
-  def buildFromSession(gatlingSession: Session): Validation[SimpleStatement] = {
-    statement.success
+case class DseCqlSimpleStatement(statement: SimpleStatement)
+  extends DseCqlStatement[SimpleStatement, SimpleStatementBuilder] {
+
+  def buildFromSession(gatlingSession: Session): Validation[SimpleStatementBuilder] = {
+    SimpleStatement.builder(statement).success
   }
 }
 
@@ -39,30 +38,38 @@ case class DseCqlSimpleStatement(statement: SimpleStatement) extends DseCqlState
   *
   * @param preparedStatement the prepared statement on which to bind parameters
   */
-case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil, preparedStatement: PreparedStatement)
-    extends DseCqlStatement {
+case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil,
+                                     preparedStatement: PreparedStatement)
+                                    (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
+  extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[BoundStatement] =
-    bindParams(
+  def buildFromSession(gatlingSession: Session): Validation[BoundStatementBuilder] = {
+    val template:BoundStatement = bindParams(
       gatlingSession,
       preparedStatement.bind(),
-      cqlTypes.getParamsMap(preparedStatement)).success
+      cqlTypes.getParamsMap(preparedStatement))
+    builderFn(template).success
+  }
 
   /**
     * Bind Gatling Session Params to CQL Statement by Name and Type
     *
     * @param gatlingSession Gatling Session
-    * @param boundStatement CQL Prepared Statement
+    * @param template CQL Prepared Statement
     * @param queryParams    CQL Query Named Params and Types
     * @return
     */
-  protected def bindParams(gatlingSession: Session, boundStatement: BoundStatement,
-                           queryParams: Map[String, DataType.Name]): BoundStatement = {
-    queryParams.foreach {
-      case (gatlingSessionKey, valType) =>
-        cqlTypes.bindParamByName(gatlingSession, boundStatement, valType, gatlingSessionKey)
-    }
-    boundStatement
+  protected def bindParams(gatlingSession: Session, template: BoundStatement,
+                           queryParams: Map[String, DataType]): BoundStatement = {
+    val completedBuilder =
+      queryParams.foldLeft(builderFn(template)) {
+        (builder, kv) =>
+          kv match {
+            case (gatlingSessionKey, valType) =>
+              cqlTypes.bindParamByName(gatlingSession, builder, valType, gatlingSessionKey)
+          }
+      }
+    completedBuilder.build()
   }
 }
 
@@ -74,9 +81,11 @@ case class DseCqlBoundStatementNamed(cqlTypes: CqlPreparedStatementUtil, prepare
   */
 case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUtil,
                                                 preparedStatement: PreparedStatement,
-                                                params: Expression[AnyRef]*) extends DseCqlStatement {
+                                                params: Expression[AnyRef]*)
+                                               (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
+  extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[BoundStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[BoundStatementBuilder] = {
     val parsedParams: Seq[Validation[AnyRef]] = params.map(param => param(gatlingSession))
     if (parsedParams.exists(_.isInstanceOf[Failure])) {
       val firstError = StringBuilder.newBuilder
@@ -86,7 +95,8 @@ case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUt
         .onFailure(msg => firstError.append(msg))
       firstError.toString().failure
     } else {
-      preparedStatement.bind(parsedParams.map(_.get): _*).success
+      val template:BoundStatement = preparedStatement.bind(parsedParams.map(_.get): _*)
+      builderFn(template).success
     }
   }
 }
@@ -98,85 +108,80 @@ case class DseCqlBoundStatementWithPassedParams(cqlTypes: CqlPreparedStatementUt
   */
 case class DseCqlBoundStatementWithParamList(cqlTypes: CqlPreparedStatementUtil,
                                              preparedStatement: PreparedStatement,
-                                             sessionKeys: Seq[String]) extends DseCqlStatement {
+                                             sessionKeys: Seq[String])
+                                            (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
+  extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
   /**
     * Apply the Gatling session params to the Prepared statement
     *
-    * @param gatlingSession DseSession
+    * @param gatlingSession current Gatling session
     * @return
     */
-  def buildFromSession(gatlingSession: Session): Validation[BoundStatement] = {
-    bindParams(gatlingSession, preparedStatement.bind(), sessionKeys).success
+  def buildFromSession(gatlingSession: Session): Validation[BoundStatementBuilder] = {
+    val template:BoundStatement = bindParams(gatlingSession, preparedStatement.bind(), sessionKeys)
+    builderFn(template).success
   }
 
   /**
     * Bind the Gatling session params to the CQL Prepared Statement
     *
     * @param gatlingSession Gatling Session
-    * @param boundStatement CQL Prepared Statement
+    * @param template CQL Prepared Statement
     * @param sessionKeys    List of session params to apply, put in order of query ?'s
     * @return
     */
-  protected def bindParams(gatlingSession: Session, boundStatement: BoundStatement,
+  protected def bindParams(gatlingSession: Session, template: BoundStatement,
                            sessionKeys: Seq[String]): BoundStatement = {
-
     val params = cqlTypes.getParamsList(preparedStatement)
-    var cnt = 0
-
-    sessionKeys.foreach { gatlingSessionKey =>
-      cqlTypes.bindParamByOrder(gatlingSession, boundStatement, params(cnt), gatlingSessionKey, cnt)
-      cnt += 1
-    }
-
-    boundStatement
+    val completedBuilder =
+      sessionKeys.zip(Iterable.range(0,sessionKeys.size)).foldLeft(builderFn(template)) {
+        (builder, kv) =>
+          kv match {
+            case (sessionKey, cnt) => cqlTypes.bindParamByOrder(gatlingSession, builder, params(cnt), sessionKey, cnt)
+          }
+        }
+    completedBuilder.build()
   }
-
 }
-
 
 /**
   * Bound CQL Prepared Statement from Named Params
   *
   * @param statements CQL Prepared Statements
   */
-case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil, statements: Seq[PreparedStatement])
-    extends DseCqlStatement {
+case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil,
+                                     statements: Seq[PreparedStatement])
+                                    (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
+  extends DseCqlStatement[BatchStatement, BatchStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[BatchStatement] = {
-
-    val batch = new BatchStatement()
-
-    statements.foreach(s =>
-      batch.add(bindParams(gatlingSession, s, cqlTypes.getParamsMap(s))))
-
-    batch.success
+  def buildFromSession(gatlingSession: Session): Validation[BatchStatementBuilder] = {
+    val builder:BatchStatementBuilder = BatchStatement.builder(DefaultBatchType.LOGGED)
+    val batchables = statements.map(bindParams(gatlingSession))
+    builder.addStatements(batchables:_*).success
   }
-
 
   /**
     * Bind Gatling Session Params to CQL Statement by Name and Type
     *
     * @param gatlingSession Gatling Session
     * @param statement      CQL Prepared Statement
-    * @param queryParams    CQL Query Named Params and Types
     * @return
     */
-  protected def bindParams(gatlingSession: Session, statement: PreparedStatement,
-                           queryParams: Map[String, DataType.Name]): BoundStatement = {
-
-    val boundStatement = statement.bind()
-
-    if (queryParams.nonEmpty) {
-      queryParams.foreach {
-        case (gatlingSessionKey, valType) =>
-          cqlTypes.bindParamByName(gatlingSession, boundStatement, valType, gatlingSessionKey)
+  def bindParams(gatlingSession: Session)(statement: PreparedStatement): BoundStatement = {
+    val queryParams: Map[String, DataType] = cqlTypes.getParamsMap(statement)
+    val initBuilder:BoundStatementBuilder = builderFn(statement.bind())
+    val completedBuilder =
+      queryParams.foldLeft(initBuilder) {
+        (builder, kv) =>
+          kv match {
+            case (gatlingSessionKey, valType) =>
+              cqlTypes.bindParamByName(gatlingSession, builder, valType, gatlingSessionKey)
+          }
       }
-    }
-    boundStatement
+    completedBuilder.build()
   }
 }
-
 
 /**
   * Set a custom payload on the statement
@@ -184,23 +189,22 @@ case class DseCqlBoundBatchStatement(cqlTypes: CqlPreparedStatementUtil, stateme
   * @param statement  SimpleStaten
   * @param payloadRef session variable for custom payload
   */
-case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: String) extends DseCqlStatement {
+case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: String)
+  extends DseCqlStatement[SimpleStatement, SimpleStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[Statement] = {
-
+  def buildFromSession(gatlingSession: Session): Validation[SimpleStatementBuilder] = {
     if (!gatlingSession.contains(payloadRef)) {
       throw new DseCqlStatementException(s"Passed sessionKey: {$payloadRef} does not exist in Session.")
     }
 
     Try {
       val payload = gatlingSession(payloadRef).as[Map[String, ByteBuffer]].asJava
-      statement.setOutgoingPayload(payload)
+      statement.setCustomPayload(payload)
     } match {
-      case TrySuccess(stmt) => stmt.success
+      case TrySuccess(stmt) => SimpleStatement.builder(stmt).success
       case TryFailure(error) => error.getMessage.failure
     }
   }
-
 }
 
 /**
@@ -209,13 +213,16 @@ case class DseCqlCustomPayloadStatement(statement: SimpleStatement, payloadRef: 
   *
   * @param sessionKey the session key which is associated to a PreparedStatement
   */
-case class DseCqlBoundStatementNamedFromSession(cqlTypes: CqlPreparedStatementUtil, sessionKey: String) extends DseCqlStatement {
+case class DseCqlBoundStatementNamedFromSession(cqlTypes: CqlPreparedStatementUtil,
+                                                sessionKey: String)
+                                               (implicit builderFn: (BoundStatement) => BoundStatementBuilder)
+  extends DseCqlStatement[BoundStatement, BoundStatementBuilder] {
 
-  def buildFromSession(gatlingSession: Session): Validation[BoundStatement] = {
+  def buildFromSession(gatlingSession: Session): Validation[BoundStatementBuilder] = {
     if (!gatlingSession.contains(sessionKey)) {
       throw new DseCqlStatementException(s"Passed sessionKey: {$sessionKey} does not exist in Session.")
     }
     val preparedStatement = gatlingSession(sessionKey).as[PreparedStatement]
-    DseCqlBoundStatementNamed(cqlTypes, preparedStatement).buildFromSession(gatlingSession)
+    DseCqlBoundStatementNamed(cqlTypes, preparedStatement)(builderFn).buildFromSession(gatlingSession)
   }
 }

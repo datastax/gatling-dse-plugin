@@ -6,11 +6,15 @@
 
 package com.datastax.gatling.plugin.model
 
-import com.datastax.driver.core.policies.RetryPolicy
-import com.datastax.driver.core.{ConsistencyLevel, PagingState}
-import com.datastax.gatling.plugin.checks.{DseCqlCheck, GenericCheck}
+import java.nio.ByteBuffer
+import java.time.Duration
+
+import com.datastax.oss.driver.api.core.ConsistencyLevel
+import com.datastax.oss.driver.api.core.cql.{Statement, StatementBuilder}
+import com.datastax.gatling.plugin.checks.DseCqlCheck
 import com.datastax.gatling.plugin.request.CqlRequestActionBuilder
-import io.gatling.core.action.builder.ActionBuilder
+import com.datastax.oss.driver.api.core.metadata.Node
+import com.datastax.oss.driver.api.core.metadata.token.Token
 
 
 /**
@@ -18,13 +22,13 @@ import io.gatling.core.action.builder.ActionBuilder
   *
   * @param attr Addition Attributes
   */
-case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
+case class DseCqlAttributesBuilder[T <: Statement[T], B <: StatementBuilder[B,T]](attr: DseCqlAttributes[T, B]) {
   /**
     * Builds to final action to run
     *
     * @return
     */
-  def build(): CqlRequestActionBuilder = new CqlRequestActionBuilder(attr)
+  def build(): CqlRequestActionBuilder[T, B] = new CqlRequestActionBuilder(attr)
 
   /**
     * Set Consistency Level
@@ -32,80 +36,72 @@ case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
     * @param level ConsistencyLevel
     * @return
     */
-  def withConsistencyLevel(level: ConsistencyLevel) = DseCqlAttributesBuilder(attr.copy(cl = Some(level)))
+  def withConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(cl = Some(level)))
 
   /**
-    * Execute a query as another user or another role, provided the current logged in user has PROXY.EXECUTE permission.
+    * Set custom payload
     *
-    * This permission MUST be granted to the currently logged in user using the CQL statement: `GRANT PROXY.EXECUTE ON
-    * ROLE someRole TO alice`.  The user MUST be logged in with
-    * [[com.datastax.driver.dse.auth.DsePlainTextAuthProvider]] or
-    * [[com.datastax.driver.dse.auth.DseGSSAPIAuthProvider]]
-    *
-    * @param userOrRole String
+    * @param k the key for this custom payload
+    * @param v the value for this custom payload
     * @return
     */
-  def withUserOrRole(userOrRole: String) = DseCqlAttributesBuilder(attr.copy(userOrRole = Some(userOrRole)))
-
-  /**
-    * Override the current system time for write time of query
-    *
-    * @param epochTsInMs timestamp to use
-    * @return
-    */
-  def withDefaultTimestamp(epochTsInMs: Long) = DseCqlAttributesBuilder(attr.copy(defaultTimestamp = Some(epochTsInMs)))
-
+  def addCustomPayload(k:String, v:ByteBuffer):DseCqlAttributesBuilder[T, B] = {
+    val newVal =
+      attr.customPayload
+        .orElse(Some(Map[String, ByteBuffer]()))
+        .map(m => m + (k -> v))
+    DseCqlAttributesBuilder(attr.copy(customPayload = newVal))
+  }
 
   /**
     * Set query to be idempotent i.e. run only once
     *
     * @return
     */
-  def withIdempotency() = DseCqlAttributesBuilder(attr.copy(idempotent = Some(true)))
-
-
-  /**
-    * Set Read timeout of the query
-    *
-    * @param readTimeoutInMs time in milliseconds
-    * @return
-    */
-  def withReadTimeout(readTimeoutInMs: Int) = DseCqlAttributesBuilder(attr.copy(readTimeout = Some(readTimeoutInMs)))
-
+  def withIdempotency():DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(idempotent = Some(true)))
 
   /**
-    * Set Serial Consistency
+    * Set query to be idempotent i.e. run only once
     *
-    * @param level ConsistencyLevel
     * @return
     */
-  def withSerialConsistencyLevel(level: ConsistencyLevel) = DseCqlAttributesBuilder(attr.copy(serialCl = Some(level)))
-
+  def withIdempotency(idempotency:Boolean):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(idempotent = Some(idempotency)))
 
   /**
-    * Define the [[com.datastax.driver.core.policies.RetryPolicy]] to be used for query
-    *
-    * @param retryPolicy DataStax drivers retry policy
+    * Set the node that should handle this query
+    * @param node Node
     * @return
     */
-  def withRetryPolicy(retryPolicy: RetryPolicy) = DseCqlAttributesBuilder(attr.copy(retryPolicy = Some(retryPolicy)))
+  def withNode(node: Node):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(node = Some(node)))
 
   /**
-    * Set fetchSize of query for paging
-    *
-    * @param rowCnt number of rows to fetch at one time
+    * Set the user or role to use for proxy auth
+    * @param userOrRole String
     * @return
     */
-  def withFetchSize(rowCnt: Int) = DseCqlAttributesBuilder(attr.copy(fetchSize = Some(rowCnt)))
-
+  def executeAs(userOrRole: String):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(userOrRole = Some(userOrRole)))
 
   /**
     * Enable CQL Tracing on the query
     *
     * @return
     */
-  def withTracingEnabled() = DseCqlAttributesBuilder(attr.copy(enableTrace = Some(true)))
+  def withTracingEnabled():DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(enableTrace = Some(true)))
 
+  /**
+    * Set the page size
+    *
+    * @param pageSize CQL page size
+    * @return
+    */
+  def withPageSize(pageSize: Int):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(pageSize = Some(pageSize)))
 
   /**
     * Set the paging state
@@ -113,41 +109,63 @@ case class DseCqlAttributesBuilder(attr: DseCqlAttributes) {
     * @param pagingState CQL Paging state
     * @return
     */
-  def withPagingState(pagingState: PagingState) = DseCqlAttributesBuilder(attr.copy(pagingState = Some(pagingState)))
-
-
-  /**
-    * For backwards compatibility
-    *
-    * @param level
-    * @return
-    */
-  @deprecated("Replaced by withSerialConsistencyLevel")
-  def serialConsistencyLevel(level: ConsistencyLevel) = withSerialConsistencyLevel(level)
-
+  def withPagingState(pagingState: ByteBuffer):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(pagingState = Some(pagingState)))
 
   /**
-    * Backwards compatibility to set consistencyLevel
+    * Set the query timestamp
     *
-    * @see [[DseCqlAttributesBuilder.withConsistencyLevel]]
-    * @param level Consistency Level to use
+    * @param queryTimestamp CQL query timestamp
     * @return
     */
-  @deprecated("Replaced by withConsistencyLevel")
-  def consistencyLevel(level: ConsistencyLevel) = withConsistencyLevel(level)
-
+  def withQueryTimestamp(queryTimestamp: Long):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(queryTimestamp = Some(queryTimestamp)))
 
   /**
-    * For Backwards compatibility
+    * Set the routing key
     *
-    * @see [[DseCqlAttributesBuilder.executeAs]]
-    * @param userOrRole User or role to use
+    * @param routingKey the routing key to use
     * @return
     */
-  @deprecated("Replaced by withUserOrRole")
-  def executeAs(userOrRole: String) = withUserOrRole(userOrRole: String)
+  def withRoutingKey(routingKey: ByteBuffer):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(routingKey = Some(routingKey)))
 
-  def check(check: DseCqlCheck) = DseCqlAttributesBuilder(attr.copy(cqlChecks = check :: attr.cqlChecks))
+  /**
+    * Set the routing keyspace
+    *
+    * @param routingKeyspace the routing keyspace to set
+    * @return
+    */
+  def withRoutingKeyspace(routingKeyspace: String):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(routingKeyspace = Some(routingKeyspace)))
 
-  def check(check: GenericCheck) = DseCqlAttributesBuilder(attr.copy(genericChecks = check :: attr.genericChecks))
+  /**
+    * Set the routing token
+    *
+    * @param routingToken the routing token to set
+    * @return
+    */
+  def withRoutingToken(routingToken: Token):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(routingToken = Some(routingToken)))
+
+  /**
+    * Set Serial Consistency
+    *
+    * @param level ConsistencyLevel
+    * @return
+    */
+  def withSerialConsistencyLevel(level: ConsistencyLevel):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(serialCl = Some(level)))
+
+  /**
+    * Set timeout
+    *
+    * @param timeout the timeout to set
+    * @return
+    */
+  def withTimeout(timeout: Duration):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(timeout = Some(timeout)))
+
+  def check(check: DseCqlCheck):DseCqlAttributesBuilder[T, B] =
+    DseCqlAttributesBuilder(attr.copy(cqlChecks = (attr.cqlChecks :+ check)))
 }

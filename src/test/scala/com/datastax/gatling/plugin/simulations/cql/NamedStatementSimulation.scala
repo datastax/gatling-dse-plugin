@@ -2,6 +2,7 @@ package com.datastax.gatling.plugin.simulations.cql
 
 import com.datastax.gatling.plugin.DsePredef._
 import com.datastax.gatling.plugin.base.BaseCqlSimulation
+import com.datastax.oss.driver.api.core.cql.Row
 import io.gatling.core.Predef._
 
 import scala.concurrent.duration.DurationInt
@@ -39,17 +40,20 @@ class NamedStatementSimulation extends BaseCqlSimulation {
   val selectCql = cql("NamedParam Select Statement")
       .executeNamed(preparedSelect)
 
+  private def selectCqlExtract(row:Row):String =
+    row.getString("str")
+
   val scn = scenario("NamedStatement")
       .feed(feeder)
       .exec(insertCql
-          .check(exhausted is true)
-          .check(rowCount is 0) // "normal" INSERTs don't return anything
+          .check(resultSet.transform(_.hasMorePages) is false)
+          .check(resultSet.transform(_.remaining) is 0) // "normal" INSERTs don't return anything
       )
       .pause(1.seconds)
 
       .exec(selectCql
-          .check(rowCount is 1)
-          .check(columnValue("str") is insertStr)
+          .check(resultSet.transform(_.remaining) is 1)
+          .check(resultSet.transform(rs => selectCqlExtract(rs.one)) is insertStr)
       )
 
 
