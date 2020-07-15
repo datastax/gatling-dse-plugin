@@ -45,6 +45,12 @@ assemblyMergeStrategy in assembly := {
   case x => MergeStrategy.first
 }
 
+val snapshotUrl = System.getenv("publish.snapshot.url")
+val releaseUrl = System.getenv("publish.release.url")
+val publishUrl =
+  if (isSnapshot.value) { s"$snapshotUrl;build.timestamp=" + new java.util.Date().getTime }
+  else { releaseUrl }
+
 //
 // Releases should reuse credentials from other build systems.
 //
@@ -57,11 +63,11 @@ val lookupM2Settings = {
   val settingsXml = sys.env.getOrElse("MAVEN_USER_SETTINGS_FILE", System.getProperty("user.home") + "/.m2/settings.xml")
   if (new File(settingsXml).exists()) {
     val mavenSettings = scala.xml.XML.loadFile(settingsXml)
-    val artifactory = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "artifactory" }
+    val artifactory = mavenSettings \ "servers" \ "server" filter { node => (node \ "id").text == "lab-artifactory" }
     if (artifactory.nonEmpty) {
       Seq(credentials += Credentials(
         "Artifactory Realm",
-        "datastax.jfrog.io",
+        new URI(publishUrl).getHost(),
         (artifactory \ "username").text,
         (artifactory \ "password").text))
     } else {
@@ -72,13 +78,7 @@ val lookupM2Settings = {
   }
 }
 
-publishTo := {
-  if (isSnapshot.value) {
-    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-snapshots-local;build.timestamp=" + new java.util.Date().getTime)
-  } else {
-    Some("Artifactory Realm" at "http://datastax.jfrog.io/datastax/datastax-public-releases-local")
-  }
-}
+publishTo := Some("Artifactory Realm" at publishUrl)
 
 releaseUseGlobalVersion := false
 
