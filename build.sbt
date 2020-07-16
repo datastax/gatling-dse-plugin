@@ -45,11 +45,7 @@ assemblyMergeStrategy in assembly := {
   case x => MergeStrategy.first
 }
 
-val snapshotUrl = System.getenv("publish.snapshot.url")
-val releaseUrl = System.getenv("publish.release.url")
-val publishUrl =
-  if (isSnapshot.value) { s"$snapshotUrl;build.timestamp=" + new java.util.Date().getTime }
-  else { releaseUrl }
+val publishUrl = System.getenv("publish.url")
 
 //
 // Releases should reuse credentials from other build systems.
