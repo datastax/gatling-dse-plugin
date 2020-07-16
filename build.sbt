@@ -45,7 +45,7 @@ assemblyMergeStrategy in assembly := {
   case x => MergeStrategy.first
 }
 
-val publishUrl = System.getenv("publish.url")
+val publishUrl = System.getProperty("publish.url")
 
 //
 // Releases should reuse credentials from other build systems.
