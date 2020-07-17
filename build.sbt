@@ -4,7 +4,7 @@ val gatlingVersion = "2.3.0"
 
 scalacOptions += "-target:jvm-1.8"
 
-libraryDependencies += "com.datastax.oss"             %  "java-driver-core"              % "4.5.0"
+libraryDependencies += "com.datastax.oss"             %  "java-driver-core-shaded"       % "4.5.0"
 libraryDependencies += "com.github.nscala-time"       %% "nscala-time"                   % "2.18.0"
 libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala"          % "2.9.1"
 libraryDependencies += "org.hdrhistogram"             %  "HdrHistogram"                  % "2.1.10"
@@ -45,7 +45,7 @@ assemblyMergeStrategy in assembly := {
   case x => MergeStrategy.first
 }
 
-val publishUrl = System.getProperty("publish.url")
+val publishUrl = System.getProperty("publish.url","NO PUBLISH URL DEFINED")
 
 //
 // Releases should reuse credentials from other build systems.
@@ -74,8 +74,11 @@ val lookupM2Settings = {
   }
 }
 
-publishTo := Some("Artifactory Realm" at publishUrl)
-
+publishTo := {
+  val log = streams.value.log
+  log.info(s"Publish URL: $publishUrl")
+  Some("Artifactory Realm" at publishUrl)
+}
 releaseUseGlobalVersion := false
 
 lazy val repackageGatling = taskKey[Unit]("Download Gatling highcharts, add the plugin in it and repackage it")
