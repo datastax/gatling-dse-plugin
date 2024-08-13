@@ -1,3 +1,5 @@
+:warning: **This plugin is no longer maintained.  Users should consider migrating to [nosqlbench](https://github.com/nosqlbench/nosqlbench).**
+
 # Gatling DSE Plugin
 
 This project is a plugin for the Gatling load injector.
